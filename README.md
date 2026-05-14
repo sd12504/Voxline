@@ -205,6 +205,19 @@ Current verification:
 - auval passes for the AU build
 ```
 
+## Phase 4 Status
+
+Phase 4 replaces the debug grid with the fixed `1100 x 760` VOXLINE layout from `UI.md`.
+
+Current UI state:
+
+```txt
+- Fixed Top Bar / Input / Tone / Polish / Output / Bottom Bar sections
+- Existing APVTS controls moved into fixed Figma coordinates
+- POLISH remains the central largest real control
+- Uses default JUCE controls for now; custom knob work starts in Phase 5
+```
+
 ## Documentation
 
 - `AGENT.md` — rules for the coding agent

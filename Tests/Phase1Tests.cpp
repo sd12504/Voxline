@@ -2,6 +2,7 @@
 
 #include "../Source/PluginEditor.h"
 #include "../Source/PluginProcessor.h"
+#include "../Source/UI/Layout.h"
 
 namespace
 {
@@ -56,7 +57,7 @@ class VoxlineTests final : public juce::UnitTest
 {
 public:
     VoxlineTests()
-        : juce::UnitTest("VOXLINE phases 1 to 3", "VOXLINE")
+        : juce::UnitTest("VOXLINE phases 1 to 4", "VOXLINE")
     {
     }
 
@@ -90,31 +91,55 @@ public:
             expectWithinAbsoluteError(restoredFirstParam->getValue(), 1.0f, 0.001f);
         }
 
-        beginTest("debug editor uses the Phase 2 fixed size and creates real controls");
+        beginTest("editor uses the fixed Phase 4 layout and keeps real controls");
 
         {
             VoxlineAudioProcessor processor;
             VoxlineAudioProcessorEditor editor(processor);
 
-            expectEquals(editor.getWidth(), 1100);
-            expectEquals(editor.getHeight(), 760);
+            expectEquals(editor.getWidth(), VoxlineLayout::editorWidth);
+            expectEquals(editor.getHeight(), VoxlineLayout::editorHeight);
 
             int sliderCount = 0;
             int buttonCount = 0;
+            int progressBarCount = 0;
+            bool foundPolishSlider = false;
+            bool foundListenButton = false;
+            bool foundOutputMeter = false;
 
             for (int i = 0; i < editor.getNumChildComponents(); ++i)
             {
                 const auto* child = editor.getChildComponent(i);
 
-                if (dynamic_cast<const juce::Slider*>(child) != nullptr)
+                if (const auto* slider = dynamic_cast<const juce::Slider*>(child))
+                {
                     ++sliderCount;
+                    if (slider->getBounds() == VoxlineLayout::polishSliderBounds)
+                        foundPolishSlider = true;
+                }
 
-                if (dynamic_cast<const juce::Button*>(child) != nullptr)
+                if (const auto* button = dynamic_cast<const juce::Button*>(child))
+                {
                     ++buttonCount;
+                    if (button->getBounds() == VoxlineLayout::listenUtilityBounds)
+                        foundListenButton = true;
+                }
+
+                if (const auto* progressBar = dynamic_cast<const juce::ProgressBar*>(child))
+                {
+                    ++progressBarCount;
+                    if (progressBar->getBounds() == VoxlineLayout::outMeterBounds)
+                        foundOutputMeter = true;
+                }
             }
 
             expectEquals(sliderCount, 9);
-            expectEquals(buttonCount, 3);
+            expectEquals(buttonCount, 11);
+            expectEquals(progressBarCount, 2);
+            expect(editor.getLocalBounds().contains(VoxlineLayout::mainCard));
+            expect(foundPolishSlider);
+            expect(foundListenButton);
+            expect(foundOutputMeter);
         }
 
         beginTest("Phase 3 default DSP audibly changes a vocal-like signal");

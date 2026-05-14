@@ -252,17 +252,17 @@ Replace debug layout with VOXLINE fixed layout while keeping all controls functi
 
 ## Tasks
 
-- [ ] Add `Source/UI/Layout.h`
-- [ ] Use fixed editor size `1100 x 760`
-- [ ] Add top bar
-- [ ] Add Input panel
-- [ ] Add Tone Controls panel
-- [ ] Add Polish hero panel
-- [ ] Add Output panel
-- [ ] Add Bottom Preset bar
-- [ ] Move existing working controls into fixed Figma positions
-- [ ] Keep all APVTS attachments working
-- [ ] Confirm no panel blocks mouse clicks
+- [x] Add `Source/UI/Layout.h`
+- [x] Use fixed editor size `1100 x 760`
+- [x] Add top bar
+- [x] Add Input panel
+- [x] Add Tone Controls panel
+- [x] Add Polish hero panel
+- [x] Add Output panel
+- [x] Add Bottom Preset bar
+- [x] Move existing working controls into fixed Figma positions
+- [x] Keep all APVTS attachments working
+- [x] Confirm no panel blocks mouse clicks
 
 ## Suggested Commit
 
@@ -273,11 +273,11 @@ git commit -m "ui: implement fixed VOXLINE Figma layout"
 
 ## Done When
 
-- [ ] UI uses fixed layout from `UI.md`
-- [ ] Controls still move
-- [ ] Parameter attachment still works
-- [ ] Main panels are not stretched columns
-- [ ] POLISH is visually central
+- [x] UI uses fixed layout from `UI.md`
+- [x] Controls still move
+- [x] Parameter attachment still works
+- [x] Main panels are not stretched columns
+- [x] POLISH is visually central
 
 ---
 
