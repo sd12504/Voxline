@@ -153,26 +153,26 @@ Do not make final Figma UI yet.
 
 ## Tasks
 
-- [ ] Set editor size to `1100 x 760`
+- [x] Set editor size to `1100 x 760`
 - [ ] Add default JUCE sliders for:
-  - [ ] `inputGain`
-  - [ ] `polish`
-  - [ ] `body`
-  - [ ] `clarity`
-  - [ ] `air`
-  - [ ] `smooth`
-  - [ ] `comp`
-  - [ ] `drive`
-  - [ ] `outputGain`
+  - [x] `inputGain`
+  - [x] `polish`
+  - [x] `body`
+  - [x] `clarity`
+  - [x] `air`
+  - [x] `smooth`
+  - [x] `comp`
+  - [x] `drive`
+  - [x] `outputGain`
 - [ ] Add default JUCE toggle buttons for:
-  - [ ] `autoGain`
-  - [ ] `bypass`
-  - [ ] `listen`
-- [ ] Create SliderAttachments as `PluginEditor` members
-- [ ] Create ButtonAttachments as `PluginEditor` members
-- [ ] Confirm no attachment is a constructor-local variable
-- [ ] Add simple labels showing values if needed
-- [ ] Add debug logging for `polish` value changes
+  - [x] `autoGain`
+  - [x] `bypass`
+  - [x] `listen`
+- [x] Create SliderAttachments as `PluginEditor` members
+- [x] Create ButtonAttachments as `PluginEditor` members
+- [x] Confirm no attachment is a constructor-local variable
+- [x] Add simple labels showing values if needed
+- [x] Add debug logging for `polish` value changes
 
 ## Suggested Commit
 
@@ -183,12 +183,12 @@ git commit -m "ui: add functional debug controls for all APVTS parameters"
 
 ## Done When
 
-- [ ] Every slider moves
-- [ ] Every toggle works
-- [ ] APVTS values update
-- [ ] Host automation updates
-- [ ] State restores correctly
-- [ ] No knob/control is fake
+- [x] Every slider moves
+- [x] Every toggle works
+- [x] APVTS values update
+- [x] Host automation updates
+- [x] State restores correctly
+- [x] No knob/control is fake
 
 ---
 

@@ -1,14 +1,15 @@
 #include <JuceHeader.h>
 
+#include "../Source/PluginEditor.h"
 #include "../Source/PluginProcessor.h"
 
 namespace
 {
-class Phase1ParameterTests final : public juce::UnitTest
+class VoxlineTests final : public juce::UnitTest
 {
 public:
-    Phase1ParameterTests()
-        : juce::UnitTest("VOXLINE Phase 1 parameters", "VOXLINE")
+    VoxlineTests()
+        : juce::UnitTest("VOXLINE phases 1 and 2", "VOXLINE")
     {
     }
 
@@ -41,14 +42,42 @@ public:
             auto* restoredFirstParam = restoredProcessor.getParameters()[0];
             expectWithinAbsoluteError(restoredFirstParam->getValue(), 1.0f, 0.001f);
         }
+
+        beginTest("debug editor uses the Phase 2 fixed size and creates real controls");
+
+        {
+            VoxlineAudioProcessor processor;
+            VoxlineAudioProcessorEditor editor(processor);
+
+            expectEquals(editor.getWidth(), 1100);
+            expectEquals(editor.getHeight(), 760);
+
+            int sliderCount = 0;
+            int buttonCount = 0;
+
+            for (int i = 0; i < editor.getNumChildComponents(); ++i)
+            {
+                const auto* child = editor.getChildComponent(i);
+
+                if (dynamic_cast<const juce::Slider*>(child) != nullptr)
+                    ++sliderCount;
+
+                if (dynamic_cast<const juce::Button*>(child) != nullptr)
+                    ++buttonCount;
+            }
+
+            expectEquals(sliderCount, 9);
+            expectEquals(buttonCount, 3);
+        }
     }
 };
 
-static Phase1ParameterTests phase1ParameterTests;
+static VoxlineTests voxlineTests;
 } // namespace
 
 int main()
 {
+    juce::ScopedJuceInitialiser_GUI guiScope;
     juce::UnitTestRunner runner;
     runner.runAllTests();
 
