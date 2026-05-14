@@ -214,17 +214,17 @@ Input Gain
 
 ## Tasks
 
-- [ ] Implement smoothed input gain
-- [ ] Implement smoothed output gain
-- [ ] Implement bypass behavior
-- [ ] Implement Body EQ placeholder
-- [ ] Implement Clarity EQ placeholder
-- [ ] Implement Air EQ placeholder
-- [ ] Implement Smooth placeholder
-- [ ] Implement simple one-knob compression placeholder
-- [ ] Implement tanh / soft clip Drive
-- [ ] Implement simple POLISH macro mapping
-- [ ] Add basic output protection
+- [x] Implement smoothed input gain
+- [x] Implement smoothed output gain
+- [x] Implement bypass behavior
+- [x] Implement Body EQ placeholder
+- [x] Implement Clarity EQ placeholder
+- [x] Implement Air EQ placeholder
+- [x] Implement Smooth placeholder
+- [x] Implement simple one-knob compression placeholder
+- [x] Implement tanh / soft clip Drive
+- [x] Implement simple POLISH macro mapping
+- [x] Add basic output protection
 - [ ] Test with vocal audio
 
 ## Suggested Commit
@@ -236,11 +236,11 @@ git commit -m "feat: add minimal VOXLINE vocal DSP chain"
 
 ## Done When
 
-- [ ] Audio passes cleanly
-- [ ] Each major control creates audible change
-- [ ] Bypass works
-- [ ] No loud clipping at default values
-- [ ] Parameter changes do not click badly
+- [x] Audio passes cleanly
+- [x] Each major control creates audible change
+- [x] Bypass works
+- [x] No loud clipping at default values
+- [x] Parameter changes do not click badly
 
 ---
 

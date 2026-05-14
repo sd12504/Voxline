@@ -60,5 +60,18 @@ public:
     static APVTS::ParameterLayout createParameterLayout();
 
 private:
+    void updateToneFilters();
+    float updateCompressorGain(float detector, float amount);
+    static float applySoftClip(float sample) noexcept;
+
     APVTS apvts;
+    juce::SmoothedValue<float> inputGainSmoothed;
+    juce::SmoothedValue<float> outputGainSmoothed;
+    std::array<juce::IIRFilter, 2> bodyFilters;
+    std::array<juce::IIRFilter, 2> clarityFilters;
+    std::array<juce::IIRFilter, 2> airFilters;
+    std::array<juce::IIRFilter, 2> smoothFilters;
+    juce::AudioBuffer<float> dryBuffer;
+    double currentSampleRate = 44100.0;
+    float compressorEnvelope = 1.0f;
 };

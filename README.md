@@ -180,6 +180,31 @@ Input
 → Output
 ```
 
+## Phase 3 Status
+
+Phase 3 is now wired with safe placeholder DSP:
+
+```txt
+Smoothed Input Gain
+→ Body low-shelf
+→ Clarity presence peak
+→ Air high-shelf
+→ Smooth low-pass placeholder
+→ One-knob compressor placeholder
+→ Drive saturation
+→ Auto gain trim
+→ Smoothed Output Gain
+→ Soft clip protection
+```
+
+Current verification:
+
+```txt
+- Release build passes
+- Unit tests cover parameter/state/UI plus Phase 3 DSP behavior
+- auval passes for the AU build
+```
+
 ## Documentation
 
 - `AGENT.md` — rules for the coding agent

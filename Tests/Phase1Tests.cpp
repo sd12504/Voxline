@@ -5,11 +5,58 @@
 
 namespace
 {
+void fillTestSignal(juce::AudioBuffer<float>& buffer, double sampleRate)
+{
+    for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+    {
+        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+        {
+            const auto t = static_cast<float>(sample / sampleRate);
+            const auto low = 0.22f * std::sin(juce::MathConstants<float>::twoPi * 180.0f * t);
+            const auto presence = 0.15f * std::sin(juce::MathConstants<float>::twoPi * 3200.0f * t);
+            const auto air = 0.08f * std::sin(juce::MathConstants<float>::twoPi * 10000.0f * t);
+            buffer.setSample(channel, sample, low + presence + air);
+        }
+    }
+}
+
+float averageAbsoluteDifference(const juce::AudioBuffer<float>& a, const juce::AudioBuffer<float>& b)
+{
+    jassert(a.getNumChannels() == b.getNumChannels());
+    jassert(a.getNumSamples() == b.getNumSamples());
+
+    auto total = 0.0f;
+    auto count = 0;
+
+    for (int channel = 0; channel < a.getNumChannels(); ++channel)
+    {
+        for (int sample = 0; sample < a.getNumSamples(); ++sample)
+        {
+            total += std::abs(a.getSample(channel, sample) - b.getSample(channel, sample));
+            ++count;
+        }
+    }
+
+    return count > 0 ? total / static_cast<float>(count) : 0.0f;
+}
+
+void setFloatParameter(VoxlineAudioProcessor& processor, const juce::String& parameterID, float plainValue)
+{
+    if (auto* parameter = dynamic_cast<juce::AudioParameterFloat*>(processor.getAPVTS().getParameter(parameterID)))
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(plainValue));
+}
+
+void setBoolParameter(VoxlineAudioProcessor& processor, const juce::String& parameterID, bool enabled)
+{
+    if (auto* parameter = dynamic_cast<juce::AudioParameterBool*>(processor.getAPVTS().getParameter(parameterID)))
+        parameter->setValueNotifyingHost(enabled ? 1.0f : 0.0f);
+}
+
 class VoxlineTests final : public juce::UnitTest
 {
 public:
     VoxlineTests()
-        : juce::UnitTest("VOXLINE phases 1 and 2", "VOXLINE")
+        : juce::UnitTest("VOXLINE phases 1 to 3", "VOXLINE")
     {
     }
 
@@ -68,6 +115,65 @@ public:
 
             expectEquals(sliderCount, 9);
             expectEquals(buttonCount, 3);
+        }
+
+        beginTest("Phase 3 default DSP audibly changes a vocal-like signal");
+
+        {
+            VoxlineAudioProcessor processor;
+            processor.prepareToPlay(48000.0, 512);
+
+            juce::AudioBuffer<float> buffer(2, 512);
+            fillTestSignal(buffer, 48000.0);
+            juce::AudioBuffer<float> dryBuffer;
+            dryBuffer.makeCopyOf(buffer);
+            juce::MidiBuffer midi;
+
+            processor.processBlock(buffer, midi);
+
+            expect(averageAbsoluteDifference(buffer, dryBuffer) > 0.01f);
+        }
+
+        beginTest("Phase 3 bypass returns the dry signal");
+
+        {
+            VoxlineAudioProcessor processor;
+            processor.prepareToPlay(48000.0, 512);
+            setBoolParameter(processor, VoxlineParameterIDs::bypass, true);
+
+            juce::AudioBuffer<float> buffer(2, 512);
+            fillTestSignal(buffer, 48000.0);
+            juce::AudioBuffer<float> dryBuffer;
+            dryBuffer.makeCopyOf(buffer);
+            juce::MidiBuffer midi;
+
+            processor.processBlock(buffer, midi);
+
+            expectWithinAbsoluteError(averageAbsoluteDifference(buffer, dryBuffer), 0.0f, 1.0e-6f);
+        }
+
+        beginTest("Phase 3 output protection contains extreme drive levels");
+
+        {
+            VoxlineAudioProcessor processor;
+            processor.prepareToPlay(48000.0, 512);
+            setFloatParameter(processor, VoxlineParameterIDs::inputGain, 24.0f);
+            setFloatParameter(processor, VoxlineParameterIDs::drive, 100.0f);
+            setFloatParameter(processor, VoxlineParameterIDs::outputGain, 24.0f);
+
+            juce::AudioBuffer<float> buffer(2, 512);
+            for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+                for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+                    buffer.setSample(channel, sample, 2.0f);
+
+            juce::MidiBuffer midi;
+            processor.processBlock(buffer, midi);
+
+            auto peak = 0.0f;
+            for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+                peak = juce::jmax(peak, buffer.getMagnitude(channel, 0, buffer.getNumSamples()));
+
+            expect(peak <= 1.0f);
         }
     }
 };
