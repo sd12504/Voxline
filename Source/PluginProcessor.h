@@ -2,11 +2,29 @@
 
 #include <JuceHeader.h>
 
+namespace VoxlineParameterIDs
+{
+static constexpr auto inputGain = "inputGain";
+static constexpr auto autoGain = "autoGain";
+static constexpr auto polish = "polish";
+static constexpr auto body = "body";
+static constexpr auto clarity = "clarity";
+static constexpr auto air = "air";
+static constexpr auto smooth = "smooth";
+static constexpr auto comp = "comp";
+static constexpr auto drive = "drive";
+static constexpr auto outputGain = "outputGain";
+static constexpr auto bypass = "bypass";
+static constexpr auto listen = "listen";
+} // namespace VoxlineParameterIDs
+
 class VoxlineAudioProcessor final : public juce::AudioProcessor
 {
 public:
     VoxlineAudioProcessor();
     ~VoxlineAudioProcessor() override = default;
+
+    using APVTS = juce::AudioProcessorValueTreeState;
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -35,5 +53,12 @@ public:
 
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
-};
 
+    APVTS& getAPVTS() noexcept;
+    const APVTS& getAPVTS() const noexcept;
+
+    static APVTS::ParameterLayout createParameterLayout();
+
+private:
+    APVTS apvts;
+};

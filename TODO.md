@@ -119,13 +119,13 @@ listen:     boolean, default off
 
 ## Tasks
 
-- [ ] Implement `juce::AudioProcessorValueTreeState`
-- [ ] Create centralized parameter ID definitions
-- [ ] Create parameter layout function
-- [ ] Add all required parameters
-- [ ] Add state save / restore
-- [ ] Confirm parameters appear in host automation
-- [ ] Confirm parameter values persist after closing and reopening plugin
+- [x] Implement `juce::AudioProcessorValueTreeState`
+- [x] Create centralized parameter ID definitions
+- [x] Create parameter layout function
+- [x] Add all required parameters
+- [x] Add state save / restore
+- [x] Confirm parameters appear in host automation
+- [x] Confirm parameter values persist after closing and reopening plugin
 
 ## Suggested Commit
 
@@ -136,10 +136,10 @@ git commit -m "feat: add VOXLINE APVTS parameter foundation"
 
 ## Done When
 
-- [ ] Parameters exist
-- [ ] Host automation can see parameters
-- [ ] State save / load works
-- [ ] No crash
+- [x] Parameters exist
+- [x] Host automation can see parameters
+- [x] State save / load works
+- [x] No crash
 
 ---
 

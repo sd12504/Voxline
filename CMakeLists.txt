@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.22)
 project(VOXLINE VERSION 0.1.0 LANGUAGES CXX)
 
 include(FetchContent)
+include(CTest)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -67,3 +68,43 @@ target_link_libraries(VOXLINE
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags
 )
+
+if(BUILD_TESTING)
+    juce_add_console_app(VOXLINEPhase1Tests PRODUCT_NAME "VOXLINEPhase1Tests")
+
+    target_sources(VOXLINEPhase1Tests
+        PRIVATE
+            Source/PluginEditor.cpp
+            Source/PluginEditor.h
+            Source/PluginProcessor.cpp
+            Source/PluginProcessor.h
+            Tests/Phase1Tests.cpp
+    )
+
+    juce_generate_juce_header(VOXLINEPhase1Tests)
+
+    target_compile_definitions(VOXLINEPhase1Tests
+        PRIVATE
+            JucePlugin_Build_VST=0
+            JucePlugin_Build_VST3=0
+            JucePlugin_Build_AU=0
+            JucePlugin_Build_AUv3=0
+            JucePlugin_Build_AAX=0
+            JucePlugin_Build_Standalone=0
+            JUCE_WEB_BROWSER=0
+            JUCE_USE_CURL=0
+            JUCE_VST3_CAN_REPLACE_VST2=0
+    )
+
+    target_link_libraries(VOXLINEPhase1Tests
+        PRIVATE
+            juce::juce_audio_utils
+            juce::juce_audio_processors
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_lto_flags
+            juce::juce_recommended_warning_flags
+    )
+
+    add_test(NAME VOXLINEPhase1Tests COMMAND VOXLINEPhase1Tests)
+endif()

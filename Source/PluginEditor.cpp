@@ -1,8 +1,8 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 
-VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& processor)
-    : AudioProcessorEditor(&processor), audioProcessor(processor)
+VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& audioProcessorToEdit)
+    : AudioProcessorEditor(&audioProcessorToEdit), audioProcessor(audioProcessorToEdit)
 {
     juce::ignoreUnused(audioProcessor);
 
