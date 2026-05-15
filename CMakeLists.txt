@@ -58,6 +58,8 @@ target_sources(VOXLINE
         Source/UI/Layout.h
         Source/UI/Theme.cpp
         Source/UI/Theme.h
+        Source/UI/VoxlineMeter.cpp
+        Source/UI/VoxlineMeter.h
 )
 
 juce_add_binary_data(VOXLINEAssets
@@ -113,6 +115,8 @@ if(BUILD_TESTING)
             Source/UI/Layout.h
             Source/UI/Theme.cpp
             Source/UI/Theme.h
+            Source/UI/VoxlineMeter.cpp
+            Source/UI/VoxlineMeter.h
             Tests/Phase1Tests.cpp
     )
 

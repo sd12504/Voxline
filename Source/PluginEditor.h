@@ -5,6 +5,7 @@
 #include "UI/CustomKnob.h"
 #include "UI/HeroKnob.h"
 #include "UI/Theme.h"
+#include "UI/VoxlineMeter.h"
 
 class VoxlineAudioProcessor;
 
@@ -38,11 +39,17 @@ private:
 
     void applyTheme(const VoxlineTheme& theme, int index);
     void cycleTheme();
+    void loadIconDrawables(bool dark);
+
+    void paintLedDots(juce::Graphics& g, juce::Rectangle<int> bounds);
+    void paintIcons(juce::Graphics& g);
+    void paintBoundsOverlay(juce::Graphics& g);
 
     VoxlineAudioProcessor& audioProcessor;
     std::atomic<float> pendingPolishValue { 0.0f };
 
     int currentThemeIndex { 0 };
+    bool showBoundsOverlay { false };
 
     juce::Label logoLabel;
     juce::Label subtitleLabel;
@@ -50,18 +57,13 @@ private:
     juce::TextButton settingsButton;
     juce::TextButton cleanModeButton;
 
-    juce::ImageComponent logoMark;
-    juce::ImageComponent settingsIcon;
-    juce::ImageComponent bypassIcon;
-    juce::ImageComponent listenIcon;
-
     juce::Label inputTitleLabel;
     juce::Label toneTitleLabel;
     juce::Label polishTitleLabel;
     juce::Label outputTitleLabel;
     juce::Label peakRmsLabel;
     juce::Label meterNamesLabel;
-    juce::Label inputLedDotsLabel;
+    juce::Label outputValueLabel;
 
     juce::TextButton cleanPresetButton;
     juce::TextButton warmPresetButton;
@@ -70,7 +72,7 @@ private:
     juce::TextButton abButton;
 
     VoxlineCustomKnob inputGainSlider { "Input", juce::Colour(0xffb68cf2) };
-    VoxlineHeroKnob polishSlider { "Polish", juce::Colour(0xffe48aa2) };
+    VoxlineHeroKnob polishSlider { "", juce::Colour(0xffe48aa2) };
     VoxlineCustomKnob bodySlider { "Body", juce::Colour(0xfff0b37f) };
     VoxlineCustomKnob claritySlider { "Clarity", juce::Colour(0xffee9b95) };
     VoxlineCustomKnob airSlider { "Air", juce::Colour(0xffa285f1) };
@@ -83,10 +85,14 @@ private:
     juce::ToggleButton bypassButton;
     juce::ToggleButton listenButton;
 
-    juce::ProgressBar outputMeter;
-    juce::ProgressBar gainReductionMeter;
-    double outputMeterValue = 0.82;
-    double gainReductionMeterValue = 0.36;
+    VoxlineLevelMeter outputMeter;
+    VoxlineLevelMeter gainReductionMeter;
+    float outputMeterValue = 0.82f;
+    float gainReductionMeterValue = 0.36f;
+
+    std::unique_ptr<juce::Drawable> cachedSettingsIcon;
+    std::unique_ptr<juce::Drawable> cachedBypassIcon;
+    std::unique_ptr<juce::Drawable> cachedListenIcon;
 
     std::unique_ptr<SliderAttachment> inputGainAttachment;
     std::unique_ptr<SliderAttachment> polishAttachment;

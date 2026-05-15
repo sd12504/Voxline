@@ -12,6 +12,9 @@ public:
 
     void setTheme(const VoxlineTheme& theme);
 
+    void setShowInternalLabel(bool show);
+    void setShowInternalValue(bool show);
+
 private:
     juce::Rectangle<float> getKnobBounds() const;
     float getNormalizedValue() const;
@@ -19,5 +22,7 @@ private:
     juce::String label;
     juce::Colour accent;
     bool isHero = false;
+    bool showInternalLabel = true;
+    bool showInternalValue = true;
     const VoxlineTheme* theme { nullptr };
 };

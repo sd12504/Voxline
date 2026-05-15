@@ -2,19 +2,40 @@
 #include "PluginProcessor.h"
 #include "UI/Layout.h"
 
+// ---------------------------------------------------------------------------
+// Minimal LookAndFeel — hides ToggleButton tick box frame, text only
+// ---------------------------------------------------------------------------
+struct VoxlineToggleLookAndFeel final : juce::LookAndFeel_V4
+{
+    void drawToggleButton(juce::Graphics& g, juce::ToggleButton& button,
+                          bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override
+    {
+        // Draw only text — icon is drawn separately in paintIcons.
+        // Offset text right past the icon area (24px) so they don't overlap.
+        auto textArea = button.getLocalBounds().withTrimmedLeft(24);
+        auto font = juce::FontOptions(12.0f);
+        g.setFont(font);
+        g.setColour(button.findColour(juce::ToggleButton::textColourId));
+        g.drawText(button.getButtonText(), textArea, juce::Justification::centredLeft, false);
+        juce::ignoreUnused(shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
+    }
+};
+
+static VoxlineToggleLookAndFeel voxlineToggleLNF;
+
+// ---------------------------------------------------------------------------
+// Constructor
+// ---------------------------------------------------------------------------
 VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& audioProcessorToEdit)
     : AudioProcessorEditor(&audioProcessorToEdit),
-      audioProcessor(audioProcessorToEdit),
-      outputMeter(outputMeterValue),
-      gainReductionMeter(gainReductionMeterValue)
+      audioProcessor(audioProcessorToEdit)
 {
     auto& apvts = audioProcessor.getAPVTS();
 
     configureTextLabel(logoLabel, "VOXLINE", juce::Justification::centredLeft);
     configureTextLabel(subtitleLabel, "Fast Vocal Channel", juce::Justification::centredLeft);
     configureHeaderButton(presetSelectorButton, "Preset: Warm");
-    configureButton(bypassButton, "BYPASS");
-    configureHeaderButton(settingsButton, "...");
+    configureHeaderButton(settingsButton, "");
     configureHeaderButton(cleanModeButton, "Clean");
 
     configureTextLabel(inputTitleLabel, "INPUT", juce::Justification::centred);
@@ -23,7 +44,6 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     configureTextLabel(outputTitleLabel, "OUTPUT", juce::Justification::centred);
     configureTextLabel(peakRmsLabel, "PEAK -3.4\nRMS -14.8", juce::Justification::centred);
     configureTextLabel(meterNamesLabel, "OUT   GR", juce::Justification::centred);
-    configureTextLabel(inputLedDotsLabel, "\xe2\x97\x8f \xe2\x97\x8f \xe2\x97\x8f \xe2\x97\x8b \xe2\x97\x8b \xe2\x97\x8b", juce::Justification::centred);
 
     configurePresetButton(cleanPresetButton, "Clean");
     configurePresetButton(warmPresetButton, "Warm", true);
@@ -39,20 +59,23 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     configureKnob(smoothSlider);
     configureKnob(compSlider);
     configureKnob(driveSlider);
+    // Output knob: no internal text, full 70x70 for circle
     configureKnob(outputGainSlider);
+    outputGainSlider.setShowInternalLabel(false);
+    outputGainSlider.setShowInternalValue(false);
 
+    configureTextLabel(outputValueLabel, "0.0 dB", juce::Justification::centred);
+
+    configureButton(bypassButton, " BYPASS");
+    bypassButton.setLookAndFeel(&voxlineToggleLNF);
     configureButton(autoGainButton, "Auto Gain");
-    configureButton(listenButton, "Listen");
+    configureButton(listenButton, "  Listen");
+    listenButton.setLookAndFeel(&voxlineToggleLNF);
 
-    addAndMakeVisible(logoMark);
-    addAndMakeVisible(settingsIcon);
-    addAndMakeVisible(bypassIcon);
-    addAndMakeVisible(listenIcon);
-
-    outputMeter.setPercentageDisplay(false);
-    gainReductionMeter.setPercentageDisplay(false);
     addAndMakeVisible(outputMeter);
     addAndMakeVisible(gainReductionMeter);
+    outputMeter.setLevel(outputMeterValue);
+    gainReductionMeter.setLevel(gainReductionMeterValue);
 
     inputGainAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::inputGain, inputGainSlider);
     polishAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::polish, polishSlider);
@@ -71,12 +94,12 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     apvts.addParameterListener(VoxlineParameterIDs::polish, this);
 
     setSize(VoxlineLayout::editorWidth, VoxlineLayout::editorHeight);
+    setResizable(false, false);
 
-    // Key listener for theme switching
     addKeyListener(this);
     setWantsKeyboardFocus(true);
 
-    // Apply default theme (Light)
+    loadIconDrawables(false);
     applyTheme(VoxlineTheme::light, 0);
 }
 
@@ -84,8 +107,13 @@ VoxlineAudioProcessorEditor::~VoxlineAudioProcessorEditor()
 {
     audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::polish, this);
     removeKeyListener(this);
+    bypassButton.setLookAndFeel(nullptr);
+    listenButton.setLookAndFeel(nullptr);
 }
 
+// ---------------------------------------------------------------------------
+// Paint
+// ---------------------------------------------------------------------------
 void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
 {
     const auto& t = VoxlineTheme::get(currentThemeIndex);
@@ -97,11 +125,6 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
     g.setColour(t.mainCardBg);
     g.fillRoundedRectangle(VoxlineLayout::mainCard.toFloat(), VoxlineLayout::mainCornerSize);
 
-    // Panel borders (subtle)
-    g.setColour(t.shadowLight);
-    for (const auto panel : { VoxlineLayout::inputPanel, VoxlineLayout::tonePanel, VoxlineLayout::polishPanel, VoxlineLayout::outputPanel, VoxlineLayout::presetBar })
-        g.drawRoundedRectangle(panel.toFloat(), panel == VoxlineLayout::presetBar ? VoxlineLayout::presetBarCornerSize : VoxlineLayout::panelCornerSize, 1.0f);
-
     // Panel fills
     g.setColour(t.panelBg);
     g.fillRoundedRectangle(VoxlineLayout::inputPanel.toFloat(), VoxlineLayout::panelCornerSize);
@@ -109,8 +132,29 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
     g.fillRoundedRectangle(VoxlineLayout::polishPanel.toFloat(), VoxlineLayout::panelCornerSize);
     g.fillRoundedRectangle(VoxlineLayout::outputPanel.toFloat(), VoxlineLayout::panelCornerSize);
     g.fillRoundedRectangle(VoxlineLayout::presetBar.toFloat(), VoxlineLayout::presetBarCornerSize);
+
+    // Panel borders
+    g.setColour(t.panelBorder);
+    g.drawRoundedRectangle(VoxlineLayout::inputPanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
+    g.drawRoundedRectangle(VoxlineLayout::tonePanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
+    g.drawRoundedRectangle(VoxlineLayout::polishPanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
+    g.drawRoundedRectangle(VoxlineLayout::outputPanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
+    g.drawRoundedRectangle(VoxlineLayout::presetBar.toFloat(), VoxlineLayout::presetBarCornerSize, 1.0f);
+
+    // Icons
+    paintIcons(g);
+
+    // LED dots
+    paintLedDots(g, VoxlineLayout::inputLedDotsBounds);
+
+    // Bounds overlay
+    if (showBoundsOverlay)
+        paintBoundsOverlay(g);
 }
 
+// ---------------------------------------------------------------------------
+// Layout
+// ---------------------------------------------------------------------------
 void VoxlineAudioProcessorEditor::resized()
 {
     logoLabel.setBounds(VoxlineLayout::logoBounds);
@@ -123,7 +167,6 @@ void VoxlineAudioProcessorEditor::resized()
     inputGainSlider.setBounds(VoxlineLayout::inputGainSliderBounds);
     autoGainButton.setBounds(VoxlineLayout::autoGainToggleBounds);
     cleanModeButton.setBounds(VoxlineLayout::cleanModeBounds);
-    inputLedDotsLabel.setBounds(VoxlineLayout::inputLedDotsBounds);
 
     toneTitleLabel.setBounds(VoxlineLayout::toneTitleBounds);
     bodySlider.setBounds(VoxlineLayout::bodySliderBounds);
@@ -142,6 +185,7 @@ void VoxlineAudioProcessorEditor::resized()
     gainReductionMeter.setBounds(VoxlineLayout::grMeterBounds);
     meterNamesLabel.setBounds(VoxlineLayout::meterLabelsBounds);
     outputGainSlider.setBounds(VoxlineLayout::outputGainSliderBounds);
+    outputValueLabel.setBounds(VoxlineLayout::outputValueBounds);
 
     cleanPresetButton.setBounds(VoxlineLayout::cleanPresetBounds);
     warmPresetButton.setBounds(VoxlineLayout::warmPresetBounds);
@@ -149,19 +193,15 @@ void VoxlineAudioProcessorEditor::resized()
     rapPresetButton.setBounds(VoxlineLayout::rapPresetBounds);
     abButton.setBounds(VoxlineLayout::abButtonBounds);
     listenButton.setBounds(VoxlineLayout::listenUtilityBounds);
-
-    // Asset icons
-    logoMark.setBounds(310, 62, 34, 34);
-    settingsIcon.setBounds(1013, 71, 24, 24);
-    bypassIcon.setBounds(912, 71, 24, 24);
-    listenIcon.setBounds(964, 622, 24, 24);
 }
 
+// ---------------------------------------------------------------------------
+// Parameter listener
+// ---------------------------------------------------------------------------
 void VoxlineAudioProcessorEditor::parameterChanged(const juce::String& parameterID, float newValue)
 {
     if (parameterID != VoxlineParameterIDs::polish)
         return;
-
     pendingPolishValue.store(newValue);
     triggerAsyncUpdate();
 }
@@ -172,21 +212,28 @@ void VoxlineAudioProcessorEditor::handleAsyncUpdate()
     repaint();
 }
 
+// ---------------------------------------------------------------------------
+// Keyboard
+// ---------------------------------------------------------------------------
 bool VoxlineAudioProcessorEditor::keyPressed(const juce::KeyPress& key, juce::Component*)
 {
-    if (key == 't' || key == 'T')
-    {
-        cycleTheme();
-        return true;
-    }
+    const auto k = key.getTextCharacter();
+
+    if (k == 't' || k == 'T') { cycleTheme(); return true; }
+    if (k == 'b' || k == 'B') { showBoundsOverlay = !showBoundsOverlay; repaint(); return true; }
+
     return false;
 }
 
+// ---------------------------------------------------------------------------
+// Theme
+// ---------------------------------------------------------------------------
 void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int index)
 {
     currentThemeIndex = index;
+    const auto dark = (index != 0);
 
-    // Push theme to all knobs
+    // Knobs
     inputGainSlider.setTheme(theme);
     polishSlider.setTheme(theme);
     bodySlider.setTheme(theme);
@@ -197,12 +244,13 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     driveSlider.setTheme(theme);
     outputGainSlider.setTheme(theme);
 
-    // Update label colours
-    const auto setTextColour = [&](juce::Label& label)
-    {
-        label.setColour(juce::Label::textColourId, theme.textPrimary);
-    };
-
+    // Labels — fonts sizes for output panel
+    logoLabel.setFont(juce::FontOptions(24.0f, juce::Font::bold));
+    subtitleLabel.setFont(juce::FontOptions(11.0f));
+    peakRmsLabel.setFont(juce::FontOptions(12.0f));
+    meterNamesLabel.setFont(juce::FontOptions(11.0f));
+    outputValueLabel.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    const auto setTextColour = [&](juce::Label& l) { l.setColour(juce::Label::textColourId, theme.textPrimary); };
     setTextColour(logoLabel);
     setTextColour(subtitleLabel);
     setTextColour(inputTitleLabel);
@@ -211,35 +259,57 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     setTextColour(outputTitleLabel);
     setTextColour(peakRmsLabel);
     setTextColour(meterNamesLabel);
-    setTextColour(inputLedDotsLabel);
+    setTextColour(outputValueLabel);
 
-    // Update button colours
-    presetSelectorButton.setColour(juce::TextButton::textColourOffId, theme.textPrimary);
+    // === Header ===
+    // Preset selector — dark pill, always light text
+    presetSelectorButton.setColour(juce::TextButton::buttonColourId, dark ? theme.panelBg : juce::Colour(0xff2f2c38));
+    presetSelectorButton.setColour(juce::TextButton::textColourOffId, 
+        dark ? theme.textPrimary : juce::Colour(0xffF5F0EA));
+
+    // Settings — subtle secondary, transparent or light fill
+    settingsButton.setColour(juce::TextButton::buttonColourId, 
+        dark ? juce::Colour(0x00ffffff) : juce::Colour(0xffece5de));
     settingsButton.setColour(juce::TextButton::textColourOffId, theme.textSecondary);
-    cleanModeButton.setColour(juce::TextButton::textColourOffId, theme.textPrimary);
-    cleanPresetButton.setColour(juce::TextButton::textColourOffId, theme.textSecondary);
-    warmPresetButton.setColour(juce::TextButton::textColourOffId, theme.textPrimary);
-    brightPresetButton.setColour(juce::TextButton::textColourOffId, theme.textSecondary);
-    rapPresetButton.setColour(juce::TextButton::textColourOffId, theme.textSecondary);
-    abButton.setColour(juce::TextButton::textColourOffId, theme.textSecondary);
 
-    // Toggle buttons
-    autoGainButton.setColour(juce::ToggleButton::textColourId, theme.textSecondary);
+    // Bypass text colour (checkbox hidden by LookAndFeel)
     bypassButton.setColour(juce::ToggleButton::textColourId, theme.textPrimary);
+
+    // Clean button
+    cleanModeButton.setColour(juce::TextButton::buttonColourId, theme.panelBg);
+    cleanModeButton.setColour(juce::TextButton::textColourOffId, theme.textPrimary);
+
+    // === Bottom preset bar ===
+    const auto inactiveBg = dark ? juce::Colour(0xff1e1b2a) : juce::Colour(0xfffaf7f2);
+    const auto inactiveText = theme.textPrimary;
+
+    cleanPresetButton.setColour(juce::TextButton::buttonColourId, inactiveBg);
+    cleanPresetButton.setColour(juce::TextButton::textColourOffId, inactiveText);
+
+    warmPresetButton.setColour(juce::TextButton::buttonColourId, theme.accentRose.withAlpha(dark ? 0.30f : 0.22f));
+    warmPresetButton.setColour(juce::TextButton::textColourOffId, theme.accentRose);
+
+    brightPresetButton.setColour(juce::TextButton::buttonColourId, inactiveBg);
+    brightPresetButton.setColour(juce::TextButton::textColourOffId, inactiveText);
+
+    rapPresetButton.setColour(juce::TextButton::buttonColourId, inactiveBg);
+    rapPresetButton.setColour(juce::TextButton::textColourOffId, inactiveText);
+
+    abButton.setColour(juce::TextButton::buttonColourId, inactiveBg);
+    abButton.setColour(juce::TextButton::textColourOffId, inactiveText);
+
+    // === Toggles ===
+    autoGainButton.setColour(juce::ToggleButton::textColourId, theme.textSecondary);
     listenButton.setColour(juce::ToggleButton::textColourId, theme.textSecondary);
 
-    // Meter progress bars
-    outputMeter.setColour(juce::ProgressBar::backgroundColourId, theme.panelBorder);
-    outputMeter.setColour(juce::ProgressBar::foregroundColourId, theme.meterMid);
-    gainReductionMeter.setColour(juce::ProgressBar::backgroundColourId, theme.panelBorder);
-    gainReductionMeter.setColour(juce::ProgressBar::foregroundColourId, theme.meterLow);
+    // === Meters ===
+    outputMeter.setColour(VoxlineLevelMeter::backgroundColour, theme.panelBorder);
+    outputMeter.setColour(VoxlineLevelMeter::foregroundColour, theme.meterMid);
+    gainReductionMeter.setColour(VoxlineLevelMeter::backgroundColour, theme.panelBorder);
+    gainReductionMeter.setColour(VoxlineLevelMeter::foregroundColour, theme.meterLow);
 
-    // Icons (theme-dependent)
-    const auto dark = (index != 0);
-    logoMark.setImage(VoxlineAssets::loadLogoMark(dark, 34));
-    settingsIcon.setImage(VoxlineAssets::loadSettingsIcon(dark, 24));
-    bypassIcon.setImage(VoxlineAssets::loadBypassIcon(dark, 24));
-    listenIcon.setImage(VoxlineAssets::loadListenIcon(dark, 24));
+    // === Icons ===
+    loadIconDrawables(dark);
 
     repaint();
 }
@@ -247,41 +317,122 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
 void VoxlineAudioProcessorEditor::cycleTheme()
 {
     const auto nextIndex = (currentThemeIndex + 1) % 2;
-    const auto& theme = VoxlineTheme::get(nextIndex);
-    applyTheme(theme, nextIndex);
-
-    DBG("VOXLINE theme switched to: " << (nextIndex == 0 ? "Light" : "Dark"));
+    applyTheme(VoxlineTheme::get(nextIndex), nextIndex);
+    DBG("VOXLINE theme: " << juce::String(nextIndex == 0 ? "Light" : "Dark"));
 }
 
-void VoxlineAudioProcessorEditor::configureKnob(VoxlineCustomKnob& knob)
+// ---------------------------------------------------------------------------
+// Icons
+// ---------------------------------------------------------------------------
+void VoxlineAudioProcessorEditor::loadIconDrawables(bool dark)
 {
-    addAndMakeVisible(knob);
+    const auto parse = [](const char* data, int size) -> std::unique_ptr<juce::Drawable>
+    {
+        if (!data || size <= 0) return nullptr;
+        auto xml = juce::XmlDocument::parse(juce::String::fromUTF8(data, size));
+        return xml ? juce::Drawable::createFromSVG(*xml) : nullptr;
+    };
+
+    if (dark)
+    {
+        cachedBypassIcon  = parse(BinaryData::bypass_dark_svg,  BinaryData::bypass_dark_svgSize);
+        cachedListenIcon  = parse(BinaryData::listen_dark_svg,  BinaryData::listen_dark_svgSize);
+        cachedSettingsIcon = parse(BinaryData::settings_dark_svg, BinaryData::settings_dark_svgSize);
+    }
+    else
+    {
+        cachedBypassIcon  = parse(BinaryData::bypass_light_svg,  BinaryData::bypass_light_svgSize);
+        cachedListenIcon  = parse(BinaryData::listen_light_svg,  BinaryData::listen_light_svgSize);
+        cachedSettingsIcon = parse(BinaryData::settings_light_svg, BinaryData::settings_light_svgSize);
+    }
 }
 
-void VoxlineAudioProcessorEditor::configureButton(juce::ToggleButton& button, const juce::String& text)
+void VoxlineAudioProcessorEditor::paintIcons(juce::Graphics& g)
 {
-    button.setButtonText(text);
-    addAndMakeVisible(button);
+    const auto draw = [&](juce::Drawable* d, int x, int y, int w, int h)
+    {
+        if (d)
+            d->drawWithin(g, juce::Rectangle<float>((float)x, (float)y, (float)w, (float)h),
+                          juce::RectanglePlacement::centred, 1.0f);
+    };
+
+    draw(cachedBypassIcon.get(),  910, 74, 18, 18);
+    draw(cachedSettingsIcon.get(), 1013, 71, 24, 24);
+    draw(cachedListenIcon.get(),  956, 623, 20, 20);
 }
 
-void VoxlineAudioProcessorEditor::configureHeaderButton(juce::TextButton& button, const juce::String& text)
+// ---------------------------------------------------------------------------
+// LED dots
+// ---------------------------------------------------------------------------
+void VoxlineAudioProcessorEditor::paintLedDots(juce::Graphics& g, juce::Rectangle<int> bounds)
 {
-    button.setButtonText(text);
-    addAndMakeVisible(button);
+    const auto& t = VoxlineTheme::get(currentThemeIndex);
+    const int numDots = 7;
+    const float dotR = 3.5f;
+    const float spacing = (float)bounds.getWidth() / (float)(numDots - 1);
+    const float cy = bounds.getCentreY();
+
+    for (int i = 0; i < numDots; ++i)
+    {
+        const float cx = bounds.getX() + (float)i * spacing;
+        if (i < 4) { g.setColour(t.accentLavender); g.fillEllipse(cx - dotR, cy - dotR, dotR * 2.0f, dotR * 2.0f); }
+        else       { g.setColour(t.textMuted.withAlpha(0.35f)); g.drawEllipse(cx - dotR, cy - dotR, dotR * 2.0f, dotR * 2.0f, 1.0f); }
+    }
 }
 
-void VoxlineAudioProcessorEditor::configurePresetButton(juce::TextButton& button, const juce::String& text, bool isActive)
+// ---------------------------------------------------------------------------
+// Bounds overlay (B key)
+// ---------------------------------------------------------------------------
+void VoxlineAudioProcessorEditor::paintBoundsOverlay(juce::Graphics& g)
 {
-    button.setButtonText(text);
-    button.setEnabled(false);
-    if (isActive)
-        button.setColour(juce::TextButton::buttonColourId, juce::Colour(0xfff3c4c1));
-    addAndMakeVisible(button);
+    g.setColour(juce::Colour(0x88ff4444));
+    g.drawRect(VoxlineLayout::inputPanel.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::tonePanel.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::polishPanel.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::outputPanel.toFloat(), 2.0f);
+    g.drawRect(VoxlineLayout::presetBar.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::mainCard.toFloat(), 1.0f);
+
+    g.setColour(juce::Colour(0x8844ff44));
+    g.drawRect(VoxlineLayout::logoBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::subtitleBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::presetSelectorBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::bypassButtonBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::settingsButtonBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::inputGainSliderBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::bodySliderBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::claritySliderBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::airSliderBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::smoothSliderBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::compSliderBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::driveSliderBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::polishSliderBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::outputGainSliderBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::outputValueBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::outMeterBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::grMeterBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::cleanPresetBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::warmPresetBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::brightPresetBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::rapPresetBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::abButtonBounds.toFloat(), 1.0f);
+    g.drawRect(VoxlineLayout::listenUtilityBounds.toFloat(), 1.0f);
+
+    // Tone knob center-X guides (blue)
+    g.setColour(juce::Colour(0x884488ff));
+    for (auto r : { VoxlineLayout::bodySliderBounds, VoxlineLayout::claritySliderBounds,
+                     VoxlineLayout::airSliderBounds, VoxlineLayout::smoothSliderBounds,
+                     VoxlineLayout::compSliderBounds, VoxlineLayout::driveSliderBounds })
+    {
+        g.drawVerticalLine(r.getCentreX(), (float)r.getY(), (float)r.getBottom());
+    }
 }
 
-void VoxlineAudioProcessorEditor::configureTextLabel(juce::Label& label, const juce::String& text, juce::Justification justification)
-{
-    label.setText(text, juce::dontSendNotification);
-    label.setJustificationType(justification);
-    addAndMakeVisible(label);
-}
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+void VoxlineAudioProcessorEditor::configureKnob(VoxlineCustomKnob& knob)           { addAndMakeVisible(knob); }
+void VoxlineAudioProcessorEditor::configureButton(juce::ToggleButton& b, const juce::String& t) { b.setButtonText(t); addAndMakeVisible(b); }
+void VoxlineAudioProcessorEditor::configureHeaderButton(juce::TextButton& b, const juce::String& t) { b.setButtonText(t); addAndMakeVisible(b); }
+void VoxlineAudioProcessorEditor::configurePresetButton(juce::TextButton& b, const juce::String& t, bool) { b.setButtonText(t); b.setEnabled(true); addAndMakeVisible(b); }
+void VoxlineAudioProcessorEditor::configureTextLabel(juce::Label& l, const juce::String& t, juce::Justification j) { l.setText(t, juce::dontSendNotification); l.setJustificationType(j); addAndMakeVisible(l); }

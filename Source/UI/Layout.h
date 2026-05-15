@@ -28,39 +28,34 @@ inline const juce::Rectangle<int> bypassButtonBounds { 905, 62, 86, 42 };
 inline const juce::Rectangle<int> settingsButtonBounds { 1004, 62, 42, 42 };
 
 inline const juce::Rectangle<int> inputTitleBounds { 64, 186, 150, 24 };
-inline const juce::Rectangle<int> inputGainSliderBounds { 93, 246, 92, 120 };
-inline const juce::Rectangle<int> inputGainValueBounds { 64, 366, 150, 22 };
-inline const juce::Rectangle<int> inputGainLabelBounds { 64, 388, 150, 18 };
+inline const juce::Rectangle<int> inputGainSliderBounds { 89, 241, 100, 160 };
 inline const juce::Rectangle<int> autoGainToggleBounds { 82, 425, 112, 24 };
 inline const juce::Rectangle<int> cleanModeBounds { 88, 476, 104, 38 };
 inline const juce::Rectangle<int> inputLedDotsBounds { 96, 532, 86, 16 };
 
-inline const juce::Rectangle<int> toneTitleBounds { 230, 188, 370, 26 };
-inline const juce::Rectangle<int> bodySliderBounds { 265, 246, 92, 122 };
-inline const juce::Rectangle<int> claritySliderBounds { 385, 246, 92, 122 };
-inline const juce::Rectangle<int> airSliderBounds { 505, 246, 92, 122 };
-inline const juce::Rectangle<int> smoothSliderBounds { 265, 386, 92, 122 };
-inline const juce::Rectangle<int> compSliderBounds { 385, 386, 92, 122 };
-inline const juce::Rectangle<int> driveSliderBounds { 505, 386, 92, 122 };
+inline const juce::Rectangle<int> toneTitleBounds { 230, 168, 370, 26 };
+inline const juce::Rectangle<int> bodySliderBounds { 245, 205, 100, 160 };
+inline const juce::Rectangle<int> claritySliderBounds { 365, 205, 100, 160 };
+inline const juce::Rectangle<int> airSliderBounds { 485, 205, 100, 160 };
+inline const juce::Rectangle<int> smoothSliderBounds { 245, 345, 100, 160 };
+inline const juce::Rectangle<int> compSliderBounds { 365, 345, 100, 160 };
+inline const juce::Rectangle<int> driveSliderBounds { 485, 345, 100, 160 };
 
 inline const juce::Rectangle<int> polishTitleBounds { 616, 188, 285, 26 };
-inline const juce::Rectangle<int> polishSliderBounds { 656, 220, 205, 230 };
-inline const juce::Rectangle<int> polishValueBounds { 616, 440, 285, 42 };
-inline const juce::Rectangle<int> polishLabelBounds { 616, 482, 285, 24 };
+inline const juce::Rectangle<int> polishSliderBounds { 650, 211, 217, 275 };
 
 inline const juce::Rectangle<int> outputTitleBounds { 916, 186, 130, 24 };
 inline const juce::Rectangle<int> peakRmsBounds { 936, 216, 88, 44 };
 inline const juce::Rectangle<int> outMeterBounds { 958, 270, 18, 165 };
 inline const juce::Rectangle<int> grMeterBounds { 990, 270, 18, 165 };
 inline const juce::Rectangle<int> meterLabelsBounds { 940, 446, 88, 22 };
-inline const juce::Rectangle<int> outputGainSliderBounds { 939, 470, 84, 82 };
-inline const juce::Rectangle<int> outputValueBounds { 916, 552, 130, 20 };
-inline const juce::Rectangle<int> outputLabelBounds { 916, 572, 130, 18 };
+inline const juce::Rectangle<int> outputGainSliderBounds { 946, 476, 70, 70 };
+inline const juce::Rectangle<int> outputValueBounds { 916, 535, 130, 17 };
 
 inline const juce::Rectangle<int> cleanPresetBounds { 94, 616, 104, 36 };
 inline const juce::Rectangle<int> warmPresetBounds { 230, 616, 104, 36 };
 inline const juce::Rectangle<int> brightPresetBounds { 366, 616, 104, 36 };
 inline const juce::Rectangle<int> rapPresetBounds { 502, 616, 104, 36 };
 inline const juce::Rectangle<int> abButtonBounds { 862, 616, 82, 36 };
-inline const juce::Rectangle<int> listenUtilityBounds { 958, 616, 82, 36 };
+inline const juce::Rectangle<int> listenUtilityBounds { 952, 616, 88, 36 };
 } // namespace VoxlineLayout
