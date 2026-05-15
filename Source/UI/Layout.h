@@ -21,8 +21,8 @@ inline const juce::Rectangle<int> tonePanel { 230, 160, 370, 395 };
 inline const juce::Rectangle<int> polishPanel { 616, 160, 285, 395 };
 inline const juce::Rectangle<int> outputPanel { 916, 160, 130, 395 };
 
-inline const juce::Rectangle<int> logoBounds { 64, 62, 230, 34 };
-inline const juce::Rectangle<int> subtitleBounds { 66, 96, 180, 18 };
+inline const juce::Rectangle<int> logoBounds { 102, 62, 200, 34 };
+inline const juce::Rectangle<int> subtitleBounds { 102, 96, 150, 18 };
 inline const juce::Rectangle<int> bypassButtonBounds { 905, 62, 86, 42 };
 inline const juce::Rectangle<int> settingsButtonBounds { 1004, 62, 42, 42 };
 
