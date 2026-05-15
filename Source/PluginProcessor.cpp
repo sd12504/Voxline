@@ -3,7 +3,7 @@
 
 namespace
 {
-constexpr float percentToUnit(float value) noexcept
+float percentToUnit(float value) noexcept
 {
     return juce::jlimit(0.0f, 1.0f, value * 0.01f);
 }
