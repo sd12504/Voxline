@@ -43,6 +43,12 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
 
     configureButton(autoGainButton, "Auto Gain");
     configureButton(listenButton, "Listen");
+
+    addAndMakeVisible(logoMark);
+    addAndMakeVisible(settingsIcon);
+    addAndMakeVisible(bypassIcon);
+    addAndMakeVisible(listenIcon);
+
     outputMeter.setPercentageDisplay(false);
     gainReductionMeter.setPercentageDisplay(false);
     addAndMakeVisible(outputMeter);
@@ -143,6 +149,12 @@ void VoxlineAudioProcessorEditor::resized()
     rapPresetButton.setBounds(VoxlineLayout::rapPresetBounds);
     abButton.setBounds(VoxlineLayout::abButtonBounds);
     listenButton.setBounds(VoxlineLayout::listenUtilityBounds);
+
+    // Asset icons
+    logoMark.setBounds(310, 62, 34, 34);
+    settingsIcon.setBounds(1013, 71, 24, 24);
+    bypassIcon.setBounds(912, 71, 24, 24);
+    listenIcon.setBounds(964, 622, 24, 24);
 }
 
 void VoxlineAudioProcessorEditor::parameterChanged(const juce::String& parameterID, float newValue)
@@ -221,6 +233,13 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     outputMeter.setColour(juce::ProgressBar::foregroundColourId, theme.meterMid);
     gainReductionMeter.setColour(juce::ProgressBar::backgroundColourId, theme.panelBorder);
     gainReductionMeter.setColour(juce::ProgressBar::foregroundColourId, theme.meterLow);
+
+    // Icons (theme-dependent)
+    const auto dark = (index != 0);
+    logoMark.setImage(VoxlineAssets::loadLogoMark(dark, 34));
+    settingsIcon.setImage(VoxlineAssets::loadSettingsIcon(dark, 24));
+    bypassIcon.setImage(VoxlineAssets::loadBypassIcon(dark, 24));
+    listenIcon.setImage(VoxlineAssets::loadListenIcon(dark, 24));
 
     repaint();
 }

@@ -49,6 +49,8 @@ target_sources(VOXLINE
         Source/PluginEditor.h
         Source/PluginProcessor.cpp
         Source/PluginProcessor.h
+        Source/UI/Assets.cpp
+        Source/UI/Assets.h
         Source/UI/CustomKnob.cpp
         Source/UI/CustomKnob.h
         Source/UI/HeroKnob.cpp
@@ -56,6 +58,22 @@ target_sources(VOXLINE
         Source/UI/Layout.h
         Source/UI/Theme.cpp
         Source/UI/Theme.h
+)
+
+juce_add_binary_data(VOXLINEAssets
+    SOURCES
+        Source/UI/Assets/svg/voxline_logo_mark_light.svg
+        Source/UI/Assets/svg/voxline_logo_mark_dark.svg
+        Source/UI/Assets/svg/settings_light.svg
+        Source/UI/Assets/svg/settings_dark.svg
+        Source/UI/Assets/svg/bypass_light.svg
+        Source/UI/Assets/svg/bypass_dark.svg
+        Source/UI/Assets/svg/listen_light.svg
+        Source/UI/Assets/svg/listen_dark.svg
+        Source/UI/Assets/svg/subtle_noise_texture_light.svg
+        Source/UI/Assets/svg/subtle_noise_texture_dark.svg
+        Source/UI/Assets/svg/soft_radial_glow_light.svg
+        Source/UI/Assets/svg/soft_radial_glow_dark.svg
 )
 
 juce_generate_juce_header(VOXLINE)
@@ -70,6 +88,7 @@ target_compile_definitions(VOXLINE
 target_link_libraries(VOXLINE
     PRIVATE
         juce::juce_audio_utils
+        VOXLINEAssets
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
@@ -85,6 +104,8 @@ if(BUILD_TESTING)
             Source/PluginEditor.h
             Source/PluginProcessor.cpp
             Source/PluginProcessor.h
+            Source/UI/Assets.cpp
+            Source/UI/Assets.h
             Source/UI/CustomKnob.cpp
             Source/UI/CustomKnob.h
             Source/UI/HeroKnob.cpp
@@ -114,6 +135,7 @@ if(BUILD_TESTING)
         PRIVATE
             juce::juce_audio_utils
             juce::juce_audio_processors
+            VOXLINEAssets
         PUBLIC
             juce::juce_recommended_config_flags
             juce::juce_recommended_lto_flags

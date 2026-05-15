@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "UI/Assets.h"
 #include "UI/CustomKnob.h"
 #include "UI/HeroKnob.h"
 #include "UI/Theme.h"
@@ -48,6 +49,11 @@ private:
     juce::TextButton presetSelectorButton;
     juce::TextButton settingsButton;
     juce::TextButton cleanModeButton;
+
+    juce::ImageComponent logoMark;
+    juce::ImageComponent settingsIcon;
+    juce::ImageComponent bypassIcon;
+    juce::ImageComponent listenIcon;
 
     juce::Label inputTitleLabel;
     juce::Label toneTitleLabel;
