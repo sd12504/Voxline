@@ -24,6 +24,61 @@ struct VoxlineToggleLookAndFeel final : juce::LookAndFeel_V4
 static VoxlineToggleLookAndFeel voxlineToggleLNF;
 
 // ---------------------------------------------------------------------------
+// Pill-styled ComboBox LookAndFeel for preset dropdown
+// ---------------------------------------------------------------------------
+struct VoxlinePresetDropdownLNF final : juce::LookAndFeel_V4
+{
+    void drawComboBox(juce::Graphics& g, int w, int h, bool isDown, int, int, int, int, juce::ComboBox& box) override
+    {
+        auto& t = VoxlineTheme::get(box.getProperties().getWithDefault("themeIndex", 0));
+        const auto dark = (t.editorBg.getBrightness() < 0.3f);
+
+        g.setColour(dark ? juce::Colour(0xff2f2c38) : juce::Colour(0xffece5de));
+        g.fillRoundedRectangle(0, 0, (float)w, (float)h, 8.0f);
+
+        g.setColour(isDown ? t.accentRose : t.panelBorder);
+        g.drawRoundedRectangle(0.5f, 0.5f, (float)w - 1.0f, (float)h - 1.0f, 8.0f, 1.0f);
+
+        g.setColour(t.textPrimary);
+        g.setFont(juce::FontOptions(12.0f));
+        g.drawText(box.getText(), 14, 0, w - 34, h, juce::Justification::centredLeft, false);
+
+        // ▼ chevron
+        juce::Path chevron;
+        chevron.addTriangle((float)(w - 24), (float)(h / 2 - 3), (float)(w - 18), (float)(h / 2 + 3), (float)(w - 12), (float)(h / 2 - 3));
+        g.setColour(t.textSecondary);
+        g.fillPath(chevron);
+    }
+
+    void drawPopupMenuItem(juce::Graphics& g, const juce::Rectangle<int>& area, bool isSep, bool isActive,
+                           bool isHighlighted, bool isTicked, bool hasSubMenu, const juce::String& text,
+                           const juce::String& shortcut, const juce::Drawable* icon, juce::Colour const* textColour) override
+    {
+        auto& t = VoxlineTheme::get(currentDropdownTheme);
+        const auto dark = (t.editorBg.getBrightness() < 0.3f);
+
+        g.setColour(isHighlighted ? t.accentRose.withAlpha(dark ? 0.25f : 0.15f) : (dark ? juce::Colour(0xff181622) : juce::Colour(0xffF7F0E7)));
+        g.fillAll();
+        g.setColour(isHighlighted ? t.accentRose : t.textPrimary);
+        g.setFont(juce::FontOptions(12.0f));
+        g.drawText(text, 14, 0, area.getWidth() - 28, area.getHeight(), juce::Justification::centredLeft, false);
+        juce::ignoreUnused(isSep, isActive, isTicked, hasSubMenu, shortcut, icon, textColour);
+    }
+
+    void getIdealPopupMenuItemSize(const juce::String& text, bool, int, int& width, int& height) override
+    {
+        width = juce::Font(juce::FontOptions(12.0f)).getStringWidth(text) + 28;
+        height = 30;
+    }
+
+    static int currentDropdownTheme;
+};
+
+int VoxlinePresetDropdownLNF::currentDropdownTheme = 0;
+
+static VoxlinePresetDropdownLNF voxlineDropdownLNF;
+
+// ---------------------------------------------------------------------------
 // Constructor
 // ---------------------------------------------------------------------------
 VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& audioProcessorToEdit)
@@ -34,9 +89,16 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
 
     configureTextLabel(logoLabel, "VOXLINE", juce::Justification::centredLeft);
     configureTextLabel(subtitleLabel, "Fast Vocal Channel", juce::Justification::centredLeft);
-    configureHeaderButton(presetSelectorButton, "Preset: Warm");
     configureHeaderButton(settingsButton, "");
     configureHeaderButton(cleanModeButton, "Clean");
+
+    // Preset dropdown in bottom bar
+    presetDropdown.setLookAndFeel(&voxlineDropdownLNF);
+    presetDropdown.addItemList({"Clean","Warm","Bright","Rap","Airy Pop","Soft Vocal","Podcast","Aggressive Rap"}, 1);
+    presetDropdown.setSelectedId(2, juce::dontSendNotification); // Warm
+    presetDropdown.getProperties().set("themeIndex", 0);
+    presetDropdown.addListener(this);
+    addAndMakeVisible(presetDropdown);
 
     configureTextLabel(inputTitleLabel, "INPUT", juce::Justification::centred);
     configureTextLabel(toneTitleLabel, "TONE CONTROLS", juce::Justification::centred);
@@ -115,6 +177,8 @@ VoxlineAudioProcessorEditor::~VoxlineAudioProcessorEditor()
     removeKeyListener(this);
     bypassButton.setLookAndFeel(nullptr);
     listenButton.setLookAndFeel(nullptr);
+    presetDropdown.removeListener(this);
+    presetDropdown.setLookAndFeel(nullptr);
 }
 
 // ---------------------------------------------------------------------------
@@ -161,7 +225,6 @@ void VoxlineAudioProcessorEditor::resized()
 {
     logoLabel.setBounds(VoxlineLayout::logoBounds);
     subtitleLabel.setBounds(VoxlineLayout::subtitleBounds);
-    presetSelectorButton.setBounds(VoxlineLayout::presetSelectorBounds);
     bypassButton.setBounds(VoxlineLayout::bypassButtonBounds);
     settingsButton.setBounds(VoxlineLayout::settingsButtonBounds);
 
@@ -195,6 +258,7 @@ void VoxlineAudioProcessorEditor::resized()
     rapPresetButton.setBounds(VoxlineLayout::rapPresetBounds);
     abButton.setBounds(VoxlineLayout::abButtonBounds);
     listenButton.setBounds(VoxlineLayout::listenUtilityBounds);
+    presetDropdown.setBounds(VoxlineLayout::presetDropdownBounds);
 }
 
 // ---------------------------------------------------------------------------
@@ -263,11 +327,6 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     setTextColour(outputValueLabel);
 
     // === Header ===
-    // Preset selector — dark pill, always light text
-    presetSelectorButton.setColour(juce::TextButton::buttonColourId, dark ? theme.panelBg : juce::Colour(0xff2f2c38));
-    presetSelectorButton.setColour(juce::TextButton::textColourOffId, 
-        dark ? theme.textPrimary : juce::Colour(0xffF5F0EA));
-
     // Settings — subtle secondary, transparent or light fill
     settingsButton.setColour(juce::TextButton::buttonColourId, 
         dark ? juce::Colour(0x00ffffff) : juce::Colour(0xffece5de));
@@ -299,8 +358,15 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     abButton.setColour(juce::TextButton::buttonColourId, inactiveBg);
     abButton.setColour(juce::TextButton::textColourOffId, inactiveText);
 
+    // === Preset dropdown ===
+    VoxlinePresetDropdownLNF::currentDropdownTheme = index;
+    presetDropdown.getProperties().set("themeIndex", index);
+    presetDropdown.repaint();
+
     // === Toggles ===
     autoGainButton.setColour(juce::ToggleButton::textColourId, theme.textSecondary);
+    autoGainButton.setColour(juce::ToggleButton::tickColourId, theme.accentLavender);
+    autoGainButton.setColour(juce::ToggleButton::tickDisabledColourId, theme.inactiveArc);
     listenButton.setColour(juce::ToggleButton::textColourId, theme.textSecondary);
 
     // === Meters ===
@@ -359,7 +425,7 @@ void VoxlineAudioProcessorEditor::paintIcons(juce::Graphics& g)
 
     draw(cachedBypassIcon.get(),  910, 74, 18, 18);
     draw(cachedSettingsIcon.get(), 1013, 71, 24, 24);
-    draw(cachedListenIcon.get(),  956, 623, 20, 20);
+    draw(cachedListenIcon.get(),  964, 623, 20, 20);
 }
 
 // ---------------------------------------------------------------------------
@@ -393,10 +459,25 @@ void VoxlineAudioProcessorEditor::buttonClicked(juce::Button* button)
     else if (button == &abButton)           toggleAb();
 }
 
+void VoxlineAudioProcessorEditor::comboBoxChanged(juce::ComboBox* comboBoxThatHasChanged)
+{
+    if (comboBoxThatHasChanged == &presetDropdown)
+        applyPreset(presetDropdown.getText());
+}
+
 void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
 {
     auto& apvts = audioProcessor.getAPVTS();
 
+    // Map name to dropdown ID
+    static const std::vector<juce::String> presetIds = {"Clean","Warm","Bright","Rap","Airy Pop","Soft Vocal","Podcast","Aggressive Rap"};
+    int selectedId = 2; // default Warm
+    for (int i = 0; i < (int)presetIds.size(); ++i)
+    {
+        if (presetIds[i] == name) { selectedId = i + 1; break; }
+    }
+
+    // Set DSP values only for the four main presets
     struct Preset { juce::String id; float value; };
     std::vector<Preset> values;
 
@@ -420,8 +501,8 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
             {"polish", 0.75f}, {"body", 0.55f}, {"clarity", 0.65f},
             {"air", 0.45f}, {"smooth", 0.25f}, {"comp", 0.70f}, {"drive", 0.55f}
         };
-    else
-        return;
+    // Airy Pop / Soft Vocal / Podcast / Aggressive Rap: UI only, no DSP change yet
+    // TODO: add DSP values for extended presets
 
     for (auto& p : values)
     {
@@ -429,9 +510,10 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
             param->setValueNotifyingHost(p.value);
     }
 
-    presetSelectorButton.setButtonText("Preset: " + name);
+    // Sync dropdown (don't notify again)
+    presetDropdown.setSelectedId(selectedId, juce::dontSendNotification);
 
-    // Highlight active preset button by swapping bg/text
+    // Highlight matching quick button
     auto& t = VoxlineTheme::get(currentThemeIndex);
     const auto activeBg = t.accentRose.withAlpha(t.editorBg.getBrightness() < 0.3f ? 0.30f : 0.22f);
     const auto activeText = t.accentRose;

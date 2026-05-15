@@ -13,7 +13,8 @@ class VoxlineAudioProcessorEditor final : public juce::AudioProcessorEditor,
                                           private juce::AudioProcessorValueTreeState::Listener,
                                           private juce::AsyncUpdater,
                                           private juce::KeyListener,
-                                          private juce::Button::Listener
+                                          private juce::Button::Listener,
+                                          private juce::ComboBox::Listener
 {
 public:
     explicit VoxlineAudioProcessorEditor(VoxlineAudioProcessor&);
@@ -32,6 +33,7 @@ private:
 
     bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
     void buttonClicked(juce::Button* button) override;
+    void comboBoxChanged(juce::ComboBox* comboBoxThatHasChanged) override;
 
     void applyPreset(const juce::String& name);
     void captureAbSlot(bool slotA);
@@ -58,7 +60,7 @@ private:
 
     juce::Label logoLabel;
     juce::Label subtitleLabel;
-    juce::TextButton presetSelectorButton;
+    juce::ComboBox presetDropdown;
     juce::TextButton settingsButton;
     juce::TextButton cleanModeButton;
 
@@ -92,6 +94,7 @@ private:
 
     VoxlineLevelMeter outputMeter;
     VoxlineLevelMeter gainReductionMeter;
+    // TODO: connect to real processor meter values
     float outputMeterValue = 0.82f;
     float gainReductionMeterValue = 0.36f;
 

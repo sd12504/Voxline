@@ -23,7 +23,6 @@ inline const juce::Rectangle<int> outputPanel { 916, 160, 130, 395 };
 
 inline const juce::Rectangle<int> logoBounds { 64, 62, 230, 34 };
 inline const juce::Rectangle<int> subtitleBounds { 66, 96, 180, 18 };
-inline const juce::Rectangle<int> presetSelectorBounds { 705, 62, 180, 42 };
 inline const juce::Rectangle<int> bypassButtonBounds { 905, 62, 86, 42 };
 inline const juce::Rectangle<int> settingsButtonBounds { 1004, 62, 42, 42 };
 
@@ -52,10 +51,12 @@ inline const juce::Rectangle<int> meterLabelsBounds { 940, 446, 88, 22 };
 inline const juce::Rectangle<int> outputGainSliderBounds { 946, 476, 70, 70 };
 inline const juce::Rectangle<int> outputValueBounds { 916, 535, 130, 17 };
 
-inline const juce::Rectangle<int> cleanPresetBounds { 94, 616, 104, 36 };
-inline const juce::Rectangle<int> warmPresetBounds { 230, 616, 104, 36 };
-inline const juce::Rectangle<int> brightPresetBounds { 366, 616, 104, 36 };
-inline const juce::Rectangle<int> rapPresetBounds { 502, 616, 104, 36 };
+inline const juce::Rectangle<int> presetDropdownBounds { 94, 616, 150, 36 };
+
+inline const juce::Rectangle<int> cleanPresetBounds { 270, 616, 104, 36 };
+inline const juce::Rectangle<int> warmPresetBounds { 390, 616, 104, 36 };
+inline const juce::Rectangle<int> brightPresetBounds { 510, 616, 104, 36 };
+inline const juce::Rectangle<int> rapPresetBounds { 630, 616, 104, 36 };
 inline const juce::Rectangle<int> abButtonBounds { 862, 616, 82, 36 };
-inline const juce::Rectangle<int> listenUtilityBounds { 952, 616, 88, 36 };
+inline const juce::Rectangle<int> listenUtilityBounds { 958, 616, 82, 36 };
 } // namespace VoxlineLayout
