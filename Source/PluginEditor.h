@@ -25,6 +25,14 @@ public:
     void paint(juce::Graphics& g) override;
     void resized() override;
 
+    // A/B compare
+    struct ParameterSnapshot
+    {
+        float inputGain = 0.0f, polish = 0.0f, body = 0.0f, clarity = 0.0f,
+              air = 0.0f, smooth = 0.0f, comp = 0.0f, drive = 0.0f, outputGain = 0.0f;
+        bool autoGain = true, bypass = false, listen = false;
+    };
+
     void cycleTheme();
     int currentThemeIndex { 0 };
 
@@ -42,8 +50,8 @@ private:
     void timerCallback() override;
 
     void applyPreset(const juce::String& name);
-    void captureAbSlot(bool slotA);
-    void restoreAbSlot(bool slotA);
+    void captureSnapshot(ParameterSnapshot& snap);
+    void applySnapshot(const ParameterSnapshot& snap);
     void toggleAb();
 
     void configureKnob(VoxlineCustomKnob& knob);
@@ -113,7 +121,7 @@ private:
     std::unique_ptr<ButtonAttachment> bypassAttachment;
     std::unique_ptr<ButtonAttachment> listenAttachment;
 
-    std::unordered_map<juce::String, float> abSlotA;
-    std::unordered_map<juce::String, float> abSlotB;
-    bool abActive = false; // true = currently showing B
+    // A/B compare
+    ParameterSnapshot snapshotA, snapshotB;
+    bool isSlotAActive = true;
 };

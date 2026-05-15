@@ -230,7 +230,21 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     listenAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::listen, listenButton);
 
     apvts.addParameterListener(VoxlineParameterIDs::polish, this);
+    apvts.addParameterListener(VoxlineParameterIDs::inputGain, this);
+    apvts.addParameterListener(VoxlineParameterIDs::body, this);
+    apvts.addParameterListener(VoxlineParameterIDs::clarity, this);
+    apvts.addParameterListener(VoxlineParameterIDs::air, this);
+    apvts.addParameterListener(VoxlineParameterIDs::smooth, this);
+    apvts.addParameterListener(VoxlineParameterIDs::comp, this);
+    apvts.addParameterListener(VoxlineParameterIDs::drive, this);
     apvts.addParameterListener(VoxlineParameterIDs::outputGain, this);
+    apvts.addParameterListener(VoxlineParameterIDs::autoGain, this);
+    apvts.addParameterListener(VoxlineParameterIDs::bypass, this);
+    apvts.addParameterListener(VoxlineParameterIDs::listen, this);
+
+    // Init A/B snapshots from current APVTS values
+    captureSnapshot(snapshotA);
+    snapshotB = snapshotA;
 
     setSize(VoxlineLayout::editorWidth, VoxlineLayout::editorHeight);
     setResizable(false, false);
@@ -246,7 +260,17 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
 VoxlineAudioProcessorEditor::~VoxlineAudioProcessorEditor()
 {
     audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::polish, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::inputGain, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::body, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::clarity, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::air, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::smooth, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::comp, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::drive, this);
     audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::outputGain, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::autoGain, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::bypass, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::listen, this);
     removeKeyListener(this);
     bypassButton.setLookAndFeel(nullptr);
     listenButton.setLookAndFeel(nullptr);
@@ -347,6 +371,9 @@ void VoxlineAudioProcessorEditor::parameterChanged(const juce::String& parameter
         if (param)
             outputValueLabel.setText(param->getCurrentValueAsText(), juce::dontSendNotification);
     }
+
+    // Update active A/B slot on every parameter change
+    captureSnapshot(isSlotAActive ? snapshotA : snapshotB);
 }
 
 void VoxlineAudioProcessorEditor::handleAsyncUpdate()
@@ -606,55 +633,63 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
     DBG("VOXLINE preset: " << name);
 }
 
-void VoxlineAudioProcessorEditor::captureAbSlot(bool slotA)
+void VoxlineAudioProcessorEditor::captureSnapshot(ParameterSnapshot& snap)
 {
-    auto& target = slotA ? abSlotA : abSlotB;
-    target.clear();
     auto& apvts = audioProcessor.getAPVTS();
-    for (auto& id : {"polish","body","clarity","air","smooth","comp","drive","inputGain","outputGain"})
-    {
-        if (auto* p = apvts.getParameter(id))
-            target[id] = p->getValue();
-    }
+    auto val = [&](const juce::String& id) -> float {
+        if (auto* p = apvts.getParameter(id)) return p->getValue();
+        return 0.0f;
+    };
+    snap.inputGain  = val("inputGain");
+    snap.autoGain   = val("autoGain") >= 0.5f;
+    snap.polish     = val("polish");
+    snap.body       = val("body");
+    snap.clarity    = val("clarity");
+    snap.air        = val("air");
+    snap.smooth     = val("smooth");
+    snap.comp       = val("comp");
+    snap.drive      = val("drive");
+    snap.outputGain = val("outputGain");
+    snap.bypass     = val("bypass") >= 0.5f;
+    snap.listen     = val("listen") >= 0.5f;
 }
 
-void VoxlineAudioProcessorEditor::restoreAbSlot(bool slotA)
+void VoxlineAudioProcessorEditor::applySnapshot(const ParameterSnapshot& snap)
 {
-    auto& source = slotA ? abSlotA : abSlotB;
-    if (source.empty()) return;
     auto& apvts = audioProcessor.getAPVTS();
-    for (auto& [id, value] : source)
-    {
+    auto set = [&](const juce::String& id, float v) {
         if (auto* p = apvts.getParameter(id))
-            p->setValueNotifyingHost(value);
-    }
+            p->setValueNotifyingHost(v);
+    };
+    set("inputGain",  snap.inputGain);
+    set("autoGain",   snap.autoGain ? 1.0f : 0.0f);
+    set("polish",     snap.polish);
+    set("body",       snap.body);
+    set("clarity",    snap.clarity);
+    set("air",        snap.air);
+    set("smooth",     snap.smooth);
+    set("comp",       snap.comp);
+    set("drive",      snap.drive);
+    set("outputGain", snap.outputGain);
+    set("bypass",     snap.bypass ? 1.0f : 0.0f);
+    set("listen",     snap.listen ? 1.0f : 0.0f);
 }
 
 void VoxlineAudioProcessorEditor::toggleAb()
 {
-    if (!abActive)
-    {
-        // First press: save current state to A, we're now active
-        captureAbSlot(true);
-        abActive = true;
-        abButton.setButtonText("B");
-    }
-    else
-    {
-        // Toggle between A and B
-        if (abButton.getButtonText() == "B")
-        {
-            captureAbSlot(false);  // save current (which is A) to B before switching
-            restoreAbSlot(false);  // restore B
-            abButton.setButtonText("A");
-        }
-        else
-        {
-            captureAbSlot(true);   // save current (which is B) to A before switching
-            restoreAbSlot(true);   // restore A
-            abButton.setButtonText("B");
-        }
-    }
+    // Save current state to active slot, then switch
+    captureSnapshot(isSlotAActive ? snapshotA : snapshotB);
+    isSlotAActive = !isSlotAActive;
+    applySnapshot(isSlotAActive ? snapshotA : snapshotB);
+
+    // Update button visual
+    auto& t = VoxlineTheme::get(currentThemeIndex);
+    abButton.setButtonText(isSlotAActive ? "A" : "B");
+    const auto activeBg = t.accentRose.withAlpha(0.22f);
+    abButton.setColour(juce::TextButton::buttonColourId,
+                       isSlotAActive ? activeBg : (t.editorBg.getBrightness() < 0.3f ? juce::Colour(0xff1e1b2a) : juce::Colour(0xfffaf7f2)));
+    abButton.setColour(juce::TextButton::textColourOffId,
+                       isSlotAActive ? t.accentRose : t.textPrimary);
 }
 
 // ---------------------------------------------------------------------------
