@@ -1,0 +1,53 @@
+name: Build VOXLINE
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -A x64
+
+      - name: Build Release
+        run: cmake --build build --config Release
+
+      - name: Create Installer (NSIS)
+        shell: pwsh
+        run: |
+          choco install nsis -y
+          makensis installer/windows/installer.nsi
+
+      - name: Upload Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: VOXLINE-Windows-Setup
+          path: VOXLINE_Setup.exe
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -G Xcode
+
+      - name: Build Release
+        run: cmake --build build --config Release
+
+      - name: Package DMG
+        run: |
+          mkdir -p dmg_root
+          cp -R build/VOXLINE_artefacts/Release/VST3/VOXLINE.vst3 dmg_root/
+          cp -R build/VOXLINE_artefacts/Release/AU/VOXLINE.component dmg_root/
+          hdiutil create -volname "VOXLINE" -srcfolder dmg_root -ov -format UDZO VOXLINE_macOS.dmg
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: VOXLINE-macOS-DMG
+          path: VOXLINE_macOS.dmg
