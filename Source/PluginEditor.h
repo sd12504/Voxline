@@ -97,8 +97,6 @@ private:
     std::unique_ptr<juce::Drawable> cachedSettingsIcon;
     std::unique_ptr<juce::Drawable> cachedBypassIcon;
     std::unique_ptr<juce::Drawable> cachedListenIcon;
-    std::unique_ptr<juce::Drawable> cachedSunIcon;
-    std::unique_ptr<juce::Drawable> cachedMoonIcon;
 
     std::unique_ptr<SliderAttachment> inputGainAttachment;
     std::unique_ptr<SliderAttachment> polishAttachment;

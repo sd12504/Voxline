@@ -389,16 +389,12 @@ void VoxlineAudioProcessorEditor::loadIconDrawables(bool dark)
         cachedBypassIcon  = parse(BinaryData::bypass_dark_svg,  BinaryData::bypass_dark_svgSize);
         cachedListenIcon  = parse(BinaryData::listen_dark_svg,  BinaryData::listen_dark_svgSize);
         cachedSettingsIcon = parse(BinaryData::settings_dark_svg, BinaryData::settings_dark_svgSize);
-        cachedSunIcon     = parse(BinaryData::sun_svg,          BinaryData::sun_svgSize);
-        cachedMoonIcon.reset();
     }
     else
     {
         cachedBypassIcon  = parse(BinaryData::bypass_light_svg,  BinaryData::bypass_light_svgSize);
         cachedListenIcon  = parse(BinaryData::listen_light_svg,  BinaryData::listen_light_svgSize);
         cachedSettingsIcon = parse(BinaryData::settings_light_svg, BinaryData::settings_light_svgSize);
-        cachedMoonIcon    = parse(BinaryData::moon_svg,         BinaryData::moon_svgSize);
-        cachedSunIcon.reset();
     }
 }
 
@@ -412,11 +408,42 @@ void VoxlineAudioProcessorEditor::paintIcons(juce::Graphics& g)
     };
 
     draw(cachedBypassIcon.get(),  910, 74, 18, 18);
-    // Theme toggle: sun (dark theme) or moon (light theme)
-    if (cachedSunIcon)
-        draw(cachedSunIcon.get(), 1013, 71, 24, 24);
-    else if (cachedMoonIcon)
-        draw(cachedMoonIcon.get(), 1013, 71, 24, 24);
+
+    // Theme toggle — drawn with Path, no SVG issues
+    {
+        const auto& t = VoxlineTheme::get(currentThemeIndex);
+        const auto dark = (currentThemeIndex != 0);
+        const float cx = 1025.5f, cy = 83.5f, r = 9.0f;
+
+        juce::Path icon;
+        if (dark)
+        {
+            // Sun: circle + rays
+            icon.addEllipse(cx - r, cy - r, r * 2.0f, r * 2.0f);
+            const float rayLen = 4.0f;
+            for (int i = 0; i < 8; ++i)
+            {
+                auto a = juce::MathConstants<float>::twoPi * (float)i / 8.0f;
+                const auto sa = std::sin(a), ca = std::cos(a);
+                icon.addLineSegment({cx + (r + 2.0f) * ca, cy + (r + 2.0f) * sa,
+                                     cx + (r + 2.0f + rayLen) * ca, cy + (r + 2.0f + rayLen) * sa}, 2.0f);
+            }
+            g.setColour(t.textPrimary);
+        }
+        else
+        {
+            // Crescent moon
+            juce::Path outer, inner;
+            outer.addEllipse(cx - r, cy - r, r * 2.0f, r * 2.0f);
+            inner.addEllipse(cx - r + 4.0f, cy - r - 1.0f, r * 2.0f, r * 2.0f);
+            icon = outer;
+            icon.addPath(inner);
+            icon.setUsingNonZeroWinding(false);
+            g.setColour(t.textPrimary);
+        }
+        g.strokePath(icon, juce::PathStrokeType(1.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    }
+
     draw(cachedListenIcon.get(),  964, 623, 20, 20);
 }
 
