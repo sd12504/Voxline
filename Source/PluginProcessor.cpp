@@ -42,6 +42,8 @@ void VoxlineAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
 
     inputGainSmoothed.reset(currentSampleRate, 0.02);
     outputGainSmoothed.reset(currentSampleRate, 0.02);
+    bypassSmoothed.reset(currentSampleRate, 0.005);
+    bypassSmoothed.setCurrentAndTargetValue(0.0f);
     inputGainSmoothed.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(
         apvts.getRawParameterValue(VoxlineParameterIDs::inputGain)->load()));
     outputGainSmoothed.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(
@@ -135,7 +137,7 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
 
     if (apvts.getRawParameterValue(VoxlineParameterIDs::bypass)->load() >= 0.5f)
     {
-        // Output = input when bypassed
+        bypassSmoothed.setTargetValue(1.0f);
         auto prevOutPeak = outputPeak.load();
         auto prevOutRms = outputRms.load();
         auto opCoeff = targetInPeak > prevOutPeak ? meterAttack : meterRelease;
@@ -143,7 +145,10 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
         outputPeak.store(prevOutPeak + opCoeff * (targetInPeak - prevOutPeak));
         outputRms.store(prevOutRms + orCoeff * (targetInRms - prevOutRms));
         gainReduction.store(0.0f);
-        return;
+    }
+    else
+    {
+        bypassSmoothed.setTargetValue(0.0f);
     }
 
     const auto polishAmount = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::polish)->load());
@@ -197,6 +202,10 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
 
             if (listenEnabled)
                 sample = applySoftClip((sample - drySample) * 2.0f);
+
+            // Bypass crossfade: 0.0=processed, 1.0=dry
+            const auto bypassMix = bypassSmoothed.getNextValue();
+            sample = sample + bypassMix * (drySample - sample);
 
             buffer.setSample(channel, sampleIndex, sample);
         }

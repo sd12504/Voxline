@@ -74,6 +74,7 @@ private:
     APVTS apvts;
     juce::SmoothedValue<float> inputGainSmoothed;
     juce::SmoothedValue<float> outputGainSmoothed;
+    juce::SmoothedValue<float> bypassSmoothed;
     std::array<juce::IIRFilter, 2> bodyFilters;
     std::array<juce::IIRFilter, 2> clarityFilters;
     std::array<juce::IIRFilter, 2> airFilters;
