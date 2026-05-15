@@ -37,11 +37,18 @@ jobs:
       - name: Build Release
         run: cmake --build build --config Release
 
+      - name: Build PKG
+        run: |
+          mkdir -p pkg_root/VST3 pkg_root/Components
+          cp -R build/VOXLINE_artefacts/Release/VST3/VOXLINE.vst3 pkg_root/VST3/
+          cp -R build/VOXLINE_artefacts/Release/AU/VOXLINE.component pkg_root/Components/
+          pkgbuild --root pkg_root --install-location "/Library/Audio/Plug-Ins" \
+            --identifier com.onetake.voxline --version 1.0.0 VOXLINE.pkg
+
       - name: Package DMG
         run: |
           mkdir -p dmg_root
-          cp -R build/VOXLINE_artefacts/Release/VST3/VOXLINE.vst3 dmg_root/
-          cp -R build/VOXLINE_artefacts/Release/AU/VOXLINE.component dmg_root/
+          cp VOXLINE.pkg dmg_root/
           hdiutil create -volname "VOXLINE" -srcfolder dmg_root -ov -format UDZO VOXLINE_macOS.dmg
 
       - name: Upload DMG
