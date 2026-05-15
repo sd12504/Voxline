@@ -147,8 +147,8 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     // Preset dropdown in bottom bar
     presetDropdown.setLookAndFeel(&voxlineDropdownLNF);
     presetDropdown.setColour(juce::ComboBox::textColourId, juce::Colours::transparentBlack);
-    presetDropdown.addItemList({"Clean","Warm","Bright","Rap","Airy Pop","Soft Vocal","Podcast","Aggressive Rap"}, 1);
-    presetDropdown.setSelectedId(2, juce::dontSendNotification); // Warm
+    presetDropdown.addItemList({"Clean","Westwood","2Hollis","Yeat","Ken Carson","Bladee","Travis Scott","The Weeknd","Billie Eilish"}, 1);
+    presetDropdown.setSelectedId(1, juce::dontSendNotification); // Clean
     presetDropdown.getProperties().set("themeIndex", 0);
     presetDropdown.addListener(this);
     addAndMakeVisible(presetDropdown);
@@ -531,68 +531,49 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
     auto& apvts = audioProcessor.getAPVTS();
 
     // Map name to dropdown ID
-    static const std::vector<juce::String> presetIds = {"Clean","Warm","Bright","Rap","Airy Pop","Soft Vocal","Podcast","Aggressive Rap"};
-    int selectedId = 2; // default Warm
+    static const std::vector<juce::String> presetIds = {"Clean","Westwood","2Hollis","Yeat","Ken Carson","Bladee","Travis Scott","The Weeknd","Billie Eilish"};
+
+    // Find preset index
+    int idx = -1;
     for (int i = 0; i < (int)presetIds.size(); ++i)
     {
-        if (presetIds[i] == name) { selectedId = i + 1; break; }
+        if (presetIds[i] == name) { idx = i; break; }
     }
+    if (idx < 0) return;
 
-    // Set DSP values only for the four main presets
-    struct Preset { juce::String id; float value; };
-    std::vector<Preset> values;
+    // Preset table: { inGain, autoGain, polish, body, clarity, air, smooth, comp, drive, outGain }
+    struct PresetDef { float in; bool ag; float pol, bd, cl, ar, sm, cp, dr, out; };
+    static const PresetDef presets[] = {
+        {  0.0f, true, 35, 45, 45, 35, 30, 25,  5,  0.0f }, // Clean
+        { -1.0f, true, 76, 66, 74, 52, 30, 68, 32, -1.5f }, // Westwood
+        { -1.5f, true, 84, 38, 82, 86, 42, 72, 28, -2.0f }, // 2Hollis
+        { -1.5f, true, 80, 68, 64, 42, 34, 76, 42, -2.0f }, // Yeat
+        { -2.0f, true, 82, 46, 84, 68, 30, 78, 44, -2.5f }, // Ken Carson
+        { -1.0f, true, 70, 34, 66, 78, 62, 52, 12, -1.5f }, // Bladee
+        { -1.0f, true, 74, 62, 62, 56, 48, 64, 22, -1.5f }, // Travis Scott
+        { -1.0f, true, 78, 52, 68, 76, 60, 58, 10, -1.5f }, // The Weeknd
+        {  0.0f, true, 58, 42, 48, 38, 72, 42,  4, -0.5f }, // Billie Eilish
+    };
+    auto& p = presets[idx];
 
-    if (name == "Clean")
-        values = {
-            {"polish", 0.40f}, {"body", 0.40f}, {"clarity", 0.45f},
-            {"air", 0.35f}, {"smooth", 0.20f}, {"comp", 0.20f}, {"drive", 0.05f}
-        };
-    else if (name == "Warm")
-        values = {
-            {"polish", 0.65f}, {"body", 0.70f}, {"clarity", 0.50f},
-            {"air", 0.40f}, {"smooth", 0.30f}, {"comp", 0.40f}, {"drive", 0.35f}
-        };
-    else if (name == "Bright")
-        values = {
-            {"polish", 0.60f}, {"body", 0.45f}, {"clarity", 0.75f},
-            {"air", 0.70f}, {"smooth", 0.50f}, {"comp", 0.35f}, {"drive", 0.15f}
-        };
-    else if (name == "Rap")
-        values = {
-            {"polish", 0.75f}, {"body", 0.55f}, {"clarity", 0.65f},
-            {"air", 0.45f}, {"smooth", 0.25f}, {"comp", 0.70f}, {"drive", 0.55f}
-        };
-    else if (name == "Airy Pop")
-        values = {
-            {"polish", 0.55f}, {"body", 0.30f}, {"clarity", 0.60f},
-            {"air", 0.80f}, {"smooth", 0.45f}, {"comp", 0.25f}, {"drive", 0.08f}
-        };
-    else if (name == "Soft Vocal")
-        values = {
-            {"polish", 0.50f}, {"body", 0.55f}, {"clarity", 0.35f},
-            {"air", 0.25f}, {"smooth", 0.55f}, {"comp", 0.45f}, {"drive", 0.12f}
-        };
-    else if (name == "Podcast")
-        values = {
-            {"polish", 0.60f}, {"body", 0.65f}, {"clarity", 0.55f},
-            {"air", 0.15f}, {"smooth", 0.60f}, {"comp", 0.60f}, {"drive", 0.05f}
-        };
-    else if (name == "Aggressive Rap")
-        values = {
-            {"polish", 0.85f}, {"body", 0.60f}, {"clarity", 0.70f},
-            {"air", 0.50f}, {"smooth", 0.20f}, {"comp", 0.85f}, {"drive", 0.70f}
-        };
-    else
-        return;
+    auto setParam = [&](const juce::String& id, float value) {
+        if (auto* param = apvts.getParameter(id))
+            param->setValueNotifyingHost(value);
+    };
 
-    for (auto& p : values)
-    {
-        if (auto* param = apvts.getParameter(p.id))
-            param->setValueNotifyingHost(p.value);
-    }
+    setParam("inputGain",  p.in);
+    setParam("autoGain",   p.ag ? 1.0f : 0.0f);
+    setParam("polish",     p.pol / 100.0f);
+    setParam("body",       p.bd  / 100.0f);
+    setParam("clarity",    p.cl  / 100.0f);
+    setParam("air",        p.ar  / 100.0f);
+    setParam("smooth",     p.sm  / 100.0f);
+    setParam("comp",       p.cp  / 100.0f);
+    setParam("drive",      p.dr  / 100.0f);
+    setParam("outputGain", p.out);
 
-    // Sync dropdown (don't notify again)
-    presetDropdown.setSelectedId(selectedId, juce::dontSendNotification);
+    // Sync dropdown
+    presetDropdown.setSelectedId(idx + 1, juce::dontSendNotification);
 
     DBG("VOXLINE preset: " << name);
 }
