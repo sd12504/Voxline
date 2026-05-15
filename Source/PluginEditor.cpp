@@ -51,6 +51,12 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     configurePresetButton(rapPresetButton, "Rap");
     configurePresetButton(abButton, "A/B");
 
+    cleanPresetButton.addListener(this);
+    warmPresetButton.addListener(this);
+    brightPresetButton.addListener(this);
+    rapPresetButton.addListener(this);
+    abButton.addListener(this);
+
     configureKnob(inputGainSlider);
     configureKnob(polishSlider);
     configureKnob(bodySlider);
@@ -146,10 +152,6 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
 
     // LED dots
     paintLedDots(g, VoxlineLayout::inputLedDotsBounds);
-
-    // Bounds overlay
-    if (showBoundsOverlay)
-        paintBoundsOverlay(g);
 }
 
 // ---------------------------------------------------------------------------
@@ -220,7 +222,6 @@ bool VoxlineAudioProcessorEditor::keyPressed(const juce::KeyPress& key, juce::Co
     const auto k = key.getTextCharacter();
 
     if (k == 't' || k == 'T') { cycleTheme(); return true; }
-    if (k == 'b' || k == 'B') { showBoundsOverlay = !showBoundsOverlay; repaint(); return true; }
 
     return false;
 }
@@ -381,50 +382,124 @@ void VoxlineAudioProcessorEditor::paintLedDots(juce::Graphics& g, juce::Rectangl
 }
 
 // ---------------------------------------------------------------------------
-// Bounds overlay (B key)
+// Preset system
 // ---------------------------------------------------------------------------
-void VoxlineAudioProcessorEditor::paintBoundsOverlay(juce::Graphics& g)
+void VoxlineAudioProcessorEditor::buttonClicked(juce::Button* button)
 {
-    g.setColour(juce::Colour(0x88ff4444));
-    g.drawRect(VoxlineLayout::inputPanel.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::tonePanel.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::polishPanel.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::outputPanel.toFloat(), 2.0f);
-    g.drawRect(VoxlineLayout::presetBar.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::mainCard.toFloat(), 1.0f);
+    if (button == &cleanPresetButton)       applyPreset("Clean");
+    else if (button == &warmPresetButton)   applyPreset("Warm");
+    else if (button == &brightPresetButton) applyPreset("Bright");
+    else if (button == &rapPresetButton)    applyPreset("Rap");
+    else if (button == &abButton)           toggleAb();
+}
 
-    g.setColour(juce::Colour(0x8844ff44));
-    g.drawRect(VoxlineLayout::logoBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::subtitleBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::presetSelectorBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::bypassButtonBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::settingsButtonBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::inputGainSliderBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::bodySliderBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::claritySliderBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::airSliderBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::smoothSliderBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::compSliderBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::driveSliderBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::polishSliderBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::outputGainSliderBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::outputValueBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::outMeterBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::grMeterBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::cleanPresetBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::warmPresetBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::brightPresetBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::rapPresetBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::abButtonBounds.toFloat(), 1.0f);
-    g.drawRect(VoxlineLayout::listenUtilityBounds.toFloat(), 1.0f);
+void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
+{
+    auto& apvts = audioProcessor.getAPVTS();
 
-    // Tone knob center-X guides (blue)
-    g.setColour(juce::Colour(0x884488ff));
-    for (auto r : { VoxlineLayout::bodySliderBounds, VoxlineLayout::claritySliderBounds,
-                     VoxlineLayout::airSliderBounds, VoxlineLayout::smoothSliderBounds,
-                     VoxlineLayout::compSliderBounds, VoxlineLayout::driveSliderBounds })
+    struct Preset { juce::String id; float value; };
+    std::vector<Preset> values;
+
+    if (name == "Clean")
+        values = {
+            {"polish", 0.40f}, {"body", 0.40f}, {"clarity", 0.45f},
+            {"air", 0.35f}, {"smooth", 0.20f}, {"comp", 0.20f}, {"drive", 0.05f}
+        };
+    else if (name == "Warm")
+        values = {
+            {"polish", 0.65f}, {"body", 0.70f}, {"clarity", 0.50f},
+            {"air", 0.40f}, {"smooth", 0.30f}, {"comp", 0.40f}, {"drive", 0.35f}
+        };
+    else if (name == "Bright")
+        values = {
+            {"polish", 0.60f}, {"body", 0.45f}, {"clarity", 0.75f},
+            {"air", 0.70f}, {"smooth", 0.50f}, {"comp", 0.35f}, {"drive", 0.15f}
+        };
+    else if (name == "Rap")
+        values = {
+            {"polish", 0.75f}, {"body", 0.55f}, {"clarity", 0.65f},
+            {"air", 0.45f}, {"smooth", 0.25f}, {"comp", 0.70f}, {"drive", 0.55f}
+        };
+    else
+        return;
+
+    for (auto& p : values)
     {
-        g.drawVerticalLine(r.getCentreX(), (float)r.getY(), (float)r.getBottom());
+        if (auto* param = apvts.getParameter(p.id))
+            param->setValueNotifyingHost(p.value);
+    }
+
+    presetSelectorButton.setButtonText("Preset: " + name);
+
+    // Highlight active preset button by swapping bg/text
+    auto& t = VoxlineTheme::get(currentThemeIndex);
+    const auto activeBg = t.accentRose.withAlpha(t.editorBg.getBrightness() < 0.3f ? 0.30f : 0.22f);
+    const auto activeText = t.accentRose;
+    const auto inactiveBg = (t.editorBg.getBrightness() < 0.3f) ? juce::Colour(0xff1e1b2a) : juce::Colour(0xfffaf7f2);
+    const auto inactiveText = t.textPrimary;
+
+    auto styleBtn = [&](juce::TextButton& btn, bool active)
+    {
+        btn.setColour(juce::TextButton::buttonColourId, active ? activeBg : inactiveBg);
+        btn.setColour(juce::TextButton::textColourOffId, active ? activeText : inactiveText);
+    };
+
+    styleBtn(cleanPresetButton, name == "Clean");
+    styleBtn(warmPresetButton, name == "Warm");
+    styleBtn(brightPresetButton, name == "Bright");
+    styleBtn(rapPresetButton, name == "Rap");
+
+    DBG("VOXLINE preset: " << name);
+}
+
+void VoxlineAudioProcessorEditor::captureAbSlot(bool slotA)
+{
+    auto& target = slotA ? abSlotA : abSlotB;
+    target.clear();
+    auto& apvts = audioProcessor.getAPVTS();
+    for (auto& id : {"polish","body","clarity","air","smooth","comp","drive","inputGain","outputGain"})
+    {
+        if (auto* p = apvts.getParameter(id))
+            target[id] = p->getValue();
+    }
+}
+
+void VoxlineAudioProcessorEditor::restoreAbSlot(bool slotA)
+{
+    auto& source = slotA ? abSlotA : abSlotB;
+    if (source.empty()) return;
+    auto& apvts = audioProcessor.getAPVTS();
+    for (auto& [id, value] : source)
+    {
+        if (auto* p = apvts.getParameter(id))
+            p->setValueNotifyingHost(value);
+    }
+}
+
+void VoxlineAudioProcessorEditor::toggleAb()
+{
+    if (!abActive)
+    {
+        // First press: save current state to A, we're now active
+        captureAbSlot(true);
+        abActive = true;
+        abButton.setButtonText("B");
+    }
+    else
+    {
+        // Toggle between A and B
+        if (abButton.getButtonText() == "B")
+        {
+            captureAbSlot(false);  // save current (which is A) to B before switching
+            restoreAbSlot(false);  // restore B
+            abButton.setButtonText("A");
+        }
+        else
+        {
+            captureAbSlot(true);   // save current (which is B) to A before switching
+            restoreAbSlot(true);   // restore A
+            abButton.setButtonText("B");
+        }
     }
 }
 

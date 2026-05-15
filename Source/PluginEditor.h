@@ -12,7 +12,8 @@ class VoxlineAudioProcessor;
 class VoxlineAudioProcessorEditor final : public juce::AudioProcessorEditor,
                                           private juce::AudioProcessorValueTreeState::Listener,
                                           private juce::AsyncUpdater,
-                                          private juce::KeyListener
+                                          private juce::KeyListener,
+                                          private juce::Button::Listener
 {
 public:
     explicit VoxlineAudioProcessorEditor(VoxlineAudioProcessor&);
@@ -30,6 +31,12 @@ private:
     void handleAsyncUpdate() override;
 
     bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
+    void buttonClicked(juce::Button* button) override;
+
+    void applyPreset(const juce::String& name);
+    void captureAbSlot(bool slotA);
+    void restoreAbSlot(bool slotA);
+    void toggleAb();
 
     void configureKnob(VoxlineCustomKnob& knob);
     void configureButton(juce::ToggleButton& button, const juce::String& text);
@@ -43,13 +50,11 @@ private:
 
     void paintLedDots(juce::Graphics& g, juce::Rectangle<int> bounds);
     void paintIcons(juce::Graphics& g);
-    void paintBoundsOverlay(juce::Graphics& g);
 
     VoxlineAudioProcessor& audioProcessor;
     std::atomic<float> pendingPolishValue { 0.0f };
 
     int currentThemeIndex { 0 };
-    bool showBoundsOverlay { false };
 
     juce::Label logoLabel;
     juce::Label subtitleLabel;
@@ -107,4 +112,8 @@ private:
     std::unique_ptr<ButtonAttachment> autoGainAttachment;
     std::unique_ptr<ButtonAttachment> bypassAttachment;
     std::unique_ptr<ButtonAttachment> listenAttachment;
+
+    std::unordered_map<juce::String, float> abSlotA;
+    std::unordered_map<juce::String, float> abSlotB;
+    bool abActive = false; // true = currently showing B
 };
