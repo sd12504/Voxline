@@ -51,7 +51,7 @@ inline const juce::Rectangle<int> meterLabelsBounds { 940, 446, 88, 22 };
 inline const juce::Rectangle<int> outputGainSliderBounds { 946, 476, 70, 70 };
 inline const juce::Rectangle<int> outputValueBounds { 916, 535, 130, 17 };
 
-inline const juce::Rectangle<int> presetDropdownBounds { 94, 616, 180, 36 };
+inline const juce::Rectangle<int> presetDropdownBounds { 94, 616, 200, 36 };
 
 inline const juce::Rectangle<int> abButtonBounds { 862, 616, 82, 36 };
 inline const juce::Rectangle<int> listenUtilityBounds { 958, 616, 82, 36 };

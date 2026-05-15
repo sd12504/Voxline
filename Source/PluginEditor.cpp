@@ -219,6 +219,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     autoGainButton.setLookAndFeel(&voxlineAutoGainLNF);
     configureButton(listenButton, "  Listen");
     listenButton.setLookAndFeel(&voxlineToggleLNF);
+    // TODO: implement Listen audition mode (currently difference monitor)
 
     addAndMakeVisible(outputMeter);
     addAndMakeVisible(gainReductionMeter);
