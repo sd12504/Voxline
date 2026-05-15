@@ -37,25 +37,15 @@ jobs:
       - name: Build Release
         run: cmake --build build --config Release
 
-      - name: Package VST3 (ZIP)
+      - name: Package DMG
         run: |
-          cd build/VOXLINE_artefacts/Release/VST3
-          zip -r ../../../../../VOXLINE_macOS_VST3.zip VOXLINE.vst3
-          cd ../../../..
-      - name: Package AU (ZIP)
-        run: |
-          cd build/VOXLINE_artefacts/Release/AU
-          zip -r ../../../../../VOXLINE_macOS_AU.zip VOXLINE.component
-          cd ../../../..
+          mkdir -p dmg_root
+          cp -R build/VOXLINE_artefacts/Release/VST3/VOXLINE.vst3 dmg_root/
+          cp -R build/VOXLINE_artefacts/Release/AU/VOXLINE.component dmg_root/
+          hdiutil create -volname "VOXLINE" -srcfolder dmg_root -ov -format UDZO VOXLINE_macOS.dmg
 
-      - name: Upload VST3
+      - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
-          name: VOXLINE-macOS-VST3
-          path: VOXLINE_macOS_VST3.zip
-
-      - name: Upload AU
-        uses: actions/upload-artifact@v4
-        with:
-          name: VOXLINE-macOS-AU
-          path: VOXLINE_macOS_AU.zip
+          name: VOXLINE-macOS-DMG
+          path: VOXLINE_macOS.dmg
