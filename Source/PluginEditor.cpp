@@ -15,7 +15,9 @@ struct VoxlineToggleLookAndFeel final : juce::LookAndFeel_V4
         auto textArea = button.getLocalBounds().withTrimmedLeft(24);
         auto font = juce::FontOptions(12.0f);
         g.setFont(font);
-        g.setColour(button.findColour(juce::ToggleButton::textColourId));
+        const auto on = button.getToggleState();
+        g.setColour(button.findColour(on ? juce::ToggleButton::tickColourId
+                                         : juce::ToggleButton::textColourId));
         g.drawText(button.getButtonText(), textArea, juce::Justification::centredLeft, false);
         juce::ignoreUnused(shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
     }
@@ -154,6 +156,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     listenAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::listen, listenButton);
 
     apvts.addParameterListener(VoxlineParameterIDs::polish, this);
+    apvts.addParameterListener(VoxlineParameterIDs::outputGain, this);
 
     setSize(VoxlineLayout::editorWidth, VoxlineLayout::editorHeight);
     setResizable(false, false);
@@ -168,6 +171,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
 VoxlineAudioProcessorEditor::~VoxlineAudioProcessorEditor()
 {
     audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::polish, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::outputGain, this);
     removeKeyListener(this);
     bypassButton.setLookAndFeel(nullptr);
     listenButton.setLookAndFeel(nullptr);
@@ -255,10 +259,17 @@ void VoxlineAudioProcessorEditor::resized()
 // ---------------------------------------------------------------------------
 void VoxlineAudioProcessorEditor::parameterChanged(const juce::String& parameterID, float newValue)
 {
-    if (parameterID != VoxlineParameterIDs::polish)
-        return;
-    pendingPolishValue.store(newValue);
-    triggerAsyncUpdate();
+    if (parameterID == VoxlineParameterIDs::polish)
+    {
+        pendingPolishValue.store(newValue);
+        triggerAsyncUpdate();
+    }
+    else if (parameterID == VoxlineParameterIDs::outputGain)
+    {
+        auto* param = audioProcessor.getAPVTS().getParameter(parameterID);
+        if (param)
+            outputValueLabel.setText(param->getCurrentValueAsText(), juce::dontSendNotification);
+    }
 }
 
 void VoxlineAudioProcessorEditor::handleAsyncUpdate()
@@ -323,6 +334,7 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
 
     // Bypass text colour (checkbox hidden by LookAndFeel)
     bypassButton.setColour(juce::ToggleButton::textColourId, theme.textPrimary);
+    bypassButton.setColour(juce::ToggleButton::tickColourId, theme.accentRose);
 
     // === Bottom bar utility buttons ===
     const auto inactiveBg = dark ? juce::Colour(0xff1e1b2a) : juce::Colour(0xfffaf7f2);
@@ -339,6 +351,7 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     autoGainButton.setColour(juce::ToggleButton::tickColourId, theme.accentLavender);
     autoGainButton.setColour(juce::ToggleButton::tickDisabledColourId, theme.inactiveArc);
     listenButton.setColour(juce::ToggleButton::textColourId, theme.textSecondary);
+    listenButton.setColour(juce::ToggleButton::tickColourId, theme.accentLavender);
 
     // === Meters ===
     outputMeter.setColour(VoxlineLevelMeter::backgroundColour, theme.panelBorder);
