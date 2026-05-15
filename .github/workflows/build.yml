@@ -16,18 +16,15 @@ jobs:
       - name: Build Release
         run: cmake --build build --config Release
 
-      - name: Create Installer (NSIS)
+      - name: Package VST3 (ZIP)
         shell: pwsh
-        run: |
-          choco install nsis -y --no-progress
-          dir /s build\VOXLINE_artefacts\Release\VST3\
-          & "C:\Program Files (x86)\NSIS\makensis.exe" installer/windows/installer.nsi
+        run: Compress-Archive -Path build\VOXLINE_artefacts\Release\VST3\VOXLINE.vst3 -DestinationPath VOXLINE_Windows_VST3.zip
 
-      - name: Upload Installer
+      - name: Upload VST3
         uses: actions/upload-artifact@v4
         with:
-          name: VOXLINE-Windows-Setup
-          path: VOXLINE_Setup.exe
+          name: VOXLINE-Windows-VST3
+          path: VOXLINE_Windows_VST3.zip
 
   macos:
     runs-on: macos-latest
@@ -35,20 +32,30 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure
-        run: cmake -B build -G Xcode
+        run: cmake -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
 
       - name: Build Release
         run: cmake --build build --config Release
 
-      - name: Package DMG
+      - name: Package VST3 (ZIP)
         run: |
-          mkdir -p dmg_root
-          cp -R build/VOXLINE_artefacts/Release/VST3/VOXLINE.vst3 dmg_root/
-          cp -R build/VOXLINE_artefacts/Release/AU/VOXLINE.component dmg_root/
-          hdiutil create -volname "VOXLINE" -srcfolder dmg_root -ov -format UDZO VOXLINE_macOS.dmg
+          cd build/VOXLINE_artefacts/Release/VST3
+          zip -r ../../../../../VOXLINE_macOS_VST3.zip VOXLINE.vst3
+          cd ../../../..
+      - name: Package AU (ZIP)
+        run: |
+          cd build/VOXLINE_artefacts/Release/AU
+          zip -r ../../../../../VOXLINE_macOS_AU.zip VOXLINE.component
+          cd ../../../..
 
-      - name: Upload DMG
+      - name: Upload VST3
         uses: actions/upload-artifact@v4
         with:
-          name: VOXLINE-macOS-DMG
-          path: VOXLINE_macOS.dmg
+          name: VOXLINE-macOS-VST3
+          path: VOXLINE_macOS_VST3.zip
+
+      - name: Upload AU
+        uses: actions/upload-artifact@v4
+        with:
+          name: VOXLINE-macOS-AU
+          path: VOXLINE_macOS_AU.zip
