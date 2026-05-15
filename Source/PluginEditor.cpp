@@ -561,7 +561,7 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
             param->setValueNotifyingHost(value);
     };
 
-    setParam("inputGain",  p.in);
+    setParam("inputGain",  (p.in  + 24.0f) / 48.0f);
     setParam("autoGain",   p.ag ? 1.0f : 0.0f);
     setParam("polish",     p.pol / 100.0f);
     setParam("body",       p.bd  / 100.0f);
@@ -570,7 +570,7 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
     setParam("smooth",     p.sm  / 100.0f);
     setParam("comp",       p.cp  / 100.0f);
     setParam("drive",      p.dr  / 100.0f);
-    setParam("outputGain", p.out);
+    setParam("outputGain", (p.out + 24.0f) / 48.0f);
 
     // Sync dropdown
     presetDropdown.setSelectedId(idx + 1, juce::dontSendNotification);
