@@ -8,6 +8,7 @@
 #include "UI/VoxlineMeter.h"
 
 class VoxlineAudioProcessor;
+struct ThemeToggleComp;
 
 class VoxlineAudioProcessorEditor final : public juce::AudioProcessorEditor,
                                           private juce::AudioProcessorValueTreeState::Listener,
@@ -23,6 +24,9 @@ public:
 
     void paint(juce::Graphics& g) override;
     void resized() override;
+
+    void cycleTheme();
+    int currentThemeIndex { 0 };
 
 private:
     using APVTS = juce::AudioProcessorValueTreeState;
@@ -49,7 +53,6 @@ private:
     void configureTextLabel(juce::Label& label, const juce::String& text, juce::Justification justification);
 
     void applyTheme(const VoxlineTheme& theme, int index);
-    void cycleTheme();
     void loadIconDrawables(bool dark);
 
     void paintLedDots(juce::Graphics& g, juce::Rectangle<int> bounds);
@@ -58,12 +61,10 @@ private:
     VoxlineAudioProcessor& audioProcessor;
     std::atomic<float> pendingPolishValue { 0.0f };
 
-    int currentThemeIndex { 0 };
-
     juce::Label logoLabel;
     juce::Label subtitleLabel;
     juce::ComboBox presetDropdown;
-    juce::TextButton settingsButton;
+    std::unique_ptr<ThemeToggleComp> themeToggle;
 
     juce::Label inputTitleLabel;
     juce::Label toneTitleLabel;

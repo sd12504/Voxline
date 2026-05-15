@@ -81,6 +81,54 @@ int VoxlinePresetDropdownLNF::currentDropdownTheme = 0;
 static VoxlinePresetDropdownLNF voxlineDropdownLNF;
 
 // ---------------------------------------------------------------------------
+// Theme toggle — simple Component, draws sun/moon directly
+// ---------------------------------------------------------------------------
+struct ThemeToggleComp final : juce::Component
+{
+    VoxlineAudioProcessorEditor& owner;
+    explicit ThemeToggleComp(VoxlineAudioProcessorEditor& o) : owner(o) {}
+
+    void paint(juce::Graphics& g) override
+    {
+        const auto& t = VoxlineTheme::get(owner.currentThemeIndex);
+        const auto dark = (owner.currentThemeIndex != 0);
+        const auto b = getLocalBounds().toFloat();
+
+        g.setColour(dark ? juce::Colour(0x00ffffff) : juce::Colour(0xffece5de));
+        g.fillRoundedRectangle(b, 8.0f);
+        g.setColour(t.panelBorder);
+        g.drawRoundedRectangle(b.reduced(0.5f), 8.0f, 1.0f);
+
+        const float cx = b.getCentreX(), cy = b.getCentreY(), r = 8.0f;
+        juce::Path icon;
+        if (dark)
+        {
+            icon.addEllipse(cx - r, cy - r, r * 2.0f, r * 2.0f);
+            for (int i = 0; i < 8; ++i)
+            {
+                auto a = juce::MathConstants<float>::twoPi * (float)i / 8.0f;
+                const auto sa = std::sin(a), ca = std::cos(a);
+                icon.addLineSegment({cx + (r + 1.5f) * ca, cy + (r + 1.5f) * sa,
+                                     cx + (r + 5.0f) * ca, cy + (r + 5.0f) * sa}, 2.0f);
+            }
+        }
+        else
+        {
+            juce::Path outer, inner;
+            outer.addEllipse(cx - r, cy - r, r * 2.0f, r * 2.0f);
+            inner.addEllipse(cx - r + 4.0f, cy - r - 1.0f, r * 2.0f, r * 2.0f);
+            icon = outer;
+            icon.addPath(inner);
+            icon.setUsingNonZeroWinding(false);
+        }
+        g.setColour(t.textPrimary);
+        g.strokePath(icon, juce::PathStrokeType(1.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    }
+
+    void mouseUp(const juce::MouseEvent&) override { owner.cycleTheme(); }
+};
+
+// ---------------------------------------------------------------------------
 // Constructor
 // ---------------------------------------------------------------------------
 VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& audioProcessorToEdit)
@@ -91,9 +139,10 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
 
     configureTextLabel(logoLabel, "VOXLINE", juce::Justification::centredLeft);
     configureTextLabel(subtitleLabel, "Fast Vocal Channel", juce::Justification::centredLeft);
-    configureHeaderButton(settingsButton, "");
 
-    settingsButton.addListener(this);
+    // Theme toggle icon
+    themeToggle = std::make_unique<ThemeToggleComp>(*this);
+    addAndMakeVisible(*themeToggle);
 
     // Preset dropdown in bottom bar
     presetDropdown.setLookAndFeel(&voxlineDropdownLNF);
@@ -224,7 +273,7 @@ void VoxlineAudioProcessorEditor::resized()
     logoLabel.setBounds(VoxlineLayout::logoBounds);
     subtitleLabel.setBounds(VoxlineLayout::subtitleBounds);
     bypassButton.setBounds(VoxlineLayout::bypassButtonBounds);
-    settingsButton.setBounds(VoxlineLayout::settingsButtonBounds);
+    themeToggle->setBounds(VoxlineLayout::settingsButtonBounds);
 
     inputTitleLabel.setBounds(VoxlineLayout::inputTitleBounds);
     inputGainSlider.setBounds(VoxlineLayout::inputGainSliderBounds);
@@ -327,12 +376,8 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     setTextColour(outputValueLabel);
 
     // === Header ===
-    // Settings / Theme toggle — subtle pill
-    settingsButton.setColour(juce::TextButton::buttonColourId, 
-        dark ? juce::Colour(0x00ffffff) : juce::Colour(0xffece5de));
-    settingsButton.setColour(juce::TextButton::textColourOffId, theme.textSecondary);
-
     // Bypass text colour (checkbox hidden by LookAndFeel)
+    bypassButton.setColour(juce::ToggleButton::textColourId, theme.textPrimary);
     bypassButton.setColour(juce::ToggleButton::textColourId, theme.textPrimary);
     bypassButton.setColour(juce::ToggleButton::tickColourId, theme.accentRose);
 
@@ -408,42 +453,6 @@ void VoxlineAudioProcessorEditor::paintIcons(juce::Graphics& g)
     };
 
     draw(cachedBypassIcon.get(),  910, 74, 18, 18);
-
-    // Theme toggle — drawn with Path, no SVG issues
-    {
-        const auto& t = VoxlineTheme::get(currentThemeIndex);
-        const auto dark = (currentThemeIndex != 0);
-        const float cx = 1025.5f, cy = 83.5f, r = 9.0f;
-
-        juce::Path icon;
-        if (dark)
-        {
-            // Sun: circle + rays
-            icon.addEllipse(cx - r, cy - r, r * 2.0f, r * 2.0f);
-            const float rayLen = 4.0f;
-            for (int i = 0; i < 8; ++i)
-            {
-                auto a = juce::MathConstants<float>::twoPi * (float)i / 8.0f;
-                const auto sa = std::sin(a), ca = std::cos(a);
-                icon.addLineSegment({cx + (r + 2.0f) * ca, cy + (r + 2.0f) * sa,
-                                     cx + (r + 2.0f + rayLen) * ca, cy + (r + 2.0f + rayLen) * sa}, 2.0f);
-            }
-            g.setColour(t.textPrimary);
-        }
-        else
-        {
-            // Crescent moon
-            juce::Path outer, inner;
-            outer.addEllipse(cx - r, cy - r, r * 2.0f, r * 2.0f);
-            inner.addEllipse(cx - r + 4.0f, cy - r - 1.0f, r * 2.0f, r * 2.0f);
-            icon = outer;
-            icon.addPath(inner);
-            icon.setUsingNonZeroWinding(false);
-            g.setColour(t.textPrimary);
-        }
-        g.strokePath(icon, juce::PathStrokeType(1.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-    }
-
     draw(cachedListenIcon.get(),  964, 623, 20, 20);
 }
 
@@ -508,8 +517,7 @@ void VoxlineAudioProcessorEditor::timerCallback()
 // ---------------------------------------------------------------------------
 void VoxlineAudioProcessorEditor::buttonClicked(juce::Button* button)
 {
-    if (button == &settingsButton) cycleTheme();
-    else if (button == &abButton)  toggleAb();
+    if (button == &abButton)  toggleAb();
 }
 
 void VoxlineAudioProcessorEditor::comboBoxChanged(juce::ComboBox* comboBoxThatHasChanged)
