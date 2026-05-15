@@ -1,7 +1,0 @@
-/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-build/tools/CMakeFiles/install.dir
-/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-build/tools/CMakeFiles/ALL_BUILD.dir
-/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-build/tools/CMakeFiles/ZERO_CHECK.dir
-/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-build/tools/modules/CMakeFiles/install.dir
-/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-build/tools/extras/Build/CMakeFiles/install.dir
-/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-build/tools/extras/Build/juceaide/CMakeFiles/juceaide.dir
-/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-build/tools/extras/Build/juceaide/CMakeFiles/install.dir

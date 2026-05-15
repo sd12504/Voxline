@@ -15,5 +15,5 @@ SetCompressor /SOLID lzma
 
 Section "Install"
   SetOutPath "$INSTDIR"
-  File /r "build\VOXLINE_artefacts\Release\VST3\VOXLINE.vst3"
+  File /r "build\VOXLINE_artefacts\Release\VST3\VOXLINE.vst3\*.*"
 SectionEnd

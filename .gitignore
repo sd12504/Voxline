@@ -6,3 +6,4 @@ build-*/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
 *.vs/
+build_x86/
