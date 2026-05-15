@@ -389,10 +389,10 @@ void VoxlineAudioProcessor::updateToneFilters()
     const auto clarityCoefficients = juce::IIRCoefficients::makePeakFilter(
         currentSampleRate, 3500.0f, 1.0f, juce::Decibels::decibelsToGain(clarityDb));
 
-    // Air: high shelf at 12kHz, -3 to +7 dB
+    // Air: high shelf at 7kHz, -3 to +7 dB
     const auto airDb = juce::jmap(airRaw, 0.0f, 1.0f, -3.0f, 7.0f) * polishScale;
     const auto airCoefficients = juce::IIRCoefficients::makeHighShelf(
-        currentSampleRate, 12000.0f, 0.7f, juce::Decibels::decibelsToGain(airDb));
+        currentSampleRate, 7000.0f, 0.7f, juce::Decibels::decibelsToGain(airDb));
 
     // Smooth: high shelf cut at 6kHz, 0 to -6 dB
     const auto smoothDb = juce::jmap(smoothRaw, 0.0f, 1.0f, 0.0f, -6.0f) * polishScale;
