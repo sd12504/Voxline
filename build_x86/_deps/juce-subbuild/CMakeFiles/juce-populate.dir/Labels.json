@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/Volumes/Crucial X9/Codex/Voxline\uff08\u4eba\u8072\u6548\u679c\u93c8\uff09/build_x86/_deps/juce-subbuild/CMakeFiles/juce-populate"
+		},
+		{
+			"file" : "/Volumes/Crucial X9/Codex/Voxline\uff08\u4eba\u8072\u6548\u679c\u93c8\uff09/build_x86/_deps/juce-subbuild/CMakeFiles/juce-populate.rule"
+		},
+		{
+			"file" : "/Volumes/Crucial X9/Codex/Voxline\uff08\u4eba\u8072\u6548\u679c\u93c8\uff09/build_x86/_deps/juce-subbuild/CMakeFiles/CMakeFiles/juce-populate-complete.rule"
+		},
+		{
+			"file" : "/Volumes/Crucial X9/Codex/Voxline\uff08\u4eba\u8072\u6548\u679c\u93c8\uff09/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/CMakeFiles/juce-populate-build.rule"
+		},
+		{
+			"file" : "/Volumes/Crucial X9/Codex/Voxline\uff08\u4eba\u8072\u6548\u679c\u93c8\uff09/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/CMakeFiles/juce-populate-configure.rule"
+		},
+		{
+			"file" : "/Volumes/Crucial X9/Codex/Voxline\uff08\u4eba\u8072\u6548\u679c\u93c8\uff09/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/CMakeFiles/juce-populate-download.rule"
+		},
+		{
+			"file" : "/Volumes/Crucial X9/Codex/Voxline\uff08\u4eba\u8072\u6548\u679c\u93c8\uff09/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/CMakeFiles/juce-populate-install.rule"
+		},
+		{
+			"file" : "/Volumes/Crucial X9/Codex/Voxline\uff08\u4eba\u8072\u6548\u679c\u93c8\uff09/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/CMakeFiles/juce-populate-mkdir.rule"
+		},
+		{
+			"file" : "/Volumes/Crucial X9/Codex/Voxline\uff08\u4eba\u8072\u6548\u679c\u93c8\uff09/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/CMakeFiles/juce-populate-patch.rule"
+		},
+		{
+			"file" : "/Volumes/Crucial X9/Codex/Voxline\uff08\u4eba\u8072\u6548\u679c\u93c8\uff09/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/CMakeFiles/juce-populate-test.rule"
+		},
+		{
+			"file" : "/Volumes/Crucial X9/Codex/Voxline\uff08\u4eba\u8072\u6548\u679c\u93c8\uff09/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/CMakeFiles/juce-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"juce-populate"
+		],
+		"name" : "juce-populate"
+	}
+}

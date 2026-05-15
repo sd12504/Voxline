@@ -1,0 +1,639 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXAggregateTarget section */
+		0D550EE734C305E89D60FDFD /* juce-populate */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = 0680BA82A1EB43B88474AAE6 /* Build configuration list for PBXAggregateTarget "juce-populate" */;
+			buildPhases = (
+				C56B93417E151819A27870A6 /* Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-mkdir */,
+				35CEAEB64841A3D78D719AA0 /* Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-download */,
+				4891287E1C826EC2DC37A779 /* Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-update */,
+				EEBF8D94270F8B6D81887A63 /* Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-patch */,
+				57F3C0404821FE3FCFABDDBB /* Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-configure */,
+				80BCFF85C97D954525B8784F /* Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-build */,
+				8CA0C4ACF35038096129CACE /* Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-install */,
+				B307C1069EC2A575C1DEEE59 /* Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-test */,
+				ABA8BF3CE4EEF6B9DA76D00F /* Generate CMakeFiles/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-complete */,
+				0F58A07AEADDB78C7EF7D7E9 /* Generate CMakeFiles/juce-populate */,
+			);
+			dependencies = (
+				F6AB1E68D78E43D7B417AB22 /* PBXTargetDependency */,
+			);
+			name = "juce-populate";
+			productName = "juce-populate";
+		};
+		B3070074F24B9ABEE64572A5 /* ALL_BUILD */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = 5DA7252B7EDE4DDA9285D3F3 /* Build configuration list for PBXAggregateTarget "ALL_BUILD" */;
+			buildPhases = (
+				99068422B7194CCE8F0B970B /* Generate CMakeFiles/ALL_BUILD */,
+			);
+			dependencies = (
+				83413C13A688405C87E859A3 /* PBXTargetDependency */,
+				94427EE29C62456ABE504C33 /* PBXTargetDependency */,
+			);
+			name = ALL_BUILD;
+			productName = ALL_BUILD;
+		};
+		D1B317CAE1A848D98FD92A4C /* ZERO_CHECK */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = F9DD442A74F3491FA1A6B385 /* Build configuration list for PBXAggregateTarget "ZERO_CHECK" */;
+			buildPhases = (
+				804CBF43C3104AA380797D76 /* Generate CMakeFiles/ZERO_CHECK */,
+			);
+			dependencies = (
+			);
+			name = ZERO_CHECK;
+			productName = ZERO_CHECK;
+		};
+/* End PBXAggregateTarget section */
+
+/* Begin PBXBuildStyle section */
+		7EBF1CF27DAB4937AA6820E2 /* Debug */ = {
+			isa = PBXBuildStyle;
+			buildSettings = {
+				COPY_PHASE_STRIP = NO;
+			};
+			name = Debug;
+		};
+/* End PBXBuildStyle section */
+
+/* Begin PBXContainerItemProxy section */
+		8D0DDDA1DBDF41A8B7C55C14 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 05E5E58CC63E466A8FE5CA3B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0D550EE734C305E89D60FDFD;
+			remoteInfo = "juce-populate";
+		};
+		B3E96A509E9848CC9B97F649 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 05E5E58CC63E466A8FE5CA3B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D1B317CAE1A848D98FD92A4C;
+			remoteInfo = ZERO_CHECK;
+		};
+		D6BF3389289B429AAB022773 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 05E5E58CC63E466A8FE5CA3B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D1B317CAE1A848D98FD92A4C;
+			remoteInfo = ZERO_CHECK;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		5EF98DBE57F54064BDA8899D /* /Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/CMakeLists.txt */ = {isa = PBXFileReference; explicitFileType = sourcecode.text; fileEncoding = 4; name = CMakeLists.txt; path = CMakeLists.txt; sourceTree = SOURCE_ROOT; };
+		C525A0D2C4A44BB0844221C2 /* /Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/CMakeLists.txt */ = {isa = PBXFileReference; explicitFileType = sourcecode.text; fileEncoding = 4; name = CMakeLists.txt; path = CMakeLists.txt; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		3CC92875016B4CAEA99B5BB7 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		5BB40A9F7C2F440383125896 /* ExternalProjectTargets */ = {
+			isa = PBXGroup;
+			children = (
+				896D7BE3F1D1441D89E081C4 /* juce-populate */,
+			);
+			name = ExternalProjectTargets;
+			sourceTree = "<group>";
+		};
+		66EC530FC1514489AA8B3B74 /* CMake Rules */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = "CMake Rules";
+			sourceTree = "<group>";
+		};
+		896D7BE3F1D1441D89E081C4 /* juce-populate */ = {
+			isa = PBXGroup;
+			children = (
+				C727743760A7450EA3EDC72C /* juce-populate */,
+			);
+			name = "juce-populate";
+			sourceTree = "<group>";
+		};
+		8EC88E55B7B64F4EB3F2EFE3 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Resources;
+			sourceTree = "<group>";
+		};
+		A9376CB18B0D4443A69F65CF /* CMake Rules */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = "CMake Rules";
+			sourceTree = "<group>";
+		};
+		AE41AC9F1F1E47749B1EA95A = {
+			isa = PBXGroup;
+			children = (
+				CC5E82DF468343F79740A9F1 /* ALL_BUILD */,
+				5BB40A9F7C2F440383125896 /* ExternalProjectTargets */,
+				C2F00C4757BF46E39ED52406 /* Products */,
+				3CC92875016B4CAEA99B5BB7 /* Frameworks */,
+				8EC88E55B7B64F4EB3F2EFE3 /* Resources */,
+			);
+			sourceTree = "<group>";
+		};
+		C2F00C4757BF46E39ED52406 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C727743760A7450EA3EDC72C /* juce-populate */ = {
+			isa = PBXGroup;
+			children = (
+				A9376CB18B0D4443A69F65CF /* CMake Rules */,
+				C525A0D2C4A44BB0844221C2 /* /Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/CMakeLists.txt */,
+			);
+			name = "juce-populate";
+			sourceTree = "<group>";
+		};
+		CC5E82DF468343F79740A9F1 /* ALL_BUILD */ = {
+			isa = PBXGroup;
+			children = (
+				66EC530FC1514489AA8B3B74 /* CMake Rules */,
+				5EF98DBE57F54064BDA8899D /* /Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/CMakeLists.txt */,
+			);
+			name = ALL_BUILD;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXProject section */
+		05E5E58CC63E466A8FE5CA3B /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2640;
+			};
+			buildConfigurationList = 83FFF7632BC04880B6BB4194 /* Build configuration list for PBXProject "juce-populate" */;
+			buildSettings = {
+			};
+			buildStyles = (
+				7EBF1CF27DAB4937AA6820E2 /* Debug */,
+			);
+			compatibilityVersion = "Xcode 3.2";
+			hasScannedForEncodings = 0;
+			mainGroup = AE41AC9F1F1E47749B1EA95A;
+			projectDirPath = .;
+			projectRoot = "";
+			targets = (
+				B3070074F24B9ABEE64572A5 /* ALL_BUILD */,
+				0D550EE734C305E89D60FDFD /* juce-populate */,
+				D1B317CAE1A848D98FD92A4C /* ZERO_CHECK */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		05FFFA5A04AF951B09A83574 = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# shell script goes here
+exit 0";
+			showEnvVarsInLog = 0;
+		};
+		0F58A07AEADDB78C7EF7D7E9 /* Generate CMakeFiles/juce-populate */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/CMakeFiles/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-complete"			);
+			name = "Generate CMakeFiles/juce-populate";
+			outputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/CMakeFiles/juce-populate"			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e
+if test \"$CONFIGURATION\" = \"Debug\"; then :
+  cd \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild\"
+fi
+";
+			showEnvVarsInLog = 0;
+		};
+		35CEAEB64841A3D78D719AA0 /* Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-download */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-mkdir","/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/juce-populate-gitinfo.txt"			);
+			name = "Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-download";
+			outputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-download"			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e
+if test \"$CONFIGURATION\" = \"Debug\"; then :
+  cd \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps\"
+  /opt/homebrew/bin/cmake -DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE -P \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/tmp/juce-populate-gitclone.cmake\"
+  /opt/homebrew/bin/cmake -E touch \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$CONFIGURATION$EFFECTIVE_PLATFORM_NAME/juce-populate-download\"
+fi
+";
+			showEnvVarsInLog = 0;
+		};
+		3C0110FC8322DE7E50886E21 = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# shell script goes here
+exit 0";
+			showEnvVarsInLog = 0;
+		};
+		4891287E1C826EC2DC37A779 /* Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-update */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-download","/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/juce-populate-update-info.txt","/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/tmp/juce-populate-gitupdate.cmake"			);
+			name = "Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-update";
+			outputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-update"			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e
+if test \"$CONFIGURATION\" = \"Debug\"; then :
+  cd \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-src\"
+  /opt/homebrew/bin/cmake -Dcan_fetch=YES -DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE -P \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/tmp/juce-populate-gitupdate.cmake\"
+fi
+";
+			showEnvVarsInLog = 0;
+		};
+		57F3C0404821FE3FCFABDDBB /* Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-configure */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-patch","/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/tmp/juce-populate-cfgcmd.txt"			);
+			name = "Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-configure";
+			outputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-configure"			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e
+if test \"$CONFIGURATION\" = \"Debug\"; then :
+  cd \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-build\"
+  /opt/homebrew/bin/cmake -E echo_append
+  /opt/homebrew/bin/cmake -E touch \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$CONFIGURATION$EFFECTIVE_PLATFORM_NAME/juce-populate-configure\"
+fi
+";
+			showEnvVarsInLog = 0;
+		};
+		804CBF43C3104AA380797D76 /* Generate CMakeFiles/ZERO_CHECK */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Generate CMakeFiles/ZERO_CHECK";
+			outputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/CMakeFiles/ZERO_CHECK"			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e
+if test \"$CONFIGURATION\" = \"Debug\"; then :
+  cd \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild\"
+  make -f /Volumes/Crucial\\ X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/CMakeScripts/ReRunCMake.make
+fi
+";
+			showEnvVarsInLog = 0;
+		};
+		80BCFF85C97D954525B8784F /* Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-build */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-configure"			);
+			name = "Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-build";
+			outputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-build"			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e
+if test \"$CONFIGURATION\" = \"Debug\"; then :
+  cd \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-build\"
+  /opt/homebrew/bin/cmake -E echo_append
+  /opt/homebrew/bin/cmake -E touch \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$CONFIGURATION$EFFECTIVE_PLATFORM_NAME/juce-populate-build\"
+fi
+";
+			showEnvVarsInLog = 0;
+		};
+		8CA0C4ACF35038096129CACE /* Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-install */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-build"			);
+			name = "Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-install";
+			outputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-install"			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e
+if test \"$CONFIGURATION\" = \"Debug\"; then :
+  cd \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-build\"
+  /opt/homebrew/bin/cmake -E echo_append
+  /opt/homebrew/bin/cmake -E touch \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$CONFIGURATION$EFFECTIVE_PLATFORM_NAME/juce-populate-install\"
+fi
+";
+			showEnvVarsInLog = 0;
+		};
+		99068422B7194CCE8F0B970B /* Generate CMakeFiles/ALL_BUILD */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Generate CMakeFiles/ALL_BUILD";
+			outputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/CMakeFiles/ALL_BUILD"			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e
+if test \"$CONFIGURATION\" = \"Debug\"; then :
+  cd \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild\"
+  echo Build\\ all\\ projects
+fi
+";
+			showEnvVarsInLog = 0;
+		};
+		9B50530E35CC49C82C2FACCF = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# shell script goes here
+exit 0";
+			showEnvVarsInLog = 0;
+		};
+		ABA8BF3CE4EEF6B9DA76D00F /* Generate CMakeFiles/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-complete */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-build","/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-configure","/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-download","/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-install","/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-mkdir","/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-patch","/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-test","/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-update"			);
+			name = "Generate CMakeFiles/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-complete";
+			outputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/CMakeFiles/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-complete"			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e
+if test \"$CONFIGURATION\" = \"Debug\"; then :
+  cd \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild\"
+  /opt/homebrew/bin/cmake -E make_directory \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/CMakeFiles/$CONFIGURATION$EFFECTIVE_PLATFORM_NAME\"
+  /opt/homebrew/bin/cmake -E touch \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/CMakeFiles/$CONFIGURATION$EFFECTIVE_PLATFORM_NAME/juce-populate-complete\"
+  /opt/homebrew/bin/cmake -E touch \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$CONFIGURATION$EFFECTIVE_PLATFORM_NAME/juce-populate-done\"
+fi
+";
+			showEnvVarsInLog = 0;
+		};
+		B307C1069EC2A575C1DEEE59 /* Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-test */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-install"			);
+			name = "Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-test";
+			outputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-test"			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e
+if test \"$CONFIGURATION\" = \"Debug\"; then :
+  cd \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-build\"
+  /opt/homebrew/bin/cmake -E echo_append
+  /opt/homebrew/bin/cmake -E touch \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$CONFIGURATION$EFFECTIVE_PLATFORM_NAME/juce-populate-test\"
+fi
+";
+			showEnvVarsInLog = 0;
+		};
+		C56B93417E151819A27870A6 /* Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-mkdir */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-mkdir";
+			outputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-mkdir"			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e
+if test \"$CONFIGURATION\" = \"Debug\"; then :
+  cd \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild\"
+  /opt/homebrew/bin/cmake -Dcfgdir=/$CONFIGURATION$EFFECTIVE_PLATFORM_NAME -P \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/tmp/juce-populate-mkdirs.cmake\"
+  /opt/homebrew/bin/cmake -E touch \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$CONFIGURATION$EFFECTIVE_PLATFORM_NAME/juce-populate-mkdir\"
+fi
+";
+			showEnvVarsInLog = 0;
+		};
+		EEBF8D94270F8B6D81887A63 /* Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-patch */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-update","/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/juce-populate-patch-info.txt"			);
+			name = "Generate juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-patch";
+			outputPaths = (
+"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/juce-populate-patch"			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e
+if test \"$CONFIGURATION\" = \"Debug\"; then :
+  cd \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild\"
+  /opt/homebrew/bin/cmake -E echo_append
+  /opt/homebrew/bin/cmake -E touch \"/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/juce-populate-prefix/src/juce-populate-stamp/$CONFIGURATION$EFFECTIVE_PLATFORM_NAME/juce-populate-patch\"
+fi
+";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		83413C13A688405C87E859A3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0D550EE734C305E89D60FDFD /* juce-populate */;
+			targetProxy = 8D0DDDA1DBDF41A8B7C55C14 /* PBXContainerItemProxy */;
+		};
+		94427EE29C62456ABE504C33 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D1B317CAE1A848D98FD92A4C /* ZERO_CHECK */;
+			targetProxy = B3E96A509E9848CC9B97F649 /* PBXContainerItemProxy */;
+		};
+		F6AB1E68D78E43D7B417AB22 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D1B317CAE1A848D98FD92A4C /* ZERO_CHECK */;
+			targetProxy = D6BF3389289B429AAB022773 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		31A2FC39B7C34F02BF53D9C3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = ("'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'","$(inherited)");
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				INSTALL_PATH = "";
+				ONLY_ACTIVE_ARCH = NO;
+				OTHER_LDFLAGS = ("","$(inherited)");
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = ZERO_CHECK;
+				SECTORDER_FLAGS = "";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = ("$(inherited)");
+			};
+			name = Debug;
+		};
+		6694A18DC1124441A34EADD4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = ("'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'","$(inherited)");
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				INSTALL_PATH = "";
+				ONLY_ACTIVE_ARCH = NO;
+				OTHER_LDFLAGS = ("","$(inherited)");
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = ALL_BUILD;
+				SECTORDER_FLAGS = "";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = ("$(inherited)");
+			};
+			name = Debug;
+		};
+		6931B77C86CA47B5A63F8CDF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				SDKROOT = "";
+				SYMROOT = "/Volumes/Crucial X9/Codex/Voxline（人聲效果鏈）/build_x86/_deps/juce-subbuild/build";
+			};
+			name = Debug;
+		};
+		A8AB76B3EBE34C859876D737 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = ("'CMAKE_INTDIR=\"$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)\"'","$(inherited)");
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				INSTALL_PATH = "";
+				ONLY_ACTIVE_ARCH = NO;
+				OTHER_LDFLAGS = ("","$(inherited)");
+				OTHER_REZFLAGS = "";
+				PRODUCT_NAME = "juce-populate";
+				SECTORDER_FLAGS = "";
+				USE_HEADERMAP = NO;
+				WARNING_CFLAGS = ("$(inherited)");
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0680BA82A1EB43B88474AAE6 /* Build configuration list for PBXAggregateTarget "juce-populate" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A8AB76B3EBE34C859876D737 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		5DA7252B7EDE4DDA9285D3F3 /* Build configuration list for PBXAggregateTarget "ALL_BUILD" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6694A18DC1124441A34EADD4 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		83FFF7632BC04880B6BB4194 /* Build configuration list for PBXProject "juce-populate" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6931B77C86CA47B5A63F8CDF /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F9DD442A74F3491FA1A6B385 /* Build configuration list for PBXAggregateTarget "ZERO_CHECK" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				31A2FC39B7C34F02BF53D9C3 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 05E5E58CC63E466A8FE5CA3B /* Project object */;
+}
