@@ -26,6 +26,32 @@ struct VoxlineToggleLookAndFeel final : juce::LookAndFeel_V4
 static VoxlineToggleLookAndFeel voxlineToggleLNF;
 
 // ---------------------------------------------------------------------------
+// Pill-style LookAndFeel for Auto Gain toggle
+// ---------------------------------------------------------------------------
+struct VoxlineAutoGainLNF final : juce::LookAndFeel_V4
+{
+    void drawToggleButton(juce::Graphics& g, juce::ToggleButton& button,
+                          bool, bool) override
+    {
+        const auto b = button.getLocalBounds().toFloat().reduced(2.0f);
+        const auto on = button.getToggleState();
+        const auto darkBg = juce::Colour(0xffe8e0d4); // cream pill
+        const auto onBg = juce::Colour(0xffD86F96).withAlpha(0.22f);
+
+        g.setColour(on ? onBg : darkBg);
+        g.fillRoundedRectangle(b, 7.0f);
+        g.setColour(on ? juce::Colour(0xffD86F96) : juce::Colour(0xff666666));
+        g.drawRoundedRectangle(b, 7.0f, 1.0f);
+
+        g.setFont(juce::FontOptions(12.0f));
+        g.setColour(on ? juce::Colour(0xffD86F96) : button.findColour(juce::ToggleButton::textColourId));
+        g.drawText(button.getButtonText(), button.getLocalBounds(), juce::Justification::centred, false);
+    }
+};
+
+static VoxlineAutoGainLNF voxlineAutoGainLNF;
+
+// ---------------------------------------------------------------------------
 // Pill-styled ComboBox LookAndFeel for preset dropdown
 // ---------------------------------------------------------------------------
 struct VoxlinePresetDropdownLNF final : juce::LookAndFeel_V4
@@ -182,6 +208,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     configureButton(bypassButton, " BYPASS");
     bypassButton.setLookAndFeel(&voxlineToggleLNF);
     configureButton(autoGainButton, "Auto Gain");
+    autoGainButton.setLookAndFeel(&voxlineAutoGainLNF);
     configureButton(listenButton, "  Listen");
     listenButton.setLookAndFeel(&voxlineToggleLNF);
 
@@ -223,6 +250,7 @@ VoxlineAudioProcessorEditor::~VoxlineAudioProcessorEditor()
     removeKeyListener(this);
     bypassButton.setLookAndFeel(nullptr);
     listenButton.setLookAndFeel(nullptr);
+    autoGainButton.setLookAndFeel(nullptr);
     presetDropdown.removeListener(this);
     presetDropdown.setLookAndFeel(nullptr);
     stopTimer();
