@@ -15,8 +15,16 @@ VoxlineCustomKnob::VoxlineCustomKnob(juce::String labelText, juce::Colour accent
     setMouseCursor(juce::MouseCursor::PointingHandCursor);
 }
 
+void VoxlineCustomKnob::setTheme(const VoxlineTheme& newTheme)
+{
+    theme = &newTheme;
+    repaint();
+}
+
 void VoxlineCustomKnob::paint(juce::Graphics& g)
 {
+    const auto& t = (theme != nullptr) ? *theme : VoxlineTheme::light;
+
     const auto bounds = getLocalBounds().toFloat();
     const auto knobBounds = getKnobBounds();
     const auto radius = knobBounds.getWidth() * 0.5f;
@@ -24,43 +32,51 @@ void VoxlineCustomKnob::paint(juce::Graphics& g)
     const auto normalized = getNormalizedValue();
     const auto angle = rotaryStart + (rotaryEnd - rotaryStart) * normalized;
 
-    g.setColour(juce::Colour(0x16000000));
+    // Knob drop shadow
+    g.setColour(t.knobShadow);
     g.fillEllipse(knobBounds.translated(0.0f, isHero ? 6.0f : 4.0f));
 
-    juce::ColourGradient bodyGradient(juce::Colour(0xfffbf8f2), centre.x, knobBounds.getY(),
-                                      juce::Colour(0xffddd3c8), centre.x, knobBounds.getBottom(), false);
+    // Knob body gradient
+    juce::ColourGradient bodyGradient(t.knobBodyTop, centre.x, knobBounds.getY(),
+                                      t.knobBodyBottom, centre.x, knobBounds.getBottom(), false);
     g.setGradientFill(bodyGradient);
     g.fillEllipse(knobBounds);
 
-    g.setColour(juce::Colour(0x1f000000));
+    // Knob border
+    g.setColour(t.knobBorder);
     g.drawEllipse(knobBounds, isHero ? 2.4f : 1.6f);
 
+    // Inactive arc
     juce::Path inactiveArc;
     inactiveArc.addCentredArc(centre.x, centre.y, radius - 7.0f, radius - 7.0f, 0.0f, rotaryStart, rotaryEnd, true);
-    g.setColour(juce::Colour(0x22000000));
+    g.setColour(t.inactiveArc);
     g.strokePath(inactiveArc, juce::PathStrokeType(isHero ? 8.0f : 6.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
+    // Active arc
     juce::Path activeArc;
     activeArc.addCentredArc(centre.x, centre.y, radius - 7.0f, radius - 7.0f, 0.0f, rotaryStart, angle, true);
     g.setColour(accent);
     g.strokePath(activeArc, juce::PathStrokeType(isHero ? 8.0f : 6.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
+    // Pointer
     juce::Path pointer;
     const auto pointerLength = radius * (isHero ? 0.62f : 0.56f);
     const auto pointerThickness = isHero ? 4.0f : 3.0f;
     pointer.addRoundedRectangle(-pointerThickness * 0.5f, -pointerLength, pointerThickness, pointerLength, pointerThickness * 0.5f);
     pointer.applyTransform(juce::AffineTransform::rotation(angle).translated(centre.x, centre.y));
-    g.setColour(juce::Colour(0xff403731));
+    g.setColour(t.pointer);
     g.fillPath(pointer);
 
-    g.setColour(juce::Colour(0xff2f2925));
+    // Value text
+    g.setColour(t.knobValueText);
     g.setFont(juce::FontOptions(isHero ? 28.0f : 12.5f, juce::Font::bold));
     g.drawText(getTextFromValue(getValue()),
                bounds.withTop(knobBounds.getBottom() + (isHero ? 8.0f : 6.0f)).withHeight(isHero ? 34.0f : 18.0f),
                juce::Justification::centred,
                false);
 
-    g.setColour(juce::Colour(0xff6c5f56));
+    // Label text
+    g.setColour(t.knobLabelText);
     g.setFont(juce::FontOptions(isHero ? 13.0f : 11.5f, juce::Font::bold));
     g.drawText(label.toUpperCase(),
                bounds.withBottom(bounds.getBottom() - (isHero ? 2.0f : 0.0f)).withHeight(isHero ? 20.0f : 16.0f),

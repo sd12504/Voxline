@@ -54,6 +54,8 @@ target_sources(VOXLINE
         Source/UI/HeroKnob.cpp
         Source/UI/HeroKnob.h
         Source/UI/Layout.h
+        Source/UI/Theme.cpp
+        Source/UI/Theme.h
 )
 
 juce_generate_juce_header(VOXLINE)
@@ -88,6 +90,8 @@ if(BUILD_TESTING)
             Source/UI/HeroKnob.cpp
             Source/UI/HeroKnob.h
             Source/UI/Layout.h
+            Source/UI/Theme.cpp
+            Source/UI/Theme.h
             Tests/Phase1Tests.cpp
     )
 

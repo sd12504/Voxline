@@ -3,12 +3,14 @@
 #include <JuceHeader.h>
 #include "UI/CustomKnob.h"
 #include "UI/HeroKnob.h"
+#include "UI/Theme.h"
 
 class VoxlineAudioProcessor;
 
 class VoxlineAudioProcessorEditor final : public juce::AudioProcessorEditor,
                                           private juce::AudioProcessorValueTreeState::Listener,
-                                          private juce::AsyncUpdater
+                                          private juce::AsyncUpdater,
+                                          private juce::KeyListener
 {
 public:
     explicit VoxlineAudioProcessorEditor(VoxlineAudioProcessor&);
@@ -25,14 +27,21 @@ private:
     void parameterChanged(const juce::String& parameterID, float newValue) override;
     void handleAsyncUpdate() override;
 
+    bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
+
     void configureKnob(VoxlineCustomKnob& knob);
     void configureButton(juce::ToggleButton& button, const juce::String& text);
     void configureHeaderButton(juce::TextButton& button, const juce::String& text);
     void configurePresetButton(juce::TextButton& button, const juce::String& text, bool isActive = false);
     void configureTextLabel(juce::Label& label, const juce::String& text, juce::Justification justification);
 
+    void applyTheme(const VoxlineTheme& theme, int index);
+    void cycleTheme();
+
     VoxlineAudioProcessor& audioProcessor;
     std::atomic<float> pendingPolishValue { 0.0f };
+
+    int currentThemeIndex { 0 };
 
     juce::Label logoLabel;
     juce::Label subtitleLabel;

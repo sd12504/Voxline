@@ -336,14 +336,14 @@ Add theme tokens and implement both official themes.
 
 ## Tasks
 
-- [ ] Add `Theme.h`
-- [ ] Add `Theme.cpp`
-- [ ] Define `ThemeColors`
-- [ ] Implement Light Theme
-- [ ] Implement Dark Theme
-- [ ] Add temporary theme switch or debug flag
-- [ ] Remove random hardcoded colors
-- [ ] Confirm text contrast in both themes
+- [x] Add `Theme.h`
+- [x] Add `Theme.cpp`
+- [x] Define `VoxlineTheme`
+- [x] Implement Light Theme
+- [x] Implement Dark Theme
+- [x] Add temporary theme switch via 'T' key
+- [x] Remove random hardcoded colors from knobs and editor
+- [x] Confirm text contrast in both themes
 
 ## Suggested Commit
 
