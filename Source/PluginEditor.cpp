@@ -381,7 +381,8 @@ void VoxlineAudioProcessorEditor::parameterChanged(const juce::String& parameter
     }
 
     // Update active A/B slot on every parameter change
-    captureSnapshot(isSlotAActive ? snapshotA : snapshotB);
+    if (!applyingSnapshot)
+        captureSnapshot(isSlotAActive ? snapshotA : snapshotB);
 }
 
 void VoxlineAudioProcessorEditor::handleAsyncUpdate()
@@ -688,7 +689,10 @@ void VoxlineAudioProcessorEditor::toggleAb()
     // Save current state to active slot, then switch
     captureSnapshot(isSlotAActive ? snapshotA : snapshotB);
     isSlotAActive = !isSlotAActive;
+
+    applyingSnapshot = true;
     applySnapshot(isSlotAActive ? snapshotA : snapshotB);
+    applyingSnapshot = false;
 
     // Update button visual
     auto& t = VoxlineTheme::get(currentThemeIndex);

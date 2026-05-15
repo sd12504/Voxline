@@ -124,4 +124,5 @@ private:
     // A/B compare
     ParameterSnapshot snapshotA, snapshotB;
     bool isSlotAActive = true;
+    bool applyingSnapshot = false;
 };
