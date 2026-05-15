@@ -49,6 +49,11 @@ target_sources(VOXLINE
         Source/PluginEditor.h
         Source/PluginProcessor.cpp
         Source/PluginProcessor.h
+        Source/UI/CustomKnob.cpp
+        Source/UI/CustomKnob.h
+        Source/UI/HeroKnob.cpp
+        Source/UI/HeroKnob.h
+        Source/UI/Layout.h
 )
 
 juce_generate_juce_header(VOXLINE)
@@ -78,6 +83,11 @@ if(BUILD_TESTING)
             Source/PluginEditor.h
             Source/PluginProcessor.cpp
             Source/PluginProcessor.h
+            Source/UI/CustomKnob.cpp
+            Source/UI/CustomKnob.h
+            Source/UI/HeroKnob.cpp
+            Source/UI/HeroKnob.h
+            Source/UI/Layout.h
             Tests/Phase1Tests.cpp
     )
 

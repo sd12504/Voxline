@@ -218,6 +218,16 @@ Current UI state:
 - Uses default JUCE controls for now; custom knob work starts in Phase 5
 ```
 
+## Phase 5 Status
+
+Phase 5 swaps the placeholder rotary sliders for real custom-painted knobs while keeping JUCE slider interaction and APVTS attachments.
+
+```txt
+- `CustomKnob` now paints body / inactive arc / active arc / pointer / value / label
+- `HeroKnob` is used for POLISH
+- All 9 knobs are still real JUCE sliders with host automation intact
+```
+
 ## Documentation
 
 - `AGENT.md` — rules for the coding agent

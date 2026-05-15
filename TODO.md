@@ -298,17 +298,17 @@ Do not use PNG knobs for dynamic controls.
 
 ## Tasks
 
-- [ ] Create `CustomKnob`
-- [ ] Create `HeroKnob` for POLISH
-- [ ] Custom paint knob body
-- [ ] Custom paint inactive arc
-- [ ] Custom paint active arc based on current value
-- [ ] Custom paint pointer
-- [ ] Custom paint value text and label
-- [ ] Keep Slider interaction working
-- [ ] Keep SliderAttachment working
-- [ ] Test POLISH first
-- [ ] Then apply to all knobs
+- [x] Create `CustomKnob`
+- [x] Create `HeroKnob` for POLISH
+- [x] Custom paint knob body
+- [x] Custom paint inactive arc
+- [x] Custom paint active arc based on current value
+- [x] Custom paint pointer
+- [x] Custom paint value text and label
+- [x] Keep Slider interaction working
+- [x] Keep SliderAttachment working
+- [x] Test POLISH first
+- [x] Then apply to all knobs
 
 ## Suggested Commit
 
@@ -319,12 +319,12 @@ git commit -m "ui: add interactive VOXLINE custom knob system"
 
 ## Done When
 
-- [ ] POLISH knob moves
-- [ ] All small knobs move
-- [ ] Value text updates
-- [ ] Active arc updates
-- [ ] APVTS sync remains correct
-- [ ] Host automation remains correct
+- [x] POLISH knob moves
+- [x] All small knobs move
+- [x] Value text updates
+- [x] Active arc updates
+- [x] APVTS sync remains correct
+- [x] Host automation remains correct
 
 ---
 

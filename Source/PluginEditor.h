@@ -1,6 +1,8 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "UI/CustomKnob.h"
+#include "UI/HeroKnob.h"
 
 class VoxlineAudioProcessor;
 
@@ -23,18 +25,11 @@ private:
     void parameterChanged(const juce::String& parameterID, float newValue) override;
     void handleAsyncUpdate() override;
 
-    void configureSlider(juce::Slider& slider, juce::Label& label, const juce::String& text);
+    void configureKnob(VoxlineCustomKnob& knob);
     void configureButton(juce::ToggleButton& button, const juce::String& text);
     void configureHeaderButton(juce::TextButton& button, const juce::String& text);
     void configurePresetButton(juce::TextButton& button, const juce::String& text, bool isActive = false);
     void configureTextLabel(juce::Label& label, const juce::String& text, juce::Justification justification);
-    void layoutSliderGroup(juce::Slider& slider,
-                           juce::Label& valueLabel,
-                           juce::Label& nameLabel,
-                           const juce::Rectangle<int>& sliderBounds,
-                           const juce::Rectangle<int>& valueBounds,
-                           const juce::Rectangle<int>& nameBounds);
-    void updateStaticValueLabels();
 
     VoxlineAudioProcessor& audioProcessor;
     std::atomic<float> pendingPolishValue { 0.0f };
@@ -52,15 +47,6 @@ private:
     juce::Label peakRmsLabel;
     juce::Label meterNamesLabel;
     juce::Label inputLedDotsLabel;
-    juce::Label inputGainValueLabel;
-    juce::Label polishValueLabel;
-    juce::Label bodyValueLabel;
-    juce::Label clarityValueLabel;
-    juce::Label airValueLabel;
-    juce::Label smoothValueLabel;
-    juce::Label compValueLabel;
-    juce::Label driveValueLabel;
-    juce::Label outputGainValueLabel;
 
     juce::TextButton cleanPresetButton;
     juce::TextButton warmPresetButton;
@@ -68,29 +54,19 @@ private:
     juce::TextButton rapPresetButton;
     juce::TextButton abButton;
 
-    juce::Slider inputGainSlider;
-    juce::Slider polishSlider;
-    juce::Slider bodySlider;
-    juce::Slider claritySlider;
-    juce::Slider airSlider;
-    juce::Slider smoothSlider;
-    juce::Slider compSlider;
-    juce::Slider driveSlider;
-    juce::Slider outputGainSlider;
+    VoxlineCustomKnob inputGainSlider { "Input", juce::Colour(0xffb68cf2) };
+    VoxlineHeroKnob polishSlider { "Polish", juce::Colour(0xffe48aa2) };
+    VoxlineCustomKnob bodySlider { "Body", juce::Colour(0xfff0b37f) };
+    VoxlineCustomKnob claritySlider { "Clarity", juce::Colour(0xffee9b95) };
+    VoxlineCustomKnob airSlider { "Air", juce::Colour(0xffa285f1) };
+    VoxlineCustomKnob smoothSlider { "Smooth", juce::Colour(0xffdf8b9b) };
+    VoxlineCustomKnob compSlider { "Comp", juce::Colour(0xff8e7af0) };
+    VoxlineCustomKnob driveSlider { "Drive", juce::Colour(0xffefaa76) };
+    VoxlineCustomKnob outputGainSlider { "Out", juce::Colour(0xff9f8ff4) };
 
     juce::ToggleButton autoGainButton;
     juce::ToggleButton bypassButton;
     juce::ToggleButton listenButton;
-
-    juce::Label inputGainLabel;
-    juce::Label polishLabel;
-    juce::Label bodyLabel;
-    juce::Label clarityLabel;
-    juce::Label airLabel;
-    juce::Label smoothLabel;
-    juce::Label compLabel;
-    juce::Label driveLabel;
-    juce::Label outputGainLabel;
 
     juce::ProgressBar outputMeter;
     juce::ProgressBar gainReductionMeter;

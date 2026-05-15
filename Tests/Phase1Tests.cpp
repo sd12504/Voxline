@@ -57,7 +57,7 @@ class VoxlineTests final : public juce::UnitTest
 {
 public:
     VoxlineTests()
-        : juce::UnitTest("VOXLINE phases 1 to 4", "VOXLINE")
+        : juce::UnitTest("VOXLINE phases 1 to 5", "VOXLINE")
     {
     }
 
