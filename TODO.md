@@ -40,10 +40,10 @@ macOS: VST3 + AU
 
 - [x] Create clean `VOXLINE` project folder
 - [x] Initialize Git
-- [ ] Add `AGENT.md`
-- [ ] Add `TODO.md`
-- [ ] Add `UI.md`
-- [ ] Add `README.md`
+- [x] Add `AGENT.md`
+- [x] Add `TODO.md`
+- [x] Add `UI.md`
+- [x] Add `README.md`
 - [x] Add JUCE as submodule or clearly documented dependency
 - [x] Create root `CMakeLists.txt`
 - [x] Configure C++20
@@ -85,18 +85,18 @@ Create the full stable parameter system before UI and DSP become complex.
 
 ## Required Parameters
 
-- [ ] `inputGain`
-- [ ] `autoGain`
-- [ ] `polish`
-- [ ] `body`
-- [ ] `clarity`
-- [ ] `air`
-- [ ] `smooth`
-- [ ] `comp`
-- [ ] `drive`
-- [ ] `outputGain`
-- [ ] `bypass`
-- [ ] `listen`
+- [x] `inputGain`
+- [x] `autoGain`
+- [x] `polish`
+- [x] `body`
+- [x] `clarity`
+- [x] `air`
+- [x] `smooth`
+- [x] `comp`
+- [x] `drive`
+- [x] `outputGain`
+- [x] `bypass`
+- [x] `listen`
 
 ## Parameter Ranges
 
@@ -154,7 +154,7 @@ Do not make final Figma UI yet.
 ## Tasks
 
 - [x] Set editor size to `1100 x 760`
-- [ ] Add default JUCE sliders for:
+- [x] Add default JUCE sliders for:
   - [x] `inputGain`
   - [x] `polish`
   - [x] `body`
@@ -164,7 +164,7 @@ Do not make final Figma UI yet.
   - [x] `comp`
   - [x] `drive`
   - [x] `outputGain`
-- [ ] Add default JUCE toggle buttons for:
+- [x] Add default JUCE toggle buttons for:
   - [x] `autoGain`
   - [x] `bypass`
   - [x] `listen`
