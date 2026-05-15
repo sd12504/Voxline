@@ -499,14 +499,12 @@ void VoxlineAudioProcessorEditor::loadIconDrawables(bool dark)
         cachedBypassIcon  = parse(BinaryData::bypass_dark_svg,  BinaryData::bypass_dark_svgSize);
         cachedListenIcon  = parse(BinaryData::listen_dark_svg,  BinaryData::listen_dark_svgSize);
         cachedSettingsIcon = parse(BinaryData::settings_dark_svg, BinaryData::settings_dark_svgSize);
-        cachedLogoMark    = parse(BinaryData::voxline_logo_mark_dark_svg, BinaryData::voxline_logo_mark_dark_svgSize);
     }
     else
     {
         cachedBypassIcon  = parse(BinaryData::bypass_light_svg,  BinaryData::bypass_light_svgSize);
         cachedListenIcon  = parse(BinaryData::listen_light_svg,  BinaryData::listen_light_svgSize);
         cachedSettingsIcon = parse(BinaryData::settings_light_svg, BinaryData::settings_light_svgSize);
-        cachedLogoMark    = parse(BinaryData::voxline_logo_mark_light_svg, BinaryData::voxline_logo_mark_light_svgSize);
     }
 }
 
@@ -519,9 +517,8 @@ void VoxlineAudioProcessorEditor::paintIcons(juce::Graphics& g)
                           juce::RectanglePlacement::centred, 1.0f);
     };
 
-    draw(cachedLogoMark.get(),    52,  56, 42, 42);
-    draw(cachedBypassIcon.get(), 910,  74, 18, 18);
-    draw(cachedListenIcon.get(), 964, 623, 20, 20);
+    draw(cachedBypassIcon.get(),  910, 74, 18, 18);
+    draw(cachedListenIcon.get(),  964, 623, 20, 20);
 }
 
 // ---------------------------------------------------------------------------
