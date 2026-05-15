@@ -35,21 +35,29 @@ struct VoxlineAutoGainLNF final : juce::LookAndFeel_V4
     {
         const auto b = button.getLocalBounds().toFloat().reduced(2.0f);
         const auto on = button.getToggleState();
-        const auto darkBg = juce::Colour(0xffe8e0d4); // cream pill
-        const auto onBg = juce::Colour(0xffD86F96).withAlpha(0.22f);
+        const auto dark = currentAutoGainTheme != 0;
 
-        g.setColour(on ? onBg : darkBg);
+        const auto fillOff = dark ? juce::Colour(0xff2a2635) : juce::Colour(0xffe8e0d4);
+        const auto fillOn  = juce::Colour(0xffD86F96).withAlpha(0.22f);
+        const auto borderOff = dark ? juce::Colour(0xff3d3950) : juce::Colour(0xffc8bfb4);
+        const auto textOn  = juce::Colour(0xffD86F96);
+        const auto textOff = dark ? juce::Colour(0xff9d99a8) : juce::Colour(0xff666666);
+
+        g.setColour(on ? fillOn : fillOff);
         g.fillRoundedRectangle(b, 7.0f);
-        g.setColour(on ? juce::Colour(0xffD86F96) : juce::Colour(0xff666666));
+        g.setColour(on ? textOn : borderOff);
         g.drawRoundedRectangle(b, 7.0f, 1.0f);
 
         g.setFont(juce::FontOptions(12.0f));
-        g.setColour(on ? juce::Colour(0xffD86F96) : button.findColour(juce::ToggleButton::textColourId));
+        g.setColour(on ? textOn : textOff);
         g.drawText(button.getButtonText(), button.getLocalBounds(), juce::Justification::centred, false);
     }
+
+    static int currentAutoGainTheme;
 };
 
 static VoxlineAutoGainLNF voxlineAutoGainLNF;
+int VoxlineAutoGainLNF::currentAutoGainTheme = 0;
 
 // ---------------------------------------------------------------------------
 // Pill-styled ComboBox LookAndFeel for preset dropdown
@@ -443,13 +451,13 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
 
     // === Preset dropdown ===
     VoxlinePresetDropdownLNF::currentDropdownTheme = index;
+    VoxlineAutoGainLNF::currentAutoGainTheme = index;
     presetDropdown.getProperties().set("themeIndex", index);
     presetDropdown.repaint();
 
     // === Toggles ===
-    autoGainButton.setColour(juce::ToggleButton::textColourId, theme.textSecondary);
-    autoGainButton.setColour(juce::ToggleButton::tickColourId, theme.accentLavender);
-    autoGainButton.setColour(juce::ToggleButton::tickDisabledColourId, theme.inactiveArc);
+    autoGainButton.setColour(juce::ToggleButton::textColourId, 
+        dark ? juce::Colour(0xff9d99a8) : juce::Colour(0xff666666));
     listenButton.setColour(juce::ToggleButton::textColourId, theme.textSecondary);
     listenButton.setColour(juce::ToggleButton::tickColourId, theme.accentLavender);
 
