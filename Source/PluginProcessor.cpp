@@ -151,9 +151,13 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
         bypassSmoothed.setTargetValue(0.0f);
     }
 
-    const auto polishAmount = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::polish)->load());
-    const auto compAmount = juce::jlimit(0.0f, 1.0f, percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::comp)->load()) + polishAmount * 0.25f);
-    const auto driveAmount = juce::jlimit(0.0f, 1.0f, percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::drive)->load()) + polishAmount * 0.20f);
+    const auto polishRaw = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::polish)->load());
+    const auto polishScale = juce::jmap(polishRaw, 0.0f, 1.0f, 0.35f, 1.35f);
+    const auto compRaw = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::comp)->load());
+    const auto driveRaw = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::drive)->load());
+
+    const auto compAmount = juce::jlimit(0.0f, 1.0f, compRaw * polishScale);
+    const auto driveAmount = juce::jlimit(0.0f, 1.0f, driveRaw * polishScale);
     const auto autoGainEnabled = apvts.getRawParameterValue(VoxlineParameterIDs::autoGain)->load() >= 0.5f;
     const auto listenEnabled = apvts.getRawParameterValue(VoxlineParameterIDs::listen)->load() >= 0.5f;
 
@@ -162,14 +166,14 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
 
     auto outputGainDb = apvts.getRawParameterValue(VoxlineParameterIDs::outputGain)->load();
     if (autoGainEnabled)
-        outputGainDb += compAmount * 2.5f - driveAmount * 1.2f + polishAmount * 0.8f;
+        outputGainDb += compAmount * 2.5f - driveAmount * 1.2f + polishScale * 0.6f;
     outputGainSmoothed.setTargetValue(juce::Decibels::decibelsToGain(outputGainDb));
 
     updateToneFilters();
 
-    const auto drivePreGain = juce::Decibels::decibelsToGain(driveAmount * 18.0f);
+    const auto drivePreGain = juce::Decibels::decibelsToGain(driveAmount * 12.0f);
     const auto driveNormalizer = std::tanh(drivePreGain);
-    const auto wetMix = juce::jlimit(0.0f, 1.0f, 0.35f + polishAmount * 0.25f);
+    const auto wetMix = juce::jlimit(0.0f, 1.0f, 0.35f + polishScale * 0.30f);
 
     for (auto sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
     {
@@ -367,20 +371,33 @@ VoxlineAudioProcessor::APVTS::ParameterLayout VoxlineAudioProcessor::createParam
 
 void VoxlineAudioProcessor::updateToneFilters()
 {
-    const auto polishAmount = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::polish)->load());
-    const auto bodyAmount = juce::jlimit(0.0f, 1.0f, percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::body)->load()) + polishAmount * 0.30f);
-    const auto clarityAmount = juce::jlimit(0.0f, 1.0f, percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::clarity)->load()) + polishAmount * 0.25f);
-    const auto airAmount = juce::jlimit(0.0f, 1.0f, percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::air)->load()) + polishAmount * 0.22f);
-    const auto smoothAmount = juce::jlimit(0.0f, 1.0f, percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::smooth)->load()) + polishAmount * 0.18f);
+    const auto polishRaw = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::polish)->load());
+    const auto polishScale = juce::jmap(polishRaw, 0.0f, 1.0f, 0.35f, 1.35f);
 
-    const auto bodyCoefficients = juce::IIRCoefficients::makeLowShelf(
-        currentSampleRate, 180.0f, 0.7071f, juce::Decibels::decibelsToGain(bodyAmount * 5.0f));
+    const auto bodyRaw     = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::body)->load());
+    const auto clarityRaw  = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::clarity)->load());
+    const auto airRaw      = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::air)->load());
+    const auto smoothRaw   = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::smooth)->load());
+
+    // Body: bell at 200Hz, -4 to +5 dB, Polish scales
+    const auto bodyDb = juce::jmap(bodyRaw, 0.0f, 1.0f, -4.0f, 5.0f) * polishScale;
+    const auto bodyCoefficients = juce::IIRCoefficients::makePeakFilter(
+        currentSampleRate, 200.0f, 0.6f, juce::Decibels::decibelsToGain(bodyDb));
+
+    // Clarity: bell at 3500Hz, -3 to +6 dB
+    const auto clarityDb = juce::jmap(clarityRaw, 0.0f, 1.0f, -3.0f, 6.0f) * polishScale;
     const auto clarityCoefficients = juce::IIRCoefficients::makePeakFilter(
-        currentSampleRate, 3200.0f, 0.8f, juce::Decibels::decibelsToGain(clarityAmount * 4.0f));
+        currentSampleRate, 3500.0f, 1.0f, juce::Decibels::decibelsToGain(clarityDb));
+
+    // Air: high shelf at 12kHz, -3 to +7 dB
+    const auto airDb = juce::jmap(airRaw, 0.0f, 1.0f, -3.0f, 7.0f) * polishScale;
     const auto airCoefficients = juce::IIRCoefficients::makeHighShelf(
-        currentSampleRate, 10000.0f, 0.7071f, juce::Decibels::decibelsToGain(airAmount * 6.0f));
-    const auto smoothCutoff = juce::jmap(smoothAmount, 0.0f, 1.0f, 20000.0f, 4500.0f);
-    const auto smoothCoefficients = juce::IIRCoefficients::makeLowPass(currentSampleRate, smoothCutoff, 0.7071f);
+        currentSampleRate, 12000.0f, 0.7f, juce::Decibels::decibelsToGain(airDb));
+
+    // Smooth: high shelf cut at 6kHz, 0 to -6 dB
+    const auto smoothDb = juce::jmap(smoothRaw, 0.0f, 1.0f, 0.0f, -6.0f) * polishScale;
+    const auto smoothCoefficients = juce::IIRCoefficients::makeHighShelf(
+        currentSampleRate, 6000.0f, 0.7f, juce::Decibels::decibelsToGain(smoothDb));
 
     for (size_t channel = 0; channel < bodyFilters.size(); ++channel)
     {
@@ -396,9 +413,9 @@ float VoxlineAudioProcessor::updateCompressorGain(float detector, float amount)
     if (amount <= 0.0f)
         return 1.0f;
 
-    const auto thresholdDb = juce::jmap(amount, 0.0f, 1.0f, -8.0f, -24.0f);
+    const auto thresholdDb = juce::jmap(amount, 0.0f, 1.0f, -12.0f, -32.0f);
     const auto thresholdGain = juce::Decibels::decibelsToGain(thresholdDb);
-    const auto ratio = juce::jmap(amount, 0.0f, 1.0f, 1.2f, 4.5f);
+    const auto ratio = juce::jmap(amount, 0.0f, 1.0f, 1.2f, 5.0f);
 
     auto targetGain = 1.0f;
     if (detector > thresholdGain)
