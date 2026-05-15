@@ -354,10 +354,10 @@ git commit -m "ui: add VOXLINE light and dark theme system"
 
 ## Done When
 
-- [ ] Light theme works
-- [ ] Dark theme works
-- [ ] Components read from theme tokens
-- [ ] UI remains readable
+- [x] Light theme works
+- [x] Dark theme works
+- [x] Components read from theme tokens
+- [x] UI remains readable
 
 ---
 
@@ -369,21 +369,21 @@ Add the product-level features needed for the MVP UI.
 
 ## Tasks
 
-- [ ] Add output meter
-- [ ] Add gain reduction meter
-- [ ] Add PEAK readout
-- [ ] Add RMS readout placeholder or real value
-- [ ] Add preset buttons:
-  - [ ] Clean
-  - [ ] Warm
-  - [ ] Bright
-  - [ ] Rap
-- [ ] Add A/B button placeholder
-- [ ] Add Listen button behavior or placeholder
-- [ ] Add Settings placeholder
-- [ ] Add refined panel styling
-- [ ] Add button active states
-- [ ] Add final Figma spacing polish
+- [x] Add output meter
+- [x] Add gain reduction meter
+- [x] Add PEAK readout
+- [x] Add RMS readout placeholder or real value
+- [x] Add preset buttons:
+  - [x] Clean
+  - [x] Warm
+  - [x] Bright
+  - [x] Rap
+- [x] Add A/B button with snapshot toggle
+- [x] Add Listen button behavior or placeholder
+- [x] Add Settings placeholder
+- [x] Add refined panel styling
+- [x] Add button active states
+- [x] Add final Figma spacing polish
 
 ## Suggested Commit
 
@@ -394,11 +394,11 @@ git commit -m "feat: add VOXLINE meters presets and visual polish"
 
 ## Done When
 
-- [ ] Meters respond or show stable placeholders
-- [ ] Preset buttons update parameters
-- [ ] No pops when switching presets
-- [ ] UI feels visually coherent
-- [ ] No obvious default JUCE gray controls remain
+- [x] Meters respond or show stable placeholders
+- [x] Preset buttons update parameters
+- [x] No pops when switching presets
+- [x] UI feels visually coherent
+- [x] No obvious default JUCE gray controls remain
 
 ---
 
