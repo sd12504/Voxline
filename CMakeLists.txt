@@ -76,6 +76,8 @@ juce_add_binary_data(VOXLINEAssets
         Source/UI/Assets/svg/subtle_noise_texture_dark.svg
         Source/UI/Assets/svg/soft_radial_glow_light.svg
         Source/UI/Assets/svg/soft_radial_glow_dark.svg
+        Source/UI/Assets/svg/moon.svg
+        Source/UI/Assets/svg/sun.svg
 )
 
 juce_generate_juce_header(VOXLINE)

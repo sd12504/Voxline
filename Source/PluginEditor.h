@@ -62,7 +62,6 @@ private:
     juce::Label subtitleLabel;
     juce::ComboBox presetDropdown;
     juce::TextButton settingsButton;
-    juce::TextButton cleanModeButton;
 
     juce::Label inputTitleLabel;
     juce::Label toneTitleLabel;
@@ -72,10 +71,6 @@ private:
     juce::Label meterNamesLabel;
     juce::Label outputValueLabel;
 
-    juce::TextButton cleanPresetButton;
-    juce::TextButton warmPresetButton;
-    juce::TextButton brightPresetButton;
-    juce::TextButton rapPresetButton;
     juce::TextButton abButton;
 
     VoxlineCustomKnob inputGainSlider { "Input", juce::Colour(0xffb68cf2) };
@@ -101,6 +96,8 @@ private:
     std::unique_ptr<juce::Drawable> cachedSettingsIcon;
     std::unique_ptr<juce::Drawable> cachedBypassIcon;
     std::unique_ptr<juce::Drawable> cachedListenIcon;
+    std::unique_ptr<juce::Drawable> cachedSunIcon;
+    std::unique_ptr<juce::Drawable> cachedMoonIcon;
 
     std::unique_ptr<SliderAttachment> inputGainAttachment;
     std::unique_ptr<SliderAttachment> polishAttachment;

@@ -90,10 +90,12 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     configureTextLabel(logoLabel, "VOXLINE", juce::Justification::centredLeft);
     configureTextLabel(subtitleLabel, "Fast Vocal Channel", juce::Justification::centredLeft);
     configureHeaderButton(settingsButton, "");
-    configureHeaderButton(cleanModeButton, "Clean");
+
+    settingsButton.addListener(this);
 
     // Preset dropdown in bottom bar
     presetDropdown.setLookAndFeel(&voxlineDropdownLNF);
+    presetDropdown.setColour(juce::ComboBox::textColourId, juce::Colours::transparentBlack);
     presetDropdown.addItemList({"Clean","Warm","Bright","Rap","Airy Pop","Soft Vocal","Podcast","Aggressive Rap"}, 1);
     presetDropdown.setSelectedId(2, juce::dontSendNotification); // Warm
     presetDropdown.getProperties().set("themeIndex", 0);
@@ -107,16 +109,8 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     configureTextLabel(peakRmsLabel, "PEAK -3.4\nRMS -14.8", juce::Justification::centred);
     configureTextLabel(meterNamesLabel, "OUT   GR", juce::Justification::centred);
 
-    configurePresetButton(cleanPresetButton, "Clean");
-    configurePresetButton(warmPresetButton, "Warm", true);
-    configurePresetButton(brightPresetButton, "Bright");
-    configurePresetButton(rapPresetButton, "Rap");
     configurePresetButton(abButton, "A/B");
 
-    cleanPresetButton.addListener(this);
-    warmPresetButton.addListener(this);
-    brightPresetButton.addListener(this);
-    rapPresetButton.addListener(this);
     abButton.addListener(this);
 
     configureKnob(inputGainSlider);
@@ -231,7 +225,6 @@ void VoxlineAudioProcessorEditor::resized()
     inputTitleLabel.setBounds(VoxlineLayout::inputTitleBounds);
     inputGainSlider.setBounds(VoxlineLayout::inputGainSliderBounds);
     autoGainButton.setBounds(VoxlineLayout::autoGainToggleBounds);
-    cleanModeButton.setBounds(VoxlineLayout::cleanModeBounds);
 
     toneTitleLabel.setBounds(VoxlineLayout::toneTitleBounds);
     bodySlider.setBounds(VoxlineLayout::bodySliderBounds);
@@ -252,13 +245,9 @@ void VoxlineAudioProcessorEditor::resized()
     outputGainSlider.setBounds(VoxlineLayout::outputGainSliderBounds);
     outputValueLabel.setBounds(VoxlineLayout::outputValueBounds);
 
-    cleanPresetButton.setBounds(VoxlineLayout::cleanPresetBounds);
-    warmPresetButton.setBounds(VoxlineLayout::warmPresetBounds);
-    brightPresetButton.setBounds(VoxlineLayout::brightPresetBounds);
-    rapPresetButton.setBounds(VoxlineLayout::rapPresetBounds);
+    presetDropdown.setBounds(VoxlineLayout::presetDropdownBounds);
     abButton.setBounds(VoxlineLayout::abButtonBounds);
     listenButton.setBounds(VoxlineLayout::listenUtilityBounds);
-    presetDropdown.setBounds(VoxlineLayout::presetDropdownBounds);
 }
 
 // ---------------------------------------------------------------------------
@@ -327,7 +316,7 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     setTextColour(outputValueLabel);
 
     // === Header ===
-    // Settings — subtle secondary, transparent or light fill
+    // Settings / Theme toggle — subtle pill
     settingsButton.setColour(juce::TextButton::buttonColourId, 
         dark ? juce::Colour(0x00ffffff) : juce::Colour(0xffece5de));
     settingsButton.setColour(juce::TextButton::textColourOffId, theme.textSecondary);
@@ -335,28 +324,10 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     // Bypass text colour (checkbox hidden by LookAndFeel)
     bypassButton.setColour(juce::ToggleButton::textColourId, theme.textPrimary);
 
-    // Clean button
-    cleanModeButton.setColour(juce::TextButton::buttonColourId, theme.panelBg);
-    cleanModeButton.setColour(juce::TextButton::textColourOffId, theme.textPrimary);
-
-    // === Bottom preset bar ===
+    // === Bottom bar utility buttons ===
     const auto inactiveBg = dark ? juce::Colour(0xff1e1b2a) : juce::Colour(0xfffaf7f2);
-    const auto inactiveText = theme.textPrimary;
-
-    cleanPresetButton.setColour(juce::TextButton::buttonColourId, inactiveBg);
-    cleanPresetButton.setColour(juce::TextButton::textColourOffId, inactiveText);
-
-    warmPresetButton.setColour(juce::TextButton::buttonColourId, theme.accentRose.withAlpha(dark ? 0.30f : 0.22f));
-    warmPresetButton.setColour(juce::TextButton::textColourOffId, theme.accentRose);
-
-    brightPresetButton.setColour(juce::TextButton::buttonColourId, inactiveBg);
-    brightPresetButton.setColour(juce::TextButton::textColourOffId, inactiveText);
-
-    rapPresetButton.setColour(juce::TextButton::buttonColourId, inactiveBg);
-    rapPresetButton.setColour(juce::TextButton::textColourOffId, inactiveText);
-
     abButton.setColour(juce::TextButton::buttonColourId, inactiveBg);
-    abButton.setColour(juce::TextButton::textColourOffId, inactiveText);
+    abButton.setColour(juce::TextButton::textColourOffId, theme.textPrimary);
 
     // === Preset dropdown ===
     VoxlinePresetDropdownLNF::currentDropdownTheme = index;
@@ -405,12 +376,16 @@ void VoxlineAudioProcessorEditor::loadIconDrawables(bool dark)
         cachedBypassIcon  = parse(BinaryData::bypass_dark_svg,  BinaryData::bypass_dark_svgSize);
         cachedListenIcon  = parse(BinaryData::listen_dark_svg,  BinaryData::listen_dark_svgSize);
         cachedSettingsIcon = parse(BinaryData::settings_dark_svg, BinaryData::settings_dark_svgSize);
+        cachedSunIcon     = parse(BinaryData::sun_svg,          BinaryData::sun_svgSize);
+        cachedMoonIcon.reset();
     }
     else
     {
         cachedBypassIcon  = parse(BinaryData::bypass_light_svg,  BinaryData::bypass_light_svgSize);
         cachedListenIcon  = parse(BinaryData::listen_light_svg,  BinaryData::listen_light_svgSize);
         cachedSettingsIcon = parse(BinaryData::settings_light_svg, BinaryData::settings_light_svgSize);
+        cachedMoonIcon    = parse(BinaryData::moon_svg,         BinaryData::moon_svgSize);
+        cachedSunIcon.reset();
     }
 }
 
@@ -424,7 +399,11 @@ void VoxlineAudioProcessorEditor::paintIcons(juce::Graphics& g)
     };
 
     draw(cachedBypassIcon.get(),  910, 74, 18, 18);
-    draw(cachedSettingsIcon.get(), 1013, 71, 24, 24);
+    // Theme toggle: sun (dark theme) or moon (light theme)
+    if (cachedSunIcon)
+        draw(cachedSunIcon.get(), 1013, 71, 24, 24);
+    else if (cachedMoonIcon)
+        draw(cachedMoonIcon.get(), 1013, 71, 24, 24);
     draw(cachedListenIcon.get(),  964, 623, 20, 20);
 }
 
@@ -452,11 +431,8 @@ void VoxlineAudioProcessorEditor::paintLedDots(juce::Graphics& g, juce::Rectangl
 // ---------------------------------------------------------------------------
 void VoxlineAudioProcessorEditor::buttonClicked(juce::Button* button)
 {
-    if (button == &cleanPresetButton)       applyPreset("Clean");
-    else if (button == &warmPresetButton)   applyPreset("Warm");
-    else if (button == &brightPresetButton) applyPreset("Bright");
-    else if (button == &rapPresetButton)    applyPreset("Rap");
-    else if (button == &abButton)           toggleAb();
+    if (button == &settingsButton) cycleTheme();
+    else if (button == &abButton)  toggleAb();
 }
 
 void VoxlineAudioProcessorEditor::comboBoxChanged(juce::ComboBox* comboBoxThatHasChanged)
@@ -512,24 +488,6 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
 
     // Sync dropdown (don't notify again)
     presetDropdown.setSelectedId(selectedId, juce::dontSendNotification);
-
-    // Highlight matching quick button
-    auto& t = VoxlineTheme::get(currentThemeIndex);
-    const auto activeBg = t.accentRose.withAlpha(t.editorBg.getBrightness() < 0.3f ? 0.30f : 0.22f);
-    const auto activeText = t.accentRose;
-    const auto inactiveBg = (t.editorBg.getBrightness() < 0.3f) ? juce::Colour(0xff1e1b2a) : juce::Colour(0xfffaf7f2);
-    const auto inactiveText = t.textPrimary;
-
-    auto styleBtn = [&](juce::TextButton& btn, bool active)
-    {
-        btn.setColour(juce::TextButton::buttonColourId, active ? activeBg : inactiveBg);
-        btn.setColour(juce::TextButton::textColourOffId, active ? activeText : inactiveText);
-    };
-
-    styleBtn(cleanPresetButton, name == "Clean");
-    styleBtn(warmPresetButton, name == "Warm");
-    styleBtn(brightPresetButton, name == "Bright");
-    styleBtn(rapPresetButton, name == "Rap");
 
     DBG("VOXLINE preset: " << name);
 }
