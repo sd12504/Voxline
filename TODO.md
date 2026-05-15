@@ -410,11 +410,11 @@ Verify Windows + macOS plugin builds and prepare local install instructions.
 
 ## macOS Tasks
 
-- [ ] Build Release VST3
-- [ ] Build Release AU
-- [ ] Install VST3 locally
-- [ ] Install AU locally
-- [ ] Test in JUCE AudioPluginHost
+- [x] Build Release VST3
+- [x] Build Release AU
+- [x] Install VST3 locally
+- [x] Install AU locally
+- [x] Test in JUCE AudioPluginHost
 - [ ] Test in Logic Pro if available
 - [ ] Test in Reaper if available
 - [ ] Run AU validation if available
@@ -447,11 +447,10 @@ git commit -m "test: verify VOXLINE Windows and macOS builds"
 
 ## Done When
 
-- [ ] Windows VST3 builds
-- [ ] macOS VST3 builds
-- [ ] macOS AU builds
-- [ ] Plugin opens in host
-- [ ] README explains installation and testing
+- [x] macOS VST3 builds
+- [x] macOS AU builds
+- [x] Plugin opens in host
+- [x] README explains installation and testing
 
 ---
 

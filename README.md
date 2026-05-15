@@ -163,69 +163,54 @@ General test checklist:
 
 ## Signal Chain
 
-Initial MVP chain:
-
 ```txt
 Input
-→ Input Gain
-→ Body EQ
-→ Clarity EQ
-→ Air EQ
-→ Smooth / De-esser placeholder
-→ Compressor placeholder
-→ Drive saturation
-→ Auto Gain
-→ Output Gain
-→ Safety protection
+→ Smoothed Input Gain
+→ Body EQ (bell 200Hz, -4/+5dB)
+→ Clarity EQ (peak 3.5kHz, -3/+6dB)
+→ Air EQ (high shelf 7kHz, -3/+7dB)
+→ Smooth (high shelf cut 6kHz, 0/-6dB)
+→ Compressor (one-knob, -12/-32dB thr, 1.2:1-5:1)
+→ Drive (tanh saturation, 0-12dB)
+→ Auto Gain compensation
+→ Smoothed Output Gain
+→ Soft clip protection
+→ Bypass crossfade (5ms)
 → Output
 ```
 
-## Phase 3 Status
+POLISH acts as a multiplicative macro (0.35x-1.35x) scaling all tone/comp/drive intensity.
 
-Phase 3 is now wired with safe placeholder DSP:
+Listen mode outputs the difference signal (processed - dry) × 2 for auditioning.
+
+## Current Status
+
+All 8 phases complete:
 
 ```txt
-Smoothed Input Gain
-→ Body low-shelf
-→ Clarity presence peak
-→ Air high-shelf
-→ Smooth low-pass placeholder
-→ One-knob compressor placeholder
-→ Drive saturation
-→ Auto gain trim
-→ Smoothed Output Gain
-→ Soft clip protection
+Phase 0: Clean JUCE project                    ✅
+Phase 1: APVTS parameters                      ✅
+Phase 2: Functional debug UI                   ✅
+Phase 3: Minimal vocal DSP                     ✅
+Phase 4: Fixed Figma layout (1100×760)         ✅
+Phase 5: Custom knob system                    ✅
+Phase 6: Light/Dark theme system               ✅
+Phase 7: Meters, presets, visual polish        ✅
+Phase 8: Cross-platform verification           ✅ (macOS)
 ```
 
 Current verification:
 
 ```txt
-- Release build passes
-- Unit tests cover parameter/state/UI plus Phase 3 DSP behavior
-- auval passes for the AU build
-```
-
-## Phase 4 Status
-
-Phase 4 replaces the debug grid with the fixed `1100 x 760` VOXLINE layout from `UI.md`.
-
-Current UI state:
-
-```txt
-- Fixed Top Bar / Input / Tone / Polish / Output / Bottom Bar sections
-- Existing APVTS controls moved into fixed Figma coordinates
-- POLISH remains the central largest real control
-- Uses default JUCE controls for now; custom knob work starts in Phase 5
-```
-
-## Phase 5 Status
-
-Phase 5 swaps the placeholder rotary sliders for real custom-painted knobs while keeping JUCE slider interaction and APVTS attachments.
-
-```txt
-- `CustomKnob` now paints body / inactive arc / active arc / pointer / value / label
-- `HeroKnob` is used for POLISH
-- All 9 knobs are still real JUCE sliders with host automation intact
+- Release VST3 + AU build passes (3.7MB)
+- auval validates AU component
+- All 12 APVTS parameters automatable
+- Real input/output meters (peak + RMS)
+- Gain reduction meter
+- 9 artist presets (Clean + 8 signatures)
+- A/B parameter snapshot comparison
+- Dark/Light theme toggle
+- Bypass with smooth crossfade
 ```
 
 ## Documentation
