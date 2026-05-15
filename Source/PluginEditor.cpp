@@ -527,8 +527,28 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
             {"polish", 0.75f}, {"body", 0.55f}, {"clarity", 0.65f},
             {"air", 0.45f}, {"smooth", 0.25f}, {"comp", 0.70f}, {"drive", 0.55f}
         };
-    // Airy Pop / Soft Vocal / Podcast / Aggressive Rap: UI only, no DSP change yet
-    // TODO: add DSP values for extended presets
+    else if (name == "Airy Pop")
+        values = {
+            {"polish", 0.55f}, {"body", 0.30f}, {"clarity", 0.60f},
+            {"air", 0.80f}, {"smooth", 0.45f}, {"comp", 0.25f}, {"drive", 0.08f}
+        };
+    else if (name == "Soft Vocal")
+        values = {
+            {"polish", 0.50f}, {"body", 0.55f}, {"clarity", 0.35f},
+            {"air", 0.25f}, {"smooth", 0.55f}, {"comp", 0.45f}, {"drive", 0.12f}
+        };
+    else if (name == "Podcast")
+        values = {
+            {"polish", 0.60f}, {"body", 0.65f}, {"clarity", 0.55f},
+            {"air", 0.15f}, {"smooth", 0.60f}, {"comp", 0.60f}, {"drive", 0.05f}
+        };
+    else if (name == "Aggressive Rap")
+        values = {
+            {"polish", 0.85f}, {"body", 0.60f}, {"clarity", 0.70f},
+            {"air", 0.50f}, {"smooth", 0.20f}, {"comp", 0.85f}, {"drive", 0.70f}
+        };
+    else
+        return;
 
     for (auto& p : values)
     {
