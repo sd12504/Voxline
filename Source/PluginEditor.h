@@ -14,7 +14,8 @@ class VoxlineAudioProcessorEditor final : public juce::AudioProcessorEditor,
                                           private juce::AsyncUpdater,
                                           private juce::KeyListener,
                                           private juce::Button::Listener,
-                                          private juce::ComboBox::Listener
+                                          private juce::ComboBox::Listener,
+                                          private juce::Timer
 {
 public:
     explicit VoxlineAudioProcessorEditor(VoxlineAudioProcessor&);
@@ -34,6 +35,7 @@ private:
     bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
     void buttonClicked(juce::Button* button) override;
     void comboBoxChanged(juce::ComboBox* comboBoxThatHasChanged) override;
+    void timerCallback() override;
 
     void applyPreset(const juce::String& name);
     void captureAbSlot(bool slotA);
@@ -89,9 +91,8 @@ private:
 
     VoxlineLevelMeter outputMeter;
     VoxlineLevelMeter gainReductionMeter;
-    // TODO: connect to real processor meter values
-    float outputMeterValue = 0.82f;
-    float gainReductionMeterValue = 0.36f;
+    // TODO: connect to real processor meter values — DONE via atomic + timer
+    float inputLedLevel = 0.0f;
 
     std::unique_ptr<juce::Drawable> cachedSettingsIcon;
     std::unique_ptr<juce::Drawable> cachedBypassIcon;

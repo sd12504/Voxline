@@ -104,8 +104,47 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
     for (auto channel = 0; channel < numInputChannels; ++channel)
         dryBuffer.copyFrom(channel, 0, buffer, channel, 0, numSamples);
 
+    // Calculate input meters from dry buffer
+    float inPeak = 0.0f, inRms = 0.0f;
+    for (auto channel = 0; channel < numInputChannels; ++channel)
+    {
+        auto* data = dryBuffer.getReadPointer(channel);
+        for (auto i = 0; i < numSamples; ++i)
+        {
+            const auto s = std::abs(data[i]);
+            inPeak = juce::jmax(inPeak, s);
+            inRms += s * s;
+        }
+    }
+    inRms = std::sqrt(inRms / static_cast<float>(numSamples * numInputChannels));
+
+    // Smooth and store input meters
+    const auto meterAttack = std::exp(-1.0f / static_cast<float>(currentSampleRate * 0.008f));
+    const auto meterRelease = std::exp(-1.0f / static_cast<float>(currentSampleRate * 0.400f));
+    const auto inPeakDb = juce::Decibels::gainToDecibels(inPeak, -60.0f);
+    const auto inRmsDb = juce::Decibels::gainToDecibels(inRms, -60.0f);
+
+    auto targetInPeak = juce::jlimit(0.0f, 1.0f, (inPeakDb + 60.0f) / 60.0f);
+    auto targetInRms = juce::jlimit(0.0f, 1.0f, (inRmsDb + 60.0f) / 60.0f);
+    auto prevInPeak = inputPeak.load();
+    auto prevInRms = inputRms.load();
+    auto ipCoeff = targetInPeak > prevInPeak ? meterAttack : meterRelease;
+    auto irCoeff = targetInRms > prevInRms ? meterAttack : meterRelease;
+    inputPeak.store(prevInPeak + ipCoeff * (targetInPeak - prevInPeak));
+    inputRms.store(prevInRms + irCoeff * (targetInRms - prevInRms));
+
     if (apvts.getRawParameterValue(VoxlineParameterIDs::bypass)->load() >= 0.5f)
+    {
+        // Output = input when bypassed
+        auto prevOutPeak = outputPeak.load();
+        auto prevOutRms = outputRms.load();
+        auto opCoeff = targetInPeak > prevOutPeak ? meterAttack : meterRelease;
+        auto orCoeff = targetInRms > prevOutRms ? meterAttack : meterRelease;
+        outputPeak.store(prevOutPeak + opCoeff * (targetInPeak - prevOutPeak));
+        outputRms.store(prevOutRms + orCoeff * (targetInRms - prevOutRms));
+        gainReduction.store(0.0f);
         return;
+    }
 
     const auto polishAmount = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::polish)->load());
     const auto compAmount = juce::jlimit(0.0f, 1.0f, percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::comp)->load()) + polishAmount * 0.25f);
@@ -162,6 +201,38 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
             buffer.setSample(channel, sampleIndex, sample);
         }
     }
+
+    // Calculate output meters
+    float outPeak = 0.0f, outRms = 0.0f;
+    for (auto channel = 0; channel < numOutputChannels; ++channel)
+    {
+        auto* data = buffer.getReadPointer(channel);
+        for (auto i = 0; i < numSamples; ++i)
+        {
+            const auto s = std::abs(data[i]);
+            outPeak = juce::jmax(outPeak, s);
+            outRms += s * s;
+        }
+    }
+    outRms = std::sqrt(outRms / static_cast<float>(numSamples * numOutputChannels));
+
+    const auto outPeakDb = juce::Decibels::gainToDecibels(outPeak, -60.0f);
+    const auto outRmsDb = juce::Decibels::gainToDecibels(outRms, -60.0f);
+    auto targetOutPeak = juce::jlimit(0.0f, 1.0f, (outPeakDb + 60.0f) / 60.0f);
+    auto targetOutRms = juce::jlimit(0.0f, 1.0f, (outRmsDb + 60.0f) / 60.0f);
+    auto prevOutPeak = outputPeak.load();
+    auto prevOutRms = outputRms.load();
+    auto opCoeff = targetOutPeak > prevOutPeak ? meterAttack : meterRelease;
+    auto orCoeff = targetOutRms > prevOutRms ? meterAttack : meterRelease;
+    outputPeak.store(prevOutPeak + opCoeff * (targetOutPeak - prevOutPeak));
+    outputRms.store(prevOutRms + orCoeff * (targetOutRms - prevOutRms));
+
+    // Gain reduction in dB (from compressor envelope)
+    auto grDb = juce::Decibels::gainToDecibels(compressorEnvelope, -24.0f);
+    auto targetGr = juce::jlimit(0.0f, 1.0f, -grDb / 24.0f); // 0=no GR, 1=max GR
+    auto prevGr = gainReduction.load();
+    auto grCoeff = targetGr > prevGr ? meterAttack : meterRelease;
+    gainReduction.store(prevGr + grCoeff * (targetGr - prevGr));
 }
 
 juce::AudioProcessorEditor* VoxlineAudioProcessor::createEditor()

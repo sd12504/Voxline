@@ -59,6 +59,13 @@ public:
 
     static APVTS::ParameterLayout createParameterLayout();
 
+    // Meter values (updated in processBlock, read from editor timer)
+    std::atomic<float> inputPeak { 0.0f };
+    std::atomic<float> inputRms { 0.0f };
+    std::atomic<float> outputPeak { 0.0f };
+    std::atomic<float> outputRms { 0.0f };
+    std::atomic<float> gainReduction { 0.0f }; // in dB
+
 private:
     void updateToneFilters();
     float updateCompressorGain(float detector, float amount);

@@ -138,8 +138,6 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
 
     addAndMakeVisible(outputMeter);
     addAndMakeVisible(gainReductionMeter);
-    outputMeter.setLevel(outputMeterValue);
-    gainReductionMeter.setLevel(gainReductionMeterValue);
 
     inputGainAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::inputGain, inputGainSlider);
     polishAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::polish, polishSlider);
@@ -166,6 +164,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
 
     loadIconDrawables(false);
     applyTheme(VoxlineTheme::light, 0);
+    startTimerHz(30); // meter refresh
 }
 
 VoxlineAudioProcessorEditor::~VoxlineAudioProcessorEditor()
@@ -177,6 +176,7 @@ VoxlineAudioProcessorEditor::~VoxlineAudioProcessorEditor()
     listenButton.setLookAndFeel(nullptr);
     presetDropdown.removeListener(this);
     presetDropdown.setLookAndFeel(nullptr);
+    stopTimer();
 }
 
 // ---------------------------------------------------------------------------
@@ -431,12 +431,49 @@ void VoxlineAudioProcessorEditor::paintLedDots(juce::Graphics& g, juce::Rectangl
     const float spacing = (float)bounds.getWidth() / (float)(numDots - 1);
     const float cy = bounds.getCentreY();
 
+    const int activeDots = juce::jlimit(0, numDots, juce::roundToInt(inputLedLevel * (float)numDots));
+
     for (int i = 0; i < numDots; ++i)
     {
         const float cx = bounds.getX() + (float)i * spacing;
-        if (i < 4) { g.setColour(t.accentLavender); g.fillEllipse(cx - dotR, cy - dotR, dotR * 2.0f, dotR * 2.0f); }
-        else       { g.setColour(t.textMuted.withAlpha(0.35f)); g.drawEllipse(cx - dotR, cy - dotR, dotR * 2.0f, dotR * 2.0f, 1.0f); }
+        if (i < activeDots)
+        {
+            // Gradient from green-ish (low) to accentLavender (high)
+            const auto t = (float)i / (float)(numDots - 1);
+            g.setColour(juce::Colour::fromFloatRGBA(0.55f + t * 0.13f, 0.72f + t * 0.11f, 0.55f + t * 0.45f, 1.0f));
+            g.fillEllipse(cx - dotR, cy - dotR, dotR * 2.0f, dotR * 2.0f);
+        }
+        else
+        {
+            g.setColour(t.textMuted.withAlpha(0.35f));
+            g.drawEllipse(cx - dotR, cy - dotR, dotR * 2.0f, dotR * 2.0f, 1.0f);
+        }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Meter timer
+// ---------------------------------------------------------------------------
+void VoxlineAudioProcessorEditor::timerCallback()
+{
+    auto& proc = audioProcessor;
+    const auto inPeak = proc.inputPeak.load();
+    const auto inRms = proc.inputRms.load();
+    const auto outPeak = proc.outputPeak.load();
+    const auto outRms = proc.outputRms.load();
+    const auto gr = proc.gainReduction.load();
+
+    inputLedLevel = inPeak;
+
+    outputMeter.setLevel(outPeak);
+    gainReductionMeter.setLevel(gr);
+
+    // Update PEAK/RMS readout
+    const auto outPeakDb = juce::Decibels::gainToDecibels(juce::jmax(outPeak, 0.00001f), -60.0f);
+    const auto outRmsDb = juce::Decibels::gainToDecibels(juce::jmax(outRms, 0.00001f), -60.0f);
+    peakRmsLabel.setText("PEAK " + juce::String(outPeakDb, 1) + "\nRMS " + juce::String(outRmsDb, 1), juce::dontSendNotification);
+
+    repaint();
 }
 
 // ---------------------------------------------------------------------------
