@@ -181,7 +181,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     // Preset dropdown in bottom bar
     presetDropdown.setLookAndFeel(&voxlineDropdownLNF);
     presetDropdown.setColour(juce::ComboBox::textColourId, juce::Colours::transparentBlack);
-    presetDropdown.addItemList({"Clean","Westwood","2Hollis","Yeat","Ken Carson","Bladee","Travis Scott","The Weeknd","Billie Eilish"}, 1);
+    presetDropdown.addItemList({"Clean","Basement Take","Dirty Lead","Cold Plug","Rage Cut","Muddy Trap","Cyber Vox","Noir Vocal","Tape Rap"}, 1);
     presetDropdown.setSelectedId(1, juce::dontSendNotification); // Clean
     presetDropdown.getProperties().set("themeIndex", 0);
     presetDropdown.addListener(this);
@@ -596,7 +596,7 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
     auto& apvts = audioProcessor.getAPVTS();
 
     // Map name to dropdown ID
-    static const std::vector<juce::String> presetIds = {"Clean","Westwood","2Hollis","Yeat","Ken Carson","Bladee","Travis Scott","The Weeknd","Billie Eilish"};
+    static const std::vector<juce::String> presetIds = {"Clean","Basement Take","Dirty Lead","Cold Plug","Rage Cut","Muddy Trap","Cyber Vox","Noir Vocal","Tape Rap"};
 
     // Find preset index
     int idx = -1;
@@ -609,15 +609,16 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
     // Preset table: { inGain, autoGain, polish, body, clarity, air, smooth, comp, drive, outGain }
     struct PresetDef { float in; bool ag; float pol, bd, cl, ar, sm, cp, dr, out; };
     static const PresetDef presets[] = {
-        {  0.0f, true, 35, 45, 45, 35, 30, 25,  5,  0.0f }, // Clean
-        { -1.0f, true, 76, 66, 74, 52, 30, 68, 32, -1.5f }, // Westwood
-        { -1.5f, true, 84, 38, 82, 86, 42, 72, 28, -2.0f }, // 2Hollis
-        { -1.5f, true, 80, 68, 64, 42, 34, 76, 42, -2.0f }, // Yeat
-        { -2.0f, true, 82, 46, 84, 68, 30, 78, 44, -2.5f }, // Ken Carson
-        { -1.0f, true, 70, 34, 66, 78, 62, 52, 12, -1.5f }, // Bladee
-        { -1.0f, true, 74, 62, 62, 56, 48, 64, 22, -1.5f }, // Travis Scott
-        { -1.0f, true, 78, 52, 68, 76, 60, 58, 10, -1.5f }, // The Weeknd
-        {  0.0f, true, 58, 42, 48, 38, 72, 42,  4, -0.5f }, // Billie Eilish
+        // name,            inG,  ag,  pol, bd,  cl,  ar,  sm,  cp,  dr,  out
+        {  0.0f, true,  22,  45,  42,  30,  25,  18,   0,  0.0f }, // Clean
+        { -1.0f, true,  58,  68,  54,  32,  20,  52,  34, -1.5f }, // Basement Take
+        { -1.5f, true,  78,  62,  78,  48,  24,  76,  46, -2.0f }, // Dirty Lead
+        { -1.0f, true,  68,  30,  64,  82,  66,  48,  10, -1.5f }, // Cold Plug
+        { -2.0f, true,  86,  38,  90,  72,  22,  84,  56, -3.0f }, // Rage Cut
+        { -1.5f, true,  72,  84,  52,  24,  28,  70,  48, -2.5f }, // Muddy Trap
+        { -2.0f, true,  88,  24,  86,  94,  38,  78,  32, -3.0f }, // Cyber Vox
+        { -1.0f, true,  60,  58,  44,  26,  70,  46,  18, -1.5f }, // Noir Vocal
+        { -1.5f, true,  70,  72,  56,  36,  38,  66,  58, -2.5f }, // Tape Rap
     };
     auto& p = presets[idx];
 
