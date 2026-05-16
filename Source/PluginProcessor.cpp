@@ -219,7 +219,16 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
             sample *= compressorGain;
 
             if (driveAmount > 0.0f)
-                sample = std::tanh(sample * drivePreGain) / juce::jmax(0.01f, driveNormalizer);
+            {
+                // Asymmetric saturation: positive clips harder than negative
+                // Adds warmth through 2nd-order harmonic character
+                auto shaped = sample * drivePreGain;
+                if (shaped > 0.0f)
+                    shaped = std::tanh(shaped);
+                else
+                    shaped = -std::tanh(shaped * 0.85f);
+                sample = shaped / juce::jmax(0.01f, driveNormalizer);
+            }
 
             // SPACE — Vocal Space Processor
             if (spaceAmount > 0.001f)
@@ -469,23 +478,23 @@ void VoxlineAudioProcessor::updateToneFilters()
     const auto airRaw      = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::air)->load());
     const auto smoothRaw   = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::smooth)->load());
 
-    // Body: bell at 200Hz, -4 to +5 dB, Polish scales
-    const auto bodyDb = juce::jmap(bodyRaw, 0.0f, 1.0f, -4.0f, 5.0f) * polishScale;
+    // Body: bell at 200Hz, ±8 dB, Polish scales
+    const auto bodyDb = juce::jmap(bodyRaw, 0.0f, 1.0f, -8.0f, 8.0f) * polishScale;
     const auto bodyCoefficients = juce::IIRCoefficients::makePeakFilter(
         currentSampleRate, 200.0f, 0.6f, juce::Decibels::decibelsToGain(bodyDb));
 
-    // Clarity: bell at 3500Hz, -3 to +6 dB
-    const auto clarityDb = juce::jmap(clarityRaw, 0.0f, 1.0f, -3.0f, 6.0f) * polishScale;
+    // Clarity: bell at 3500Hz, ±8 dB
+    const auto clarityDb = juce::jmap(clarityRaw, 0.0f, 1.0f, -8.0f, 8.0f) * polishScale;
     const auto clarityCoefficients = juce::IIRCoefficients::makePeakFilter(
         currentSampleRate, 3500.0f, 1.0f, juce::Decibels::decibelsToGain(clarityDb));
 
-    // Air: high shelf at 7kHz, -3 to +7 dB
-    const auto airDb = juce::jmap(airRaw, 0.0f, 1.0f, -3.0f, 7.0f) * polishScale;
+    // Air: high shelf at 7kHz, ±8 dB
+    const auto airDb = juce::jmap(airRaw, 0.0f, 1.0f, -8.0f, 8.0f) * polishScale;
     const auto airCoefficients = juce::IIRCoefficients::makeHighShelf(
         currentSampleRate, 7000.0f, 0.7f, juce::Decibels::decibelsToGain(airDb));
 
-    // Smooth: high shelf cut at 6kHz, 0 to -6 dB
-    const auto smoothDb = juce::jmap(smoothRaw, 0.0f, 1.0f, 0.0f, -6.0f) * polishScale;
+    // Smooth: high shelf cut at 6kHz, -8 to 0 dB
+    const auto smoothDb = juce::jmap(smoothRaw, 0.0f, 1.0f, 0.0f, -8.0f) * polishScale;
     const auto smoothCoefficients = juce::IIRCoefficients::makeHighShelf(
         currentSampleRate, 6000.0f, 0.7f, juce::Decibels::decibelsToGain(smoothDb));
 
@@ -504,19 +513,34 @@ float VoxlineAudioProcessor::updateCompressorGain(float detector, float amount)
         return 1.0f;
 
     const auto thresholdDb = juce::jmap(amount, 0.0f, 1.0f, -12.0f, -32.0f);
-    const auto thresholdGain = juce::Decibels::decibelsToGain(thresholdDb);
     const auto ratio = juce::jmap(amount, 0.0f, 1.0f, 1.2f, 5.0f);
 
+    // Soft knee: wider at lower comp amounts for transparent compression
+    const auto kneeDb = juce::jmap(amount, 0.0f, 1.0f, 6.0f, 2.0f);
+
     auto targetGain = 1.0f;
-    if (detector > thresholdGain)
+    const auto detectorDb = juce::Decibels::gainToDecibels(detector, thresholdDb);
+
+    if (detectorDb > thresholdDb + kneeDb * 0.5f)
     {
-        const auto detectorDb = juce::Decibels::gainToDecibels(detector, thresholdDb);
+        // Above knee — full compression
         const auto compressedDb = thresholdDb + (detectorDb - thresholdDb) / ratio;
         targetGain = juce::Decibels::decibelsToGain(compressedDb - detectorDb);
     }
+    else if (detectorDb > thresholdDb - kneeDb * 0.5f)
+    {
+        // In knee — smooth transition
+        const auto kneePos = (detectorDb - thresholdDb + kneeDb * 0.5f) / kneeDb;
+        const auto weightedRatio = 1.0f + (ratio - 1.0f) * kneePos * kneePos; // quadratic fade-in
+        const auto compressedDb = thresholdDb + (detectorDb - thresholdDb) / weightedRatio;
+        targetGain = juce::Decibels::decibelsToGain(compressedDb - detectorDb);
+    }
 
-    const auto attack = juce::jlimit(0.0f, 1.0f, std::exp(-1.0f / static_cast<float>(currentSampleRate * 0.010)));
-    const auto release = juce::jlimit(0.0f, 1.0f, std::exp(-1.0f / static_cast<float>(currentSampleRate * 0.080)));
+    // Variable attack/release: faster at higher comp amounts
+    const auto attackMs = juce::jmap(amount, 0.0f, 1.0f, 15.0f, 2.0f);
+    const auto releaseMs = juce::jmap(amount, 0.0f, 1.0f, 150.0f, 40.0f);
+    const auto attack = juce::jlimit(0.0f, 1.0f, std::exp(-1.0f / static_cast<float>(currentSampleRate * attackMs * 0.001f)));
+    const auto release = juce::jlimit(0.0f, 1.0f, std::exp(-1.0f / static_cast<float>(currentSampleRate * releaseMs * 0.001f)));
     const auto coefficient = targetGain < compressorEnvelope ? attack : release;
 
     compressorEnvelope = targetGain + coefficient * (compressorEnvelope - targetGain);
