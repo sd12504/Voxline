@@ -88,5 +88,5 @@ private:
     // SPACE effect: delay lines (mono or stereo)
     juce::AudioBuffer<float> spaceBuffer;
     int spaceWritePos = 0;
-    static constexpr int maxSpaceDelaySamples = 4800; // ~100ms @ 48kHz
+    static constexpr int maxSpaceDelaySamples = 9600; // ~200ms @ 48kHz
 };
