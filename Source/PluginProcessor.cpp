@@ -49,7 +49,7 @@ void VoxlineAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
     outputGainSmoothed.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(
         apvts.getRawParameterValue(VoxlineParameterIDs::outputGain)->load()));
 
-    for (auto* filters : { &bodyFilters, &clarityFilters, &airFilters, &smoothFilters })
+    for (auto* filters : { &hpfFilters, &bodyFilters, &mudFilters, &clarityFilters, &airFilters, &smoothFilters })
         for (auto& filter : *filters)
             filter.reset();
 
@@ -212,7 +212,9 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
                 sample = filtered;
             }
 
+            sample = hpfFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
             sample = bodyFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
+            sample = mudFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
             sample = clarityFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
             sample = airFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
             sample = smoothFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
@@ -465,7 +467,12 @@ VoxlineAudioProcessor::APVTS::ParameterLayout VoxlineAudioProcessor::createParam
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{VoxlineParameterIDs::spaceAmount, 1}, "Space Amount", percentRange, 0.0f, makePercentAttributes()));
     params.push_back(std::make_unique<juce::AudioParameterInt>(
-        juce::ParameterID{VoxlineParameterIDs::spaceType, 1}, "Space Type", 0, 2, 0));
+        juce::ParameterID{VoxlineParameterIDs::spaceType, 1}, "Space Type", 0, 3, 0));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::hpfFreq, 1}, "HPF Freq", juce::NormalisableRange<float>{40.0f, 200.0f, 1.0f}, 80.0f,
+        juce::AudioParameterFloatAttributes().withLabel("Hz")));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::mudAmount, 1}, "Mud Amount", percentRange, 0.0f, makePercentAttributes()));
 
     return {params.begin(), params.end()};
 }

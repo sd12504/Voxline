@@ -19,6 +19,8 @@ static constexpr auto cleanMode = "cleanMode";
 static constexpr auto listen = "listen";
 static constexpr auto spaceAmount = "spaceAmount";
 static constexpr auto spaceType = "spaceType";
+static constexpr auto hpfFreq = "hpfFreq";
+static constexpr auto mudAmount = "mudAmount";
 } // namespace VoxlineParameterIDs
 
 class VoxlineAudioProcessor final : public juce::AudioProcessor
@@ -82,6 +84,8 @@ private:
     std::array<juce::IIRFilter, 2> clarityFilters;
     std::array<juce::IIRFilter, 2> airFilters;
     std::array<juce::IIRFilter, 2> smoothFilters;
+    std::array<juce::IIRFilter, 2> hpfFilters;
+    std::array<juce::IIRFilter, 2> mudFilters;
     juce::AudioBuffer<float> dryBuffer;
     double currentSampleRate = 44100.0;
     float compressorEnvelope = 1.0f;
