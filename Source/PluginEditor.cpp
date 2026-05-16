@@ -420,6 +420,18 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
     g.setFont(juce::FontOptions(15.0f, juce::Font::bold));
     g.drawText("SPACE", VoxlineLayout::spaceTitleBounds, juce::Justification::centredLeft, false);
 
+    // POLISH status + description
+    {
+        const auto val = polishSlider.getValue();
+        const juce::String status = val < 36 ? "NATURAL" : (val < 71 ? "PUSHED" : "INTENSE");
+        g.setColour(t.accentRose);
+        g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
+        g.drawText(status, VoxlineLayout::polishStatusBounds, juce::Justification::centred, false);
+        g.setColour(t.textMuted);
+        g.setFont(juce::FontOptions(10.0f));
+        g.drawText("Core vocal processing macro — does not affect SPACE", VoxlineLayout::polishDescBounds, juce::Justification::centred, false);
+    }
+
     // EQ curve display
     {
         auto curveBounds = VoxlineLayout::eqCurveBounds.toFloat();
@@ -489,10 +501,10 @@ void VoxlineAudioProcessorEditor::resized()
     outputValueLabel.setBounds(VoxlineLayout::outputGainValueBounds);
 
     // === Vocal EQ (placeholder: old tone knobs) ===
-    bodySlider.setBounds(VoxlineLayout::eqLowBounds.translated(0, -72).withHeight(100));
-    claritySlider.setBounds(VoxlineLayout::eqPresBounds.translated(0, -72).withHeight(100));
-    airSlider.setBounds(VoxlineLayout::eqAirBounds.translated(0, -72).withHeight(100));
-    smoothSlider.setBounds(VoxlineLayout::eqLpfBounds.translated(0, -72).withHeight(100));
+    bodySlider.setBounds(VoxlineLayout::eqLowBounds.withHeight(90).translated(0, 36));
+    claritySlider.setBounds(VoxlineLayout::eqPresBounds.withHeight(90).translated(0, 36));
+    airSlider.setBounds(VoxlineLayout::eqAirBounds.withHeight(90).translated(0, 36));
+    smoothSlider.setBounds(VoxlineLayout::eqLpfBounds.withHeight(90).translated(0, 36));
     toneTitleLabel.setBounds(VoxlineLayout::eqTitleBounds);
 
     eqHpfButton.setBounds(VoxlineLayout::eqHpfBounds);
@@ -509,8 +521,8 @@ void VoxlineAudioProcessorEditor::resized()
 
     // === SPACE ===
     spaceTypeCombo.setBounds(VoxlineLayout::spaceTypeBounds);
-    spaceSlider.setBounds(VoxlineLayout::spaceSliderBounds.withHeight(28).translated(0, 30));
-    spaceAmountLabel.setBounds(VoxlineLayout::spaceValueBounds);
+    spaceSlider.setBounds(VoxlineLayout::spaceSliderBounds.withHeight(28).translated(0, 10));
+    spaceAmountLabel.setBounds(VoxlineLayout::spaceValueBounds.translated(-10, 0));
 
     // === Footer ===
     footerLabel.setBounds(VoxlineLayout::footerBounds);
