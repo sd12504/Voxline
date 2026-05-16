@@ -213,7 +213,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     auto& apvts = audioProcessor.getAPVTS();
 
     configureTextLabel(logoLabel, "VOXLINE", juce::Justification::centredLeft);
-    configureTextLabel(subtitleLabel, "Fast Vocal Channel", juce::Justification::centredLeft);
+    configureTextLabel(subtitleLabel, "Complete Vocal Channel", juce::Justification::centredLeft);
 
     // Theme toggle icon
     themeToggle = std::make_unique<ThemeToggleComp>(*this);
@@ -271,7 +271,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     configureTextLabel(spaceAmountLabel, "0%", juce::Justification::centredRight);
 
     // Footer
-    configureTextLabel(footerLabel, "VOXLINE 1.0.0  |  SADTONY", juce::Justification::centred);
+    configureTextLabel(footerLabel, "VOXLINE 2.0.0  |  SADTONY", juce::Justification::centred);
 
 
     configureTextLabel(outputValueLabel, "0.0 dB", juce::Justification::centred);
@@ -366,40 +366,35 @@ VoxlineAudioProcessorEditor::~VoxlineAudioProcessorEditor()
 void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
 {
     const auto& t = VoxlineTheme::get(currentThemeIndex);
-
-    // Editor background
     g.fillAll(t.editorBg);
 
-    // Main card
+    // Top bar
     g.setColour(t.mainCardBg);
-    g.fillRoundedRectangle(VoxlineLayout::mainCard.toFloat(), VoxlineLayout::mainCornerSize);
+    g.fillRoundedRectangle(VoxlineLayout::topBar.toFloat(), VoxlineLayout::mainCornerSize);
 
-    // Panel fills
+    // Six panels
     g.setColour(t.panelBg);
     g.fillRoundedRectangle(VoxlineLayout::inputPanel.toFloat(), VoxlineLayout::panelCornerSize);
-    g.fillRoundedRectangle(VoxlineLayout::tonePanel.toFloat(), VoxlineLayout::panelCornerSize);
     g.fillRoundedRectangle(VoxlineLayout::polishPanel.toFloat(), VoxlineLayout::panelCornerSize);
     g.fillRoundedRectangle(VoxlineLayout::outputPanel.toFloat(), VoxlineLayout::panelCornerSize);
-    g.fillRoundedRectangle(VoxlineLayout::presetBar.toFloat(), VoxlineLayout::presetBarCornerSize);
+    g.fillRoundedRectangle(VoxlineLayout::eqPanel.toFloat(), VoxlineLayout::panelCornerSize);
+    g.fillRoundedRectangle(VoxlineLayout::dynamicsPanel.toFloat(), VoxlineLayout::panelCornerSize);
+    g.fillRoundedRectangle(VoxlineLayout::spacePanel.toFloat(), VoxlineLayout::panelCornerSize);
 
-    // Panel borders
     g.setColour(t.panelBorder);
     g.drawRoundedRectangle(VoxlineLayout::inputPanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
-    g.drawRoundedRectangle(VoxlineLayout::tonePanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
     g.drawRoundedRectangle(VoxlineLayout::polishPanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
     g.drawRoundedRectangle(VoxlineLayout::outputPanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
-    g.drawRoundedRectangle(VoxlineLayout::presetBar.toFloat(), VoxlineLayout::presetBarCornerSize, 1.0f);
+    g.drawRoundedRectangle(VoxlineLayout::eqPanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
+    g.drawRoundedRectangle(VoxlineLayout::dynamicsPanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
+    g.drawRoundedRectangle(VoxlineLayout::spacePanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
+
+    // Input divider
+    g.setColour(t.panelBorder);
+    g.fillRect(VoxlineLayout::inputDividerBounds.toFloat());
 
     // Icons
     paintIcons(g);
-
-    // SPACE label in bottom bar
-    {
-        const auto& t = VoxlineTheme::get(currentThemeIndex);
-        g.setColour(t.textSecondary);
-        g.setFont(juce::FontOptions(11.0f));
-        g.drawText("SPACE", 460, 618, 50, 32, juce::Justification::centredRight, false);
-    }
 
     // LED dots
     paintLedDots(g, VoxlineLayout::inputLedDotsBounds);
@@ -412,39 +407,47 @@ void VoxlineAudioProcessorEditor::resized()
 {
     logoLabel.setBounds(VoxlineLayout::logoBounds);
     subtitleLabel.setBounds(VoxlineLayout::subtitleBounds);
-    bypassButton.setBounds(VoxlineLayout::bypassButtonBounds);
     themeToggle->setBounds(VoxlineLayout::settingsButtonBounds);
 
-    inputTitleLabel.setBounds(VoxlineLayout::inputTitleBounds);
-    inputGainSlider.setBounds(VoxlineLayout::inputGainSliderBounds);
-    autoGainButton.setBounds(VoxlineLayout::autoGainToggleBounds);
-    cleanModeButton.setBounds(VoxlineLayout::cleanModeBounds);
-
-    toneTitleLabel.setBounds(VoxlineLayout::toneTitleBounds);
-    bodySlider.setBounds(VoxlineLayout::bodySliderBounds);
-    claritySlider.setBounds(VoxlineLayout::claritySliderBounds);
-    airSlider.setBounds(VoxlineLayout::airSliderBounds);
-    smoothSlider.setBounds(VoxlineLayout::smoothSliderBounds);
-    compSlider.setBounds(VoxlineLayout::compSliderBounds);
-    driveSlider.setBounds(VoxlineLayout::driveSliderBounds);
-
-    polishTitleLabel.setBounds(VoxlineLayout::polishTitleBounds);
-    polishSlider.setBounds(VoxlineLayout::polishSliderBounds);
-
-    outputTitleLabel.setBounds(VoxlineLayout::outputTitleBounds);
-    peakRmsLabel.setBounds(VoxlineLayout::peakRmsBounds);
-    outputMeter.setBounds(VoxlineLayout::outMeterBounds);
-    gainReductionMeter.setBounds(VoxlineLayout::grMeterBounds);
-    meterNamesLabel.setBounds(VoxlineLayout::meterLabelsBounds);
-    outputGainSlider.setBounds(VoxlineLayout::outputGainSliderBounds);
-    outputValueLabel.setBounds(VoxlineLayout::outputValueBounds);
-
+    // === Top Bar ===
     presetDropdown.setBounds(VoxlineLayout::presetDropdownBounds);
     abButton.setBounds(VoxlineLayout::abButtonBounds);
     listenButton.setBounds(VoxlineLayout::listenUtilityBounds);
-    spaceTypeCombo.setBounds(508, 618, 90, 32);
-    spaceSlider.setBounds(608, 620, 190, 28);
-    spaceAmountLabel.setBounds(800, 618, 60, 32);
+    bypassButton.setBounds(VoxlineLayout::bypassToggleBounds);
+
+    // === Input Panel ===
+    inputTitleLabel.setBounds(VoxlineLayout::inputTitleBounds);
+    inputGainSlider.setBounds(VoxlineLayout::inputGainKnobBounds);
+    autoGainButton.setBounds(VoxlineLayout::autoGainToggleBounds);
+
+    // === POLISH ===
+    polishTitleLabel.setBounds(VoxlineLayout::polishTitleBounds);
+    polishSlider.setBounds(VoxlineLayout::polishSliderBounds);
+
+    // === Output ===
+    outputTitleLabel.setBounds(VoxlineLayout::outputTitleBounds);
+    peakRmsLabel.setBounds(VoxlineLayout::peakValueBounds);
+    outputMeter.setBounds(VoxlineLayout::outMeterBounds);
+    gainReductionMeter.setBounds(VoxlineLayout::grMeterBounds);
+    outputGainSlider.setBounds(VoxlineLayout::outputGainKnobBounds);
+    outputValueLabel.setBounds(VoxlineLayout::outputGainValueBounds);
+
+    // === Vocal EQ (placeholder: old tone knobs) ===
+    bodySlider.setBounds(VoxlineLayout::eqLowBounds.withHeight(100).translated(0, -60));
+    claritySlider.setBounds(VoxlineLayout::eqPresBounds.withHeight(100).translated(0, -60));
+    airSlider.setBounds(VoxlineLayout::eqAirBounds.withHeight(100).translated(0, -60));
+    smoothSlider.setBounds(VoxlineLayout::eqLpfBounds.withHeight(100).translated(0, -60));
+
+    // === Dynamics (placeholder) ===
+    compSlider.setBounds(VoxlineLayout::compKnobBounds);
+    driveSlider.setBounds(VoxlineLayout::driveKnobBounds);
+
+    // === SPACE ===
+    spaceTypeCombo.setBounds(VoxlineLayout::spaceTypeBounds);
+    spaceSlider.setBounds(VoxlineLayout::spaceSliderBounds.withHeight(28).translated(0, 30));
+    spaceAmountLabel.setBounds(VoxlineLayout::spaceValueBounds);
+
+    // === Footer ===
     footerLabel.setBounds(VoxlineLayout::footerBounds);
 }
 
@@ -520,8 +523,8 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     outputGainSlider.setTheme(theme);
 
     // Labels — fonts sizes for output panel
-    logoLabel.setFont(juce::FontOptions(24.0f, juce::Font::bold));
-    subtitleLabel.setFont(juce::FontOptions(11.0f));
+    logoLabel.setFont(juce::FontOptions(32.0f, juce::Font::bold));
+    subtitleLabel.setFont(juce::FontOptions(13.0f));
     peakRmsLabel.setFont(juce::FontOptions(12.0f));
     meterNamesLabel.setFont(juce::FontOptions(11.0f));
     outputValueLabel.setFont(juce::FontOptions(12.0f, juce::Font::bold));
