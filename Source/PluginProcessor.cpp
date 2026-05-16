@@ -212,48 +212,27 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
                 const auto spaceBufSize = maxSpaceDelaySamples;
                 const auto wp = (spaceWritePos + sampleIndex) % spaceBufSize;
 
-                auto readTap = [&](float ms) -> float {
-                    const auto d = static_cast<int>(currentSampleRate * ms * 0.001);
+                auto readMs = [&](float ms) -> float {
+                    const auto d = static_cast<int>(currentSampleRate * ms * 0.001f);
                     return spaceBuffer.getSample(channel, (wp - d + spaceBufSize) % spaceBufSize);
                 };
 
-                float wet = 0.0f;
-
+                float rv = 0.0f, fb = 0.0f;
                 switch (spaceType)
                 {
-                case 0: // Tight: subtle early reflections
-                    wet = readTap(20.0f) * 0.4f + readTap(34.0f) * 0.35f + readTap(51.0f) * 0.25f;
-                    spaceBuffer.setSample(channel, wp, sample + wet * 0.15f);
-                    sample = sample + wet * spaceAmount * 0.18f;
-                    break;
-
-                case 1: // Room: small room
-                    wet = readTap(17.0f) * 0.25f + readTap(31.0f) * 0.25f + readTap(44.0f) * 0.20f
-                        + readTap(60.0f) * 0.15f + readTap(78.0f) * 0.15f;
-                    spaceBuffer.setSample(channel, wp, sample + wet * 0.25f);
-                    sample = sample + wet * spaceAmount * 0.30f;
-                    break;
-
-                case 2: // Slap → Hall: bigger space, longer tail
-                    wet = readTap(22.0f) * 0.18f + readTap(39.0f) * 0.16f + readTap(54.0f) * 0.14f
-                        + readTap(72.0f) * 0.12f + readTap(91.0f) * 0.12f + readTap(112.0f) * 0.10f
-                        + readTap(135.0f) * 0.08f + readTap(158.0f) * 0.06f + readTap(182.0f) * 0.04f;
-                    spaceBuffer.setSample(channel, wp, sample + wet * 0.35f);
-                    sample = sample + wet * spaceAmount * 0.45f;
-                    break;
-
-                default: // Wide: hall with stereo spread
-                    wet = readTap(26.0f) * 0.16f + readTap(45.0f) * 0.14f + readTap(63.0f) * 0.12f
-                        + readTap(85.0f) * 0.11f + readTap(108.0f) * 0.10f + readTap(132.0f) * 0.09f
-                        + readTap(157.0f) * 0.08f + readTap(183.0f) * 0.07f;
-                    // Cross-channel for width
-                    const auto other = (channel < spaceBuffer.getNumChannels() - 1) ? channel + 1 : channel;
-                    wet += spaceBuffer.getSample(other, (wp - static_cast<int>(currentSampleRate * 0.039) + spaceBufSize) % spaceBufSize) * 0.06f;
-                    wet += spaceBuffer.getSample(other, (wp - static_cast<int>(currentSampleRate * 0.077) + spaceBufSize) % spaceBufSize) * 0.07f;
-                    spaceBuffer.setSample(channel, wp, sample + wet * 0.30f);
-                    sample = sample + wet * spaceAmount * 0.40f;
-                    break;
+                case 0: rv = readMs(20.0f)*0.4f + readMs(34.0f)*0.35f + readMs(51.0f)*0.25f; fb = 0.15f; break;
+                case 1: rv = readMs(17.0f)*0.22f + readMs(31.0f)*0.22f + readMs(44.0f)*0.18f + readMs(60.0f)*0.14f + readMs(78.0f)*0.14f; fb = 0.25f; break;
+                case 2: rv = readMs(22.0f)*0.16f + readMs(39.0f)*0.14f + readMs(54.0f)*0.12f + readMs(72.0f)*0.11f + readMs(91.0f)*0.11f + readMs(112.0f)*0.09f + readMs(135.0f)*0.07f + readMs(158.0f)*0.06f + readMs(182.0f)*0.04f; fb = 0.35f; break;
+                default: rv = readMs(26.0f)*0.14f + readMs(45.0f)*0.13f + readMs(63.0f)*0.11f + readMs(85.0f)*0.10f + readMs(108.0f)*0.09f + readMs(132.0f)*0.08f + readMs(157.0f)*0.07f + readMs(183.0f)*0.06f; fb = 0.30f; break;
                 }
+                rv += sample * 0.1f;
+
+                spaceBuffer.setSample(channel, wp, sample + rv * fb);
+
+                const auto mix = [&]() -> float {
+                    switch (spaceType) { case 0: return spaceAmount * 0.22f; case 1: return spaceAmount * 0.38f; case 2: return spaceAmount * 0.55f; default: return spaceAmount * 0.42f; }
+                }();
+                sample = sample + rv * mix;
             }
 
             sample = juce::jmap(wetMix, drySample, sample);
