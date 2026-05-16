@@ -88,6 +88,14 @@ private:
     juce::Slider spaceSlider;
     juce::Label footerLabel;
 
+    // EQ band buttons
+    juce::TextButton eqHpfButton;
+    juce::TextButton eqLowButton;
+    juce::TextButton eqMudButton;
+    juce::TextButton eqPresButton;
+    juce::TextButton eqAirButton;
+    juce::TextButton eqLpfButton;
+
     juce::TextButton abButton;
 
     VoxlineCustomKnob inputGainSlider { "Input", juce::Colour(0xffb68cf2) };

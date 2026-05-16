@@ -235,6 +235,19 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     configureTextLabel(peakRmsLabel, "PEAK -3.4\nRMS -14.8", juce::Justification::centred);
     configureTextLabel(meterNamesLabel, "DYNAMICS / COLOR", juce::Justification::centred);
 
+    // EQ band buttons
+    auto addEqBand = [&](juce::TextButton& b, const juce::String& t) {
+        b.setButtonText(t);
+        b.setEnabled(true);
+        addAndMakeVisible(b);
+    };
+    addEqBand(eqHpfButton, "HPF");
+    addEqBand(eqLowButton, "LOW");
+    addEqBand(eqMudButton, "MUD");
+    addEqBand(eqPresButton, "PRES");
+    addEqBand(eqAirButton, "AIR");
+    addEqBand(eqLpfButton, "LPF");
+
     configurePresetButton(abButton, "A/B");
 
     abButton.addListener(this);
@@ -403,6 +416,25 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
     g.setColour(t.textPrimary);
     g.setFont(juce::FontOptions(15.0f, juce::Font::bold));
     g.drawText("SPACE", VoxlineLayout::spaceTitleBounds, juce::Justification::centredLeft, false);
+
+    // EQ curve display (visual placeholder)
+    {
+        auto curveBounds = VoxlineLayout::eqCurveBounds.toFloat();
+        const auto dark = (currentThemeIndex != 0);
+        g.setColour(dark ? juce::Colour(0xff1e1b2a) : juce::Colour(0xfff0eae0));
+        g.fillRoundedRectangle(curveBounds, 8.0f);
+        g.setColour(t.panelBorder);
+        g.drawRoundedRectangle(curveBounds, 8.0f, 1.0f);
+        // Placeholder curve line
+        g.setColour(t.accentRose.withAlpha(0.4f));
+        juce::Path curve;
+        curve.startNewSubPath(curveBounds.getX() + 10, curveBounds.getCentreY());
+        curve.quadraticTo(curveBounds.getCentreX(), curveBounds.getY() + 10, curveBounds.getRight() - 10, curveBounds.getCentreY());
+        g.strokePath(curve, juce::PathStrokeType(2.0f));
+        g.setColour(t.textMuted);
+        g.setFont(juce::FontOptions(10.0f));
+        g.drawText("EQ CURVE — visual preview", curveBounds, juce::Justification::centred, false);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -443,6 +475,13 @@ void VoxlineAudioProcessorEditor::resized()
     airSlider.setBounds(VoxlineLayout::eqAirBounds.translated(0, -72).withHeight(100));
     smoothSlider.setBounds(VoxlineLayout::eqLpfBounds.translated(0, -72).withHeight(100));
     toneTitleLabel.setBounds(VoxlineLayout::eqTitleBounds);
+
+    eqHpfButton.setBounds(VoxlineLayout::eqHpfBounds);
+    eqLowButton.setBounds(VoxlineLayout::eqLowBounds);
+    eqMudButton.setBounds(VoxlineLayout::eqMudBounds);
+    eqPresButton.setBounds(VoxlineLayout::eqPresBounds);
+    eqAirButton.setBounds(VoxlineLayout::eqAirBounds);
+    eqLpfButton.setBounds(VoxlineLayout::eqLpfBounds);
 
     // === Dynamics (placeholder) ===
     meterNamesLabel.setBounds(VoxlineLayout::dynamicsTitleBounds);
@@ -568,6 +607,18 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
 
     // === Preset dropdown ===
     VoxlinePresetDropdownLNF::currentDropdownTheme = index;
+
+    // === Vocal EQ band buttons ===
+    auto styleEqBand = [&](juce::TextButton& b, juce::Colour c) {
+        b.setColour(juce::TextButton::buttonColourId, c.withAlpha(dark ? 0.15f : 0.10f));
+        b.setColour(juce::TextButton::textColourOffId, c);
+    };
+    styleEqBand(eqHpfButton, theme.accentPurple);
+    styleEqBand(eqLowButton, juce::Colour(dark ? 0xff80b080 : 0xff60a060));
+    styleEqBand(eqMudButton, juce::Colour(dark ? 0xffE6B45C : 0xffD8A548));
+    styleEqBand(eqPresButton, juce::Colour(dark ? 0xffF2A766 : 0xffE99A5C));
+    styleEqBand(eqAirButton, theme.accentLavender);
+    styleEqBand(eqLpfButton, theme.accentPurple);
     VoxlineAutoGainLNF::currentAutoGainTheme = index;
     presetDropdown.getProperties().set("themeIndex", index);
     presetDropdown.repaint();
