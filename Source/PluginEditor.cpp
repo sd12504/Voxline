@@ -211,6 +211,13 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     outputGainSlider.setShowInternalLabel(false);
     outputGainSlider.setShowInternalValue(false);
 
+    // SPACE knob: compact, no internal text
+    configureKnob(spaceSlider);
+    spaceSlider.setShowInternalLabel(false);
+    spaceSlider.setShowInternalValue(false);
+
+    configureTextLabel(spaceTitleLabel, "SPACE", juce::Justification::centred);
+
     configureTextLabel(outputValueLabel, "0.0 dB", juce::Justification::centred);
 
     configureButton(bypassButton, " BYPASS");
@@ -233,6 +240,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     compAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::comp, compSlider);
     driveAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::drive, driveSlider);
     outputGainAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::outputGain, outputGainSlider);
+    spaceAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::spaceAmount, spaceSlider);
 
     autoGainAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::autoGain, autoGainButton);
     bypassAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::bypass, bypassButton);
@@ -350,6 +358,8 @@ void VoxlineAudioProcessorEditor::resized()
 
     polishTitleLabel.setBounds(VoxlineLayout::polishTitleBounds);
     polishSlider.setBounds(VoxlineLayout::polishSliderBounds);
+    spaceTitleLabel.setBounds(VoxlineLayout::spaceTitleBounds);
+    spaceSlider.setBounds(VoxlineLayout::spaceSliderBounds);
 
     outputTitleLabel.setBounds(VoxlineLayout::outputTitleBounds);
     peakRmsLabel.setBounds(VoxlineLayout::peakRmsBounds);
@@ -422,6 +432,7 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     compSlider.setTheme(theme);
     driveSlider.setTheme(theme);
     outputGainSlider.setTheme(theme);
+    spaceSlider.setTheme(theme);
 
     // Labels — fonts sizes for output panel
     logoLabel.setFont(juce::FontOptions(24.0f, juce::Font::bold));
@@ -435,6 +446,7 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     setTextColour(inputTitleLabel);
     setTextColour(toneTitleLabel);
     setTextColour(polishTitleLabel);
+    setTextColour(spaceTitleLabel);
     setTextColour(outputTitleLabel);
     setTextColour(peakRmsLabel);
     setTextColour(meterNamesLabel);
@@ -607,18 +619,18 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
     if (idx < 0) return;
 
     // Preset table: { inGain, autoGain, polish, body, clarity, air, smooth, comp, drive, outGain }
-    struct PresetDef { float in; bool ag; float pol, bd, cl, ar, sm, cp, dr, out; };
+    struct PresetDef { float in; bool ag; float pol, bd, cl, ar, sm, cp, dr, out; float spAmt; int spType; };
     static const PresetDef presets[] = {
-        // name,            inG,  ag,  pol, bd,  cl,  ar,  sm,  cp,  dr,  out
-        {  0.0f, true,  22,  45,  42,  30,  25,  18,   0,  0.0f }, // Clean
-        { -1.0f, true,  58,  68,  54,  32,  20,  52,  34, -1.5f }, // Basement Take
-        { -1.5f, true,  78,  62,  78,  48,  24,  76,  46, -2.0f }, // Dirty Lead
-        { -1.0f, true,  68,  30,  64,  82,  66,  48,  10, -1.5f }, // Cold Plug
-        { -2.0f, true,  86,  38,  90,  72,  22,  84,  56, -3.0f }, // Rage Cut
-        { -1.5f, true,  72,  84,  52,  24,  28,  70,  48, -2.5f }, // Muddy Trap
-        { -2.0f, true,  88,  24,  86,  94,  38,  78,  32, -3.0f }, // Cyber Vox
-        { -1.0f, true,  60,  58,  44,  26,  70,  46,  18, -1.5f }, // Noir Vocal
-        { -1.5f, true,  70,  72,  56,  36,  38,  66,  58, -2.5f }, // Tape Rap
+        // name,            inG,  ag,  pol, bd,  cl,  ar,  sm,  cp,  dr,  out,     spAmt, spType
+        {  0.0f, true,  22,  45,  42,  30,  25,  18,   0,  0.0f,     0, 0 }, // Clean
+        { -1.0f, true,  58,  68,  54,  32,  20,  52,  34, -1.5f,    12, 1 }, // Basement Take
+        { -1.5f, true,  78,  62,  78,  48,  24,  76,  46, -2.0f,     8, 0 }, // Dirty Lead
+        { -1.0f, true,  68,  30,  64,  82,  66,  48,  10, -1.5f,    20, 3 }, // Cold Plug
+        { -2.0f, true,  86,  38,  90,  72,  22,  84,  56, -3.0f,    10, 2 }, // Rage Cut
+        { -1.5f, true,  72,  84,  52,  24,  28,  70,  48, -2.5f,     6, 1 }, // Muddy Trap
+        { -2.0f, true,  88,  24,  86,  94,  38,  78,  32, -3.0f,    25, 3 }, // Cyber Vox
+        { -1.0f, true,  60,  58,  44,  26,  70,  46,  18, -1.5f,    18, 1 }, // Noir Vocal
+        { -1.5f, true,  70,  72,  56,  36,  38,  66,  58, -2.5f,    12, 2 }, // Tape Rap
     };
     auto& p = presets[idx];
 
@@ -637,6 +649,8 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
     setParam("comp",       p.cp  / 100.0f);
     setParam("drive",      p.dr  / 100.0f);
     setParam("outputGain", (p.out + 24.0f) / 48.0f);
+    setParam("spaceAmount", p.spAmt / 100.0f);
+    setParam("spaceType",   (float)p.spType / 3.0f);
 
     // Sync dropdown
     presetDropdown.setSelectedId(idx + 1, juce::dontSendNotification);
@@ -661,6 +675,8 @@ void VoxlineAudioProcessorEditor::captureSnapshot(ParameterSnapshot& snap)
     snap.comp       = val("comp");
     snap.drive      = val("drive");
     snap.outputGain = val("outputGain");
+    snap.spaceAmount = val("spaceAmount");
+    snap.spaceType   = val("spaceType");
     snap.bypass     = val("bypass") >= 0.5f;
     snap.listen     = val("listen") >= 0.5f;
 }
@@ -682,6 +698,8 @@ void VoxlineAudioProcessorEditor::applySnapshot(const ParameterSnapshot& snap)
     set("comp",       snap.comp);
     set("drive",      snap.drive);
     set("outputGain", snap.outputGain);
+    set("spaceAmount", snap.spaceAmount);
+    set("spaceType",   snap.spaceType);
     set("bypass",     snap.bypass ? 1.0f : 0.0f);
     set("listen",     snap.listen ? 1.0f : 0.0f);
 }

@@ -42,6 +42,8 @@ inline const juce::Rectangle<int> driveSliderBounds { 485, 345, 100, 160 };
 
 inline const juce::Rectangle<int> polishTitleBounds { 616, 188, 285, 26 };
 inline const juce::Rectangle<int> polishSliderBounds { 650, 211, 217, 275 };
+inline const juce::Rectangle<int> spaceTitleBounds { 616, 492, 285, 16 };
+inline const juce::Rectangle<int> spaceSliderBounds { 716, 503, 56, 50 };
 
 inline const juce::Rectangle<int> outputTitleBounds { 916, 186, 130, 24 };
 inline const juce::Rectangle<int> peakRmsBounds { 936, 216, 88, 44 };

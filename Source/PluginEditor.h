@@ -29,7 +29,8 @@ public:
     struct ParameterSnapshot
     {
         float inputGain = 0.0f, polish = 0.0f, body = 0.0f, clarity = 0.0f,
-              air = 0.0f, smooth = 0.0f, comp = 0.0f, drive = 0.0f, outputGain = 0.0f;
+              air = 0.0f, smooth = 0.0f, comp = 0.0f, drive = 0.0f, outputGain = 0.0f,
+              spaceAmount = 0.0f, spaceType = 0.0f;
         bool autoGain = true, bypass = false, listen = false;
     };
 
@@ -77,6 +78,7 @@ private:
     juce::Label inputTitleLabel;
     juce::Label toneTitleLabel;
     juce::Label polishTitleLabel;
+    juce::Label spaceTitleLabel;
     juce::Label outputTitleLabel;
     juce::Label peakRmsLabel;
     juce::Label meterNamesLabel;
@@ -93,6 +95,7 @@ private:
     VoxlineCustomKnob compSlider { "Comp", juce::Colour(0xff8e7af0) };
     VoxlineCustomKnob driveSlider { "Drive", juce::Colour(0xffefaa76) };
     VoxlineCustomKnob outputGainSlider { "Out", juce::Colour(0xff9f8ff4) };
+    VoxlineCustomKnob spaceSlider { "", juce::Colour(0xffa0d2f0) };
 
     juce::ToggleButton autoGainButton;
     juce::ToggleButton bypassButton;
@@ -116,6 +119,7 @@ private:
     std::unique_ptr<SliderAttachment> compAttachment;
     std::unique_ptr<SliderAttachment> driveAttachment;
     std::unique_ptr<SliderAttachment> outputGainAttachment;
+    std::unique_ptr<SliderAttachment> spaceAttachment;
 
     std::unique_ptr<ButtonAttachment> autoGainAttachment;
     std::unique_ptr<ButtonAttachment> bypassAttachment;

@@ -54,6 +54,9 @@ void VoxlineAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
             filter.reset();
 
     dryBuffer.setSize(juce::jmax(1, getTotalNumInputChannels()), juce::jmax(1, samplesPerBlock), false, false, true);
+    spaceBuffer.setSize(juce::jmax(2, getTotalNumOutputChannels()), maxSpaceDelaySamples, false, false, true);
+    spaceBuffer.clear();
+    spaceWritePos = 0;
     compressorEnvelope = 1.0f;
     updateToneFilters();
 }
@@ -161,6 +164,9 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
     const auto autoGainEnabled = apvts.getRawParameterValue(VoxlineParameterIDs::autoGain)->load() >= 0.5f;
     const auto listenEnabled = apvts.getRawParameterValue(VoxlineParameterIDs::listen)->load() >= 0.5f;
 
+    const auto spaceAmount = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::spaceAmount)->load());
+    const auto spaceType = static_cast<int>(apvts.getRawParameterValue(VoxlineParameterIDs::spaceType)->load());
+
     inputGainSmoothed.setTargetValue(juce::Decibels::decibelsToGain(
         apvts.getRawParameterValue(VoxlineParameterIDs::inputGain)->load()));
 
@@ -200,6 +206,63 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
             if (driveAmount > 0.0f)
                 sample = std::tanh(sample * drivePreGain) / juce::jmax(0.01f, driveNormalizer);
 
+            // SPACE effect
+            if (spaceAmount > 0.001f)
+            {
+                float spaceWet = 0.0f;
+                const auto spaceBufSize = maxSpaceDelaySamples;
+                const auto wp = spaceWritePos;
+
+                if (spaceType == 0) // Tight: 18ms/31ms taps
+                {
+                    const auto d1 = static_cast<int>(currentSampleRate * 0.018);
+                    const auto d2 = static_cast<int>(currentSampleRate * 0.031);
+                    const auto read = [&](int d) -> float { return spaceBuffer.getSample(channel, (wp - d + spaceBufSize) % spaceBufSize); };
+                    spaceWet = read(d1) * 0.55f + read(d2) * 0.45f;
+                }
+                else if (spaceType == 1) // Room: 18/31/47ms with feedback
+                {
+                    const auto d1 = static_cast<int>(currentSampleRate * 0.018);
+                    const auto d2 = static_cast<int>(currentSampleRate * 0.031);
+                    const auto d3 = static_cast<int>(currentSampleRate * 0.047);
+                    const auto read = [&](int d) -> float { return spaceBuffer.getSample(channel, (wp - d + spaceBufSize) % spaceBufSize); };
+                    spaceWet = read(d1) * 0.35f + read(d2) * 0.35f + read(d3) * 0.30f;
+                }
+                else if (spaceType == 2) // Slap: 100ms delay with feedback
+                {
+                    const auto d = static_cast<int>(currentSampleRate * 0.100);
+                    const auto fb = spaceBuffer.getSample(channel, (wp - d + spaceBufSize) % spaceBufSize);
+                    spaceWet = fb;
+                    // Write feedback
+                    spaceBuffer.setSample(channel, wp, sample + fb * 0.12f);
+                }
+                else // Wide: 18ms L / 28ms R with subtle width
+                {
+                    const auto dL = static_cast<int>(currentSampleRate * 0.018);
+                    const auto dR = static_cast<int>(currentSampleRate * 0.028);
+                    const auto other = (channel == 0) ? 1 : 0;
+                    spaceWet = spaceBuffer.getSample(other, (wp - dL + spaceBufSize) % spaceBufSize) * 0.4f
+                             + spaceBuffer.getSample(channel, (wp - dR + spaceBufSize) % spaceBufSize) * 0.4f;
+                    // Write dry to buffer for future reads (use output channel count for width)
+                    spaceBuffer.setSample(channel, wp, sample);
+                }
+
+                // Write to delay buffer (except Slap which writes with feedback above)
+                if (spaceType != 2)
+                    spaceBuffer.setSample(channel, wp, sample + spaceWet * 0.08f);
+
+                // Mix space in
+                const auto spaceMix = [&]() -> float {
+                    switch (spaceType) {
+                        case 0: return spaceAmount * 0.08f;
+                        case 1: return spaceAmount * 0.14f;
+                        case 2: return spaceAmount * 0.18f;
+                        default:return spaceAmount * 0.16f;
+                    }
+                }();
+                sample = sample + spaceWet * spaceMix;
+            }
+
             sample = juce::jmap(wetMix, drySample, sample);
             sample *= outputGain;
             sample = applySoftClip(sample);
@@ -214,6 +277,8 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
             buffer.setSample(channel, sampleIndex, sample);
         }
     }
+
+    spaceWritePos = (spaceWritePos + numSamples) % maxSpaceDelaySamples;
 
     // Calculate output meters
     float outPeak = 0.0f, outRms = 0.0f;
@@ -365,6 +430,10 @@ VoxlineAudioProcessor::APVTS::ParameterLayout VoxlineAudioProcessor::createParam
         juce::ParameterID{VoxlineParameterIDs::bypass, 1}, "Bypass", false));
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID{VoxlineParameterIDs::listen, 1}, "Listen", false));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::spaceAmount, 1}, "Space Amount", percentRange, 0.0f, makePercentAttributes()));
+    params.push_back(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID{VoxlineParameterIDs::spaceType, 1}, "Space Type", 0, 3, 0));
 
     return {params.begin(), params.end()};
 }
