@@ -248,6 +248,9 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     addEqBand(eqAirButton, "AIR");
     addEqBand(eqLpfButton, "LPF");
 
+    // EQ band button highlights — LOW active by default
+    eqLowButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xffa0c0a0).withAlpha(0.25f));
+
     configurePresetButton(abButton, "A/B");
 
     abButton.addListener(this);
