@@ -60,7 +60,7 @@
 
 ## Staged Implementation Plan
 
-### Stage 1: Structural Cleanup
+### ✅ Stage 1: Structural Cleanup (Complete)
 *No new features. Fix broken/incomplete things.*
 
 1. **Remove SPACE case 3** (Vocal Space / room reverb)
@@ -79,7 +79,7 @@
    - Should: output processed signal when listen is on, silence when off? Or proper solo?
    - Need to clarify intended behavior
 
-### Stage 2: DSP Strengthening
+### ✅ Stage 2: DSP Strengthening (Complete)
 *Improve existing DSP without adding UI controls.*
 
 1. **TONE — Widen filter ranges**
@@ -99,7 +99,7 @@
    - Or multi-stage saturation curve
    - Still one knob, no new UI
 
-### Stage 3: SPACE Refinement
+### ✅ Stage 3: SPACE Refinement (Complete)
 *Make SPACE actually good.*
 
 1. **Tight Ambience (0):**
@@ -120,7 +120,7 @@
    - HPF 220Hz, LPF 8kHz
    - Mono-compatible check
 
-### Stage 4: Polish & Presets
+### ✅ Stage 4: Polish & Presets (Complete)
 
 1. Review and tune all 9 presets with new DSP ranges
 2. Ensure POLISH macro works well across all presets
