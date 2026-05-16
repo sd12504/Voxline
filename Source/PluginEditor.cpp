@@ -253,7 +253,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     outputGainSlider.setShowInternalValue(false);
 
     // SPACE control in bottom bar
-    spaceTypeCombo.addItemList({"Tight", "Room", "Hall", "Wide"}, 1);
+    spaceTypeCombo.addItemList({"Tight Ambience", "Filtered Slap", "Stereo Wide", "Vocal Space"}, 1);
     spaceTypeCombo.setSelectedId(1, juce::dontSendNotification);
     spaceTypeCombo.addListener(this);
     spaceTypeCombo.setLookAndFeel(&voxlineDropdownLNF);
@@ -469,7 +469,7 @@ void VoxlineAudioProcessorEditor::parameterChanged(const juce::String& parameter
     else if (parameterID == VoxlineParameterIDs::spaceType)
     {
         const int t = juce::roundToInt(newValue * 3.0f);
-        const juce::String names[] = {"Tight", "Room", "Hall", "Wide"};
+        const juce::String names[] = {"Tight Ambience", "Filtered Slap", "Stereo Wide", "Vocal Space"};
         spaceTypeCombo.setSelectedId(t + 1, juce::dontSendNotification);
     }
 

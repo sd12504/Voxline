@@ -206,8 +206,7 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
             if (driveAmount > 0.0f)
                 sample = std::tanh(sample * drivePreGain) / juce::jmax(0.01f, driveNormalizer);
 
-            // SPACE effect — multi-tap hall reverb
-            // SPACE effect
+            // SPACE — Vocal Space Processor
             if (spaceAmount > 0.001f)
             {
                 const auto spaceBufSize = maxSpaceDelaySamples;
@@ -218,17 +217,56 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
                     return spaceBuffer.getSample(channel, (wp - d + spaceBufSize) % spaceBufSize);
                 };
 
-                float rv = 0.0f, fb = 0.0f;
+                float rv = 0.0f;
+                float mix = spaceAmount * 0.22f; // conservative mix
+                float fb = 0.15f;
+                float lpfFreq = 6000.0f; // high-cut
+                float hpfFreq = 220.0f;  // low-cut
+
                 switch (spaceType)
                 {
-                case 0: rv = readMs(20.0f)*0.4f + readMs(34.0f)*0.35f + readMs(51.0f)*0.25f; fb = 0.25f; break;
-                case 1: rv = readMs(17.0f)*0.25f + readMs(31.0f)*0.25f + readMs(44.0f)*0.20f + readMs(60.0f)*0.15f + readMs(78.0f)*0.15f; fb = 0.35f; break;
-                case 2: rv = readMs(22.0f)*0.18f + readMs(39.0f)*0.16f + readMs(54.0f)*0.14f + readMs(72.0f)*0.12f + readMs(91.0f)*0.11f + readMs(112.0f)*0.10f + readMs(135.0f)*0.08f + readMs(158.0f)*0.06f + readMs(182.0f)*0.05f; fb = 0.40f; break;
-                default: rv = readMs(26.0f)*0.16f + readMs(45.0f)*0.14f + readMs(63.0f)*0.12f + readMs(85.0f)*0.10f + readMs(108.0f)*0.10f + readMs(132.0f)*0.08f + readMs(157.0f)*0.07f + readMs(183.0f)*0.06f; fb = 0.35f; break;
+                case 0: // Tight Ambience
+                    rv = readMs(16.0f)*0.35f + readMs(28.0f)*0.30f + readMs(42.0f)*0.20f + readMs(56.0f)*0.15f;
+                    mix = spaceAmount * 0.18f;
+                    fb = 0.18f;
+                    lpfFreq = 7000.0f;
+                    break;
+                case 1: // Filtered Slap
+                    rv = readMs(105.0f)*0.6f + readMs(130.0f)*0.4f;
+                    mix = spaceAmount * 0.28f;
+                    fb = 0.28f;
+                    lpfFreq = 4500.0f;
+                    break;
+                case 2: // Stereo Wide
+                    rv = readMs(18.0f)*0.35f + readMs(30.0f)*0.30f + readMs(48.0f)*0.20f + readMs(68.0f)*0.15f;
+                    if (spaceBuffer.getNumChannels() > 1)
+                    {
+                        const auto other = (channel == 0) ? 1 : 0;
+                        rv += spaceBuffer.getSample(other, (wp - static_cast<int>(currentSampleRate * 0.022f) + spaceBufSize) % spaceBufSize) * 0.25f;
+                    }
+                    mix = spaceAmount * 0.24f;
+                    fb = 0.20f;
+                    lpfFreq = 8000.0f;
+                    break;
+                default:
+                    rv = readMs(20.0f)*0.3f + readMs(35.0f)*0.25f + readMs(50.0f)*0.20f + readMs(68.0f)*0.15f + readMs(85.0f)*0.10f;
+                    mix = spaceAmount * 0.22f;
+                    fb = 0.22f;
+                    break;
                 }
 
-                spaceBuffer.setSample(channel, wp, sample + rv * fb);
-                sample = sample + rv * spaceAmount;
+                // Simple one-pole HPF and LPF on wet signal
+                const auto hpfCoeff = std::exp(-2.0f * 3.14159f * hpfFreq / static_cast<float>(currentSampleRate));
+                const auto lpfCoeff = std::exp(-2.0f * 3.14159f * lpfFreq / static_cast<float>(currentSampleRate));
+                auto& hpfS = spaceHpfState[channel];
+                auto& lpfS = spaceLpfState[channel];
+                hpfS = rv + hpfCoeff * (hpfS - rv);
+                auto filtered = rv - hpfS;
+                lpfS = filtered + lpfCoeff * (lpfS - filtered);
+                filtered = lpfS;
+
+                spaceBuffer.setSample(channel, wp, sample + filtered * fb);
+                sample = sample + filtered * mix;
             }
 
             sample = juce::jmap(wetMix, drySample, sample);

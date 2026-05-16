@@ -1,12 +1,12 @@
-# VOXLINE — Fast Vocal Channel Strip
+# VOXLINE — Complete Vocal Processing Plugin
 
-**版本** 1.0.0 | **開發者** ONETAKE | **架構** JUCE / C++20
+**版本** 1.0.0 | **開發者** ONETAKE / SADTONY | **架構** JUCE / C++20
 
 ---
 
 ## 概述
 
-VOXLINE 是一款快速人聲效果鏈插件，專為 demo 製作、臥室製作人和創作者設計。核心工作流：
+VOXLINE 是一款完整人聲處理插件，讓創作者快速完成可用、乾淨、有風格的人聲鏈。核心工作流：
 
 ```
 選 Preset → 調 POLISH → 微調 Tone → 完成

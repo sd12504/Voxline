@@ -89,4 +89,6 @@ private:
     juce::AudioBuffer<float> spaceBuffer;
     int spaceWritePos = 0;
     static constexpr int maxSpaceDelaySamples = 9600; // ~200ms @ 48kHz
+    float spaceHpfState[2] = {0.0f, 0.0f}; // per-channel HPF state
+    float spaceLpfState[2] = {0.0f, 0.0f}; // per-channel LPF state
 };
