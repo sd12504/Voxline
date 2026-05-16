@@ -249,29 +249,31 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
 
                 switch (spaceType)
                 {
-                case 0: // Tight Ambience
-                    rv = readMs(16.0f)*0.35f + readMs(28.0f)*0.30f + readMs(42.0f)*0.20f + readMs(56.0f)*0.15f;
-                    mix = spaceAmount * 0.18f;
-                    fb = 0.18f;
+                case 0: // Tight Ambience — natural early reflections, barely audible tail
+                    rv = readMs(6.0f)*0.40f + readMs(14.0f)*0.30f + readMs(24.0f)*0.20f + readMs(38.0f)*0.10f;
+                    mix = spaceAmount * 0.15f;
+                    fb = 0.08f;
                     lpfFreq = 7000.0f;
                     hpfFreq = 250.0f;
                     break;
-                case 1: // Filtered Slap
-                    rv = readMs(105.0f)*0.6f + readMs(130.0f)*0.4f;
+                case 1: // Filtered Slap — single focused slap with subtle re-feed
+                    rv = readMs(95.0f)*0.70f + readMs(145.0f)*0.30f;
                     mix = spaceAmount * 0.28f;
-                    fb = 0.28f;
-                    lpfFreq = 4500.0f;
+                    fb = 0.18f;
+                    lpfFreq = 5000.0f;
                     hpfFreq = 200.0f;
                     break;
-                case 2: // Stereo Wide
-                    rv = readMs(18.0f)*0.35f + readMs(30.0f)*0.30f + readMs(48.0f)*0.20f + readMs(68.0f)*0.15f;
+                case 2: // Stereo Wide — ambience + cross-feed width
+                    rv = readMs(12.0f)*0.40f + readMs(24.0f)*0.35f + readMs(36.0f)*0.25f;
                     if (spaceBuffer.getNumChannels() > 1)
                     {
                         const auto other = (channel == 0) ? 1 : 0;
-                        rv += spaceBuffer.getSample(other, (wp - static_cast<int>(currentSampleRate * 0.022f) + spaceBufSize) % spaceBufSize) * 0.25f;
+                        // Cross-feed from opposite channel with Haas delay for width
+                        const auto haasDelay = static_cast<int>(currentSampleRate * 0.018f);
+                        rv += spaceBuffer.getSample(other, (wp - haasDelay + spaceBufSize) % spaceBufSize) * 0.30f;
                     }
-                    mix = spaceAmount * 0.24f;
-                    fb = 0.20f;
+                    mix = spaceAmount * 0.22f;
+                    fb = 0.15f;
                     lpfFreq = 8000.0f;
                     hpfFreq = 220.0f;
                     break;
