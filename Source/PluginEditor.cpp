@@ -420,7 +420,7 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
     g.setFont(juce::FontOptions(15.0f, juce::Font::bold));
     g.drawText("SPACE", VoxlineLayout::spaceTitleBounds, juce::Justification::centredLeft, false);
 
-    // EQ curve display (visual placeholder)
+    // EQ curve display
     {
         auto curveBounds = VoxlineLayout::eqCurveBounds.toFloat();
         const auto dark = (currentThemeIndex != 0);
@@ -428,15 +428,31 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         g.fillRoundedRectangle(curveBounds, 8.0f);
         g.setColour(t.panelBorder);
         g.drawRoundedRectangle(curveBounds, 8.0f, 1.0f);
-        // Placeholder curve line
-        g.setColour(t.accentRose.withAlpha(0.4f));
+        // Frequency grid lines
+        g.setColour(t.panelBorder.withAlpha(0.4f));
+        for (int i = 0; i < 5; ++i)
+            g.drawVerticalLine(juce::roundToInt(curveBounds.getX() + curveBounds.getWidth() * (0.15f + 0.18f * i)),
+                               curveBounds.getY() + 12, curveBounds.getBottom() - 12);
+        g.drawHorizontalLine(juce::roundToInt(curveBounds.getCentreY()), curveBounds.getX() + 12, curveBounds.getRight() - 12);
+        // EQ curve
+        g.setColour(t.accentRose.withAlpha(0.5f));
         juce::Path curve;
-        curve.startNewSubPath(curveBounds.getX() + 10, curveBounds.getCentreY());
-        curve.quadraticTo(curveBounds.getCentreX(), curveBounds.getY() + 10, curveBounds.getRight() - 10, curveBounds.getCentreY());
+        curve.startNewSubPath(curveBounds.getX() + 20, curveBounds.getCentreY() + 15);
+        curve.lineTo(curveBounds.getCentreX() - 40, curveBounds.getCentreY() + 5);
+        curve.lineTo(curveBounds.getCentreX(), curveBounds.getCentreY() - 8);
+        curve.lineTo(curveBounds.getCentreX() + 60, curveBounds.getCentreY() + 3);
+        curve.lineTo(curveBounds.getRight() - 20, curveBounds.getCentreY() + 10);
         g.strokePath(curve, juce::PathStrokeType(2.0f));
-        g.setColour(t.textMuted);
-        g.setFont(juce::FontOptions(10.0f));
-        g.drawText("EQ CURVE — visual preview", curveBounds, juce::Justification::centred, false);
+        // Band nodes
+        for (auto& pt : { juce::Point<float>(curveBounds.getX() + 60, curveBounds.getCentreY() + 10),
+                          juce::Point<float>(curveBounds.getCentreX() - 40, curveBounds.getCentreY() + 5),
+                          juce::Point<float>(curveBounds.getCentreX(), curveBounds.getCentreY() - 8),
+                          juce::Point<float>(curveBounds.getCentreX() + 60, curveBounds.getCentreY() + 3),
+                          juce::Point<float>(curveBounds.getRight() - 70, curveBounds.getCentreY() + 8) })
+        {
+            g.setColour(t.accentRose);
+            g.fillEllipse(pt.x - 3, pt.y - 3, 6, 6);
+        }
     }
 }
 
