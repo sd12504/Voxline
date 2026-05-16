@@ -765,8 +765,6 @@ void VoxlineAudioProcessorEditor::paintIcons(juce::Graphics& g)
                           juce::RectanglePlacement::centred, 1.0f);
     };
 
-    draw(cachedBypassIcon.get(),  910, 74, 18, 18);
-    draw(cachedListenIcon.get(),  964, 623, 20, 20);
 }
 
 // ---------------------------------------------------------------------------
