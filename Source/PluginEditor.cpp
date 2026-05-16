@@ -228,12 +228,12 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     presetDropdown.addListener(this);
     addAndMakeVisible(presetDropdown);
 
-    configureTextLabel(inputTitleLabel, "INPUT", juce::Justification::centred);
-    configureTextLabel(toneTitleLabel, "TONE CONTROLS", juce::Justification::centred);
+    configureTextLabel(inputTitleLabel, "INPUT / CLEAN", juce::Justification::centredLeft);
+    configureTextLabel(toneTitleLabel, "VOCAL EQ", juce::Justification::centredLeft);
     configureTextLabel(polishTitleLabel, "POLISH", juce::Justification::centred);
     configureTextLabel(outputTitleLabel, "OUTPUT", juce::Justification::centred);
     configureTextLabel(peakRmsLabel, "PEAK -3.4\nRMS -14.8", juce::Justification::centred);
-    configureTextLabel(meterNamesLabel, "OUT   GR", juce::Justification::centred);
+    configureTextLabel(meterNamesLabel, "DYNAMICS / COLOR", juce::Justification::centred);
 
     configurePresetButton(abButton, "A/B");
 
@@ -398,6 +398,11 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
 
     // LED dots
     paintLedDots(g, VoxlineLayout::inputLedDotsBounds);
+
+    // Panel titles that don't have dedicated labels
+    g.setColour(t.textPrimary);
+    g.setFont(juce::FontOptions(15.0f, juce::Font::bold));
+    g.drawText("SPACE", VoxlineLayout::spaceTitleBounds, juce::Justification::centredLeft, false);
 }
 
 // ---------------------------------------------------------------------------
@@ -433,12 +438,14 @@ void VoxlineAudioProcessorEditor::resized()
     outputValueLabel.setBounds(VoxlineLayout::outputGainValueBounds);
 
     // === Vocal EQ (placeholder: old tone knobs) ===
-    bodySlider.setBounds(VoxlineLayout::eqLowBounds.withHeight(100).translated(0, -60));
-    claritySlider.setBounds(VoxlineLayout::eqPresBounds.withHeight(100).translated(0, -60));
-    airSlider.setBounds(VoxlineLayout::eqAirBounds.withHeight(100).translated(0, -60));
-    smoothSlider.setBounds(VoxlineLayout::eqLpfBounds.withHeight(100).translated(0, -60));
+    bodySlider.setBounds(VoxlineLayout::eqLowBounds.translated(0, -72).withHeight(100));
+    claritySlider.setBounds(VoxlineLayout::eqPresBounds.translated(0, -72).withHeight(100));
+    airSlider.setBounds(VoxlineLayout::eqAirBounds.translated(0, -72).withHeight(100));
+    smoothSlider.setBounds(VoxlineLayout::eqLpfBounds.translated(0, -72).withHeight(100));
+    toneTitleLabel.setBounds(VoxlineLayout::eqTitleBounds);
 
     // === Dynamics (placeholder) ===
+    meterNamesLabel.setBounds(VoxlineLayout::dynamicsTitleBounds);
     compSlider.setBounds(VoxlineLayout::compKnobBounds);
     driveSlider.setBounds(VoxlineLayout::driveKnobBounds);
 
