@@ -31,7 +31,7 @@ public:
         float inputGain = 0.0f, polish = 0.0f, body = 0.0f, clarity = 0.0f,
               air = 0.0f, smooth = 0.0f, comp = 0.0f, drive = 0.0f, outputGain = 0.0f,
               spaceAmount = 0.0f, spaceType = 0.0f;
-        bool autoGain = true, bypass = false, listen = false;
+        bool autoGain = true, cleanMode = false, bypass = false, listen = false;
     };
 
     void cycleTheme();
@@ -102,6 +102,7 @@ private:
 
     juce::ToggleButton autoGainButton;
     juce::ToggleButton bypassButton;
+    juce::ToggleButton cleanModeButton;
     juce::ToggleButton listenButton;
 
     VoxlineLevelMeter outputMeter;
@@ -126,6 +127,7 @@ private:
 
     std::unique_ptr<ButtonAttachment> autoGainAttachment;
     std::unique_ptr<ButtonAttachment> bypassAttachment;
+    std::unique_ptr<ButtonAttachment> cleanModeAttachment;
     std::unique_ptr<ButtonAttachment> listenAttachment;
 
     // A/B compare

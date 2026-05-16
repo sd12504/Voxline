@@ -15,6 +15,7 @@ static constexpr auto comp = "comp";
 static constexpr auto drive = "drive";
 static constexpr auto outputGain = "outputGain";
 static constexpr auto bypass = "bypass";
+static constexpr auto cleanMode = "cleanMode";
 static constexpr auto listen = "listen";
 static constexpr auto spaceAmount = "spaceAmount";
 static constexpr auto spaceType = "spaceType";
@@ -84,6 +85,10 @@ private:
     juce::AudioBuffer<float> dryBuffer;
     double currentSampleRate = 44100.0;
     float compressorEnvelope = 1.0f;
+
+    // cleanMode HPF state (one-pole, per channel)
+    float cleanModeXPrev[2] = {0.0f, 0.0f};
+    float cleanModeYPrev[2] = {0.0f, 0.0f};
 
     // SPACE effect: delay lines (mono or stereo)
     juce::AudioBuffer<float> spaceBuffer;

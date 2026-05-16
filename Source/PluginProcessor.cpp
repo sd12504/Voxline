@@ -58,6 +58,8 @@ void VoxlineAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
     spaceBuffer.clear();
     spaceWritePos = 0;
     compressorEnvelope = 1.0f;
+    cleanModeXPrev[0] = cleanModeXPrev[1] = 0.0f;
+    cleanModeYPrev[0] = cleanModeYPrev[1] = 0.0f;
     updateToneFilters();
 }
 
@@ -163,6 +165,7 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
     const auto driveAmount = juce::jlimit(0.0f, 1.0f, driveRaw * polishScale);
     const auto autoGainEnabled = apvts.getRawParameterValue(VoxlineParameterIDs::autoGain)->load() >= 0.5f;
     const auto listenEnabled = apvts.getRawParameterValue(VoxlineParameterIDs::listen)->load() >= 0.5f;
+    const auto cleanModeOn = apvts.getRawParameterValue(VoxlineParameterIDs::cleanMode)->load() >= 0.5f;
 
     const auto spaceAmount = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::spaceAmount)->load());
     const auto spaceType = static_cast<int>(apvts.getRawParameterValue(VoxlineParameterIDs::spaceType)->load());
@@ -197,6 +200,18 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
             const auto drySample = dryBuffer.getSample(channel, sampleIndex);
             auto sample = drySample * inputGain;
 
+            // cleanMode: gentle HPF at ~80Hz to remove rumble / low-end mud
+            if (cleanModeOn)
+            {
+                const auto alpha = std::exp(-2.0f * 3.14159f * 80.0f / static_cast<float>(currentSampleRate));
+                auto& xPrev = cleanModeXPrev[channel];
+                auto& yPrev = cleanModeYPrev[channel];
+                const auto filtered = alpha * (yPrev + sample - xPrev);
+                xPrev = sample;
+                yPrev = filtered;
+                sample = filtered;
+            }
+
             sample = bodyFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
             sample = clarityFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
             sample = airFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
@@ -230,12 +245,14 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
                     mix = spaceAmount * 0.18f;
                     fb = 0.18f;
                     lpfFreq = 7000.0f;
+                    hpfFreq = 250.0f;
                     break;
                 case 1: // Filtered Slap
                     rv = readMs(105.0f)*0.6f + readMs(130.0f)*0.4f;
                     mix = spaceAmount * 0.28f;
                     fb = 0.28f;
                     lpfFreq = 4500.0f;
+                    hpfFreq = 200.0f;
                     break;
                 case 2: // Stereo Wide
                     rv = readMs(18.0f)*0.35f + readMs(30.0f)*0.30f + readMs(48.0f)*0.20f + readMs(68.0f)*0.15f;
@@ -247,11 +264,7 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
                     mix = spaceAmount * 0.24f;
                     fb = 0.20f;
                     lpfFreq = 8000.0f;
-                    break;
-                default:
-                    rv = readMs(20.0f)*0.3f + readMs(35.0f)*0.25f + readMs(50.0f)*0.20f + readMs(68.0f)*0.15f + readMs(85.0f)*0.10f;
-                    mix = spaceAmount * 0.22f;
-                    fb = 0.22f;
+                    hpfFreq = 220.0f;
                     break;
                 }
 
@@ -435,11 +448,13 @@ VoxlineAudioProcessor::APVTS::ParameterLayout VoxlineAudioProcessor::createParam
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID{VoxlineParameterIDs::bypass, 1}, "Bypass", false));
     params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{VoxlineParameterIDs::cleanMode, 1}, "Clean Mode", false));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID{VoxlineParameterIDs::listen, 1}, "Listen", false));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{VoxlineParameterIDs::spaceAmount, 1}, "Space Amount", percentRange, 0.0f, makePercentAttributes()));
     params.push_back(std::make_unique<juce::AudioParameterInt>(
-        juce::ParameterID{VoxlineParameterIDs::spaceType, 1}, "Space Type", 0, 3, 0));
+        juce::ParameterID{VoxlineParameterIDs::spaceType, 1}, "Space Type", 0, 2, 0));
 
     return {params.begin(), params.end()};
 }

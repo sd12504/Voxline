@@ -253,7 +253,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     outputGainSlider.setShowInternalValue(false);
 
     // SPACE control in bottom bar
-    spaceTypeCombo.addItemList({"Tight Ambience", "Filtered Slap", "Stereo Wide", "Vocal Space"}, 1);
+    spaceTypeCombo.addItemList({"Tight Ambience", "Filtered Slap", "Stereo Wide"}, 1);
     spaceTypeCombo.setSelectedId(1, juce::dontSendNotification);
     spaceTypeCombo.addListener(this);
     spaceTypeCombo.setLookAndFeel(&voxlineDropdownLNF);
@@ -280,9 +280,11 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     bypassButton.setLookAndFeel(&voxlineToggleLNF);
     configureButton(autoGainButton, "Auto Gain");
     autoGainButton.setLookAndFeel(&voxlineAutoGainLNF);
+    configureButton(cleanModeButton, "Clean");
+    cleanModeButton.setLookAndFeel(&voxlineToggleLNF);
     configureButton(listenButton, "  Listen");
     listenButton.setLookAndFeel(&voxlineToggleLNF);
-    // TODO: implement Listen audition mode (currently difference monitor)
+    // Listen mode: difference monitor (solo wet signal) — standard audition behavior
 
     addAndMakeVisible(outputMeter);
     addAndMakeVisible(gainReductionMeter);
@@ -300,6 +302,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
 
     autoGainAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::autoGain, autoGainButton);
     bypassAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::bypass, bypassButton);
+    cleanModeAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::cleanMode, cleanModeButton);
     listenAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::listen, listenButton);
 
     apvts.addParameterListener(VoxlineParameterIDs::polish, this);
@@ -415,6 +418,7 @@ void VoxlineAudioProcessorEditor::resized()
     inputTitleLabel.setBounds(VoxlineLayout::inputTitleBounds);
     inputGainSlider.setBounds(VoxlineLayout::inputGainSliderBounds);
     autoGainButton.setBounds(VoxlineLayout::autoGainToggleBounds);
+    cleanModeButton.setBounds(VoxlineLayout::cleanModeBounds);
 
     toneTitleLabel.setBounds(VoxlineLayout::toneTitleBounds);
     bodySlider.setBounds(VoxlineLayout::bodySliderBounds);
@@ -561,6 +565,8 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     // === Toggles ===
     autoGainButton.setColour(juce::ToggleButton::textColourId, 
         dark ? juce::Colour(0xff9d99a8) : juce::Colour(0xff666666));
+    cleanModeButton.setColour(juce::ToggleButton::textColourId, theme.textSecondary);
+    cleanModeButton.setColour(juce::ToggleButton::tickColourId, theme.accentLavender);
     listenButton.setColour(juce::ToggleButton::textColourId, theme.textSecondary);
     listenButton.setColour(juce::ToggleButton::tickColourId, theme.accentLavender);
 
@@ -694,7 +700,7 @@ void VoxlineAudioProcessorEditor::comboBoxChanged(juce::ComboBox* comboBoxThatHa
     {
         const int t = spaceTypeCombo.getSelectedId() - 1;
         if (auto* p = audioProcessor.getAPVTS().getParameter(VoxlineParameterIDs::spaceType))
-            p->setValueNotifyingHost((float)t / 3.0f);
+            p->setValueNotifyingHost((float)t / 2.0f);
     }
 }
 
@@ -720,10 +726,10 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
         {  0.0f, true,  22,  45,  42,  30,  25,  18,   0,  0.0f,     0, 0 }, // Clean
         { -1.0f, true,  58,  68,  54,  32,  20,  52,  34, -1.5f,    12, 1 }, // Basement Take
         { -1.5f, true,  78,  62,  78,  48,  24,  76,  46, -2.0f,     8, 0 }, // Dirty Lead
-        { -1.0f, true,  68,  30,  64,  82,  66,  48,  10, -1.5f,    20, 3 }, // Cold Plug
+        { -1.0f, true,  68,  30,  64,  82,  66,  48,  10, -1.5f,    20, 2 }, // Cold Plug
         { -2.0f, true,  86,  38,  90,  72,  22,  84,  56, -3.0f,    10, 2 }, // Rage Cut
         { -1.5f, true,  72,  84,  52,  24,  28,  70,  48, -2.5f,     6, 1 }, // Muddy Trap
-        { -2.0f, true,  88,  24,  86,  94,  38,  78,  32, -3.0f,    25, 3 }, // Cyber Vox
+        { -2.0f, true,  88,  24,  86,  94,  38,  78,  32, -3.0f,    25, 0 }, // Cyber Vox
         { -1.0f, true,  60,  58,  44,  26,  70,  46,  18, -1.5f,    18, 1 }, // Noir Vocal
         { -1.5f, true,  70,  72,  56,  36,  38,  66,  58, -2.5f,    12, 2 }, // Tape Rap
     };
@@ -772,6 +778,7 @@ void VoxlineAudioProcessorEditor::captureSnapshot(ParameterSnapshot& snap)
     snap.outputGain = val("outputGain");
     snap.spaceAmount = val("spaceAmount");
     snap.spaceType   = val("spaceType");
+    snap.cleanMode  = val("cleanMode") >= 0.5f;
     snap.bypass     = val("bypass") >= 0.5f;
     snap.listen     = val("listen") >= 0.5f;
 }
@@ -795,6 +802,7 @@ void VoxlineAudioProcessorEditor::applySnapshot(const ParameterSnapshot& snap)
     set("outputGain", snap.outputGain);
     set("spaceAmount", snap.spaceAmount);
     set("spaceType",   snap.spaceType);
+    set("cleanMode",  snap.cleanMode ? 1.0f : 0.0f);
     set("bypass",     snap.bypass ? 1.0f : 0.0f);
     set("listen",     snap.listen ? 1.0f : 0.0f);
 }
