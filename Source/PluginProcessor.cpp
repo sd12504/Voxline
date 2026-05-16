@@ -246,10 +246,10 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
                 // Mix space in
                 const auto spaceMix = [&]() -> float {
                     switch (spaceType) {
-                        case 0: return spaceAmount * 0.10f;
-                        case 1: return spaceAmount * 0.18f;
-                        case 2: return spaceAmount * 0.24f;
-                        default:return spaceAmount * 0.20f;
+                        case 0: return spaceAmount * 0.25f;
+                        case 1: return spaceAmount * 0.40f;
+                        case 2: return spaceAmount * 0.50f;
+                        default:return spaceAmount * 0.35f;
                     }
                 }();
                 sample = sample + spaceWet * spaceMix;
