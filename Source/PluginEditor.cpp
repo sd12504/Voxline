@@ -211,12 +211,17 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     outputGainSlider.setShowInternalLabel(false);
     outputGainSlider.setShowInternalValue(false);
 
-    // SPACE knob: compact, no internal text
-    configureKnob(spaceSlider);
-    spaceSlider.setShowInternalLabel(false);
-    spaceSlider.setShowInternalValue(false);
+    // SPACE control in bottom bar
+    spaceTypeCombo.addItemList({"Tight", "Room", "Hall", "Wide"}, 1);
+    spaceTypeCombo.setSelectedId(1, juce::dontSendNotification);
+    spaceTypeCombo.addListener(this);
+    spaceTypeCombo.setLookAndFeel(&voxlineDropdownLNF);
+    spaceTypeCombo.setColour(juce::ComboBox::textColourId, juce::Colours::transparentBlack);
+    spaceTypeCombo.getProperties().set("themeIndex", 0);
+    addAndMakeVisible(spaceTypeCombo);
 
-    configureTextLabel(spaceTitleLabel, "SPACE", juce::Justification::centred);
+    configureTextLabel(spaceAmountLabel, "0%", juce::Justification::centredRight);
+
 
     configureTextLabel(outputValueLabel, "0.0 dB", juce::Justification::centred);
 
@@ -240,7 +245,6 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     compAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::comp, compSlider);
     driveAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::drive, driveSlider);
     outputGainAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::outputGain, outputGainSlider);
-    spaceAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::spaceAmount, spaceSlider);
 
     autoGainAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::autoGain, autoGainButton);
     bypassAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::bypass, bypassButton);
@@ -258,6 +262,8 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     apvts.addParameterListener(VoxlineParameterIDs::autoGain, this);
     apvts.addParameterListener(VoxlineParameterIDs::bypass, this);
     apvts.addParameterListener(VoxlineParameterIDs::listen, this);
+    apvts.addParameterListener(VoxlineParameterIDs::spaceAmount, this);
+    apvts.addParameterListener(VoxlineParameterIDs::spaceType, this);
 
     // Init A/B snapshots from current APVTS values
     captureSnapshot(snapshotA);
@@ -288,6 +294,8 @@ VoxlineAudioProcessorEditor::~VoxlineAudioProcessorEditor()
     audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::autoGain, this);
     audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::bypass, this);
     audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::listen, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::spaceAmount, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::spaceType, this);
     removeKeyListener(this);
     bypassButton.setLookAndFeel(nullptr);
     listenButton.setLookAndFeel(nullptr);
@@ -330,6 +338,14 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
     // Icons
     paintIcons(g);
 
+    // SPACE label in bottom bar
+    {
+        const auto& t = VoxlineTheme::get(currentThemeIndex);
+        g.setColour(t.textSecondary);
+        g.setFont(juce::FontOptions(11.0f));
+        g.drawText("SPACE", 460, 618, 50, 32, juce::Justification::centredRight, false);
+    }
+
     // LED dots
     paintLedDots(g, VoxlineLayout::inputLedDotsBounds);
 }
@@ -358,8 +374,6 @@ void VoxlineAudioProcessorEditor::resized()
 
     polishTitleLabel.setBounds(VoxlineLayout::polishTitleBounds);
     polishSlider.setBounds(VoxlineLayout::polishSliderBounds);
-    spaceTitleLabel.setBounds(VoxlineLayout::spaceTitleBounds);
-    spaceSlider.setBounds(VoxlineLayout::spaceSliderBounds);
 
     outputTitleLabel.setBounds(VoxlineLayout::outputTitleBounds);
     peakRmsLabel.setBounds(VoxlineLayout::peakRmsBounds);
@@ -372,6 +386,8 @@ void VoxlineAudioProcessorEditor::resized()
     presetDropdown.setBounds(VoxlineLayout::presetDropdownBounds);
     abButton.setBounds(VoxlineLayout::abButtonBounds);
     listenButton.setBounds(VoxlineLayout::listenUtilityBounds);
+    spaceTypeCombo.setBounds(508, 618, 90, 32);
+    spaceAmountLabel.setBounds(600, 618, 120, 32);
 }
 
 // ---------------------------------------------------------------------------
@@ -389,6 +405,18 @@ void VoxlineAudioProcessorEditor::parameterChanged(const juce::String& parameter
         auto* param = audioProcessor.getAPVTS().getParameter(parameterID);
         if (param)
             outputValueLabel.setText(param->getCurrentValueAsText(), juce::dontSendNotification);
+    }
+    else if (parameterID == VoxlineParameterIDs::spaceAmount)
+    {
+        auto* param = audioProcessor.getAPVTS().getParameter(parameterID);
+        if (param)
+            spaceAmountLabel.setText(param->getCurrentValueAsText(), juce::dontSendNotification);
+    }
+    else if (parameterID == VoxlineParameterIDs::spaceType)
+    {
+        const int t = juce::roundToInt(newValue * 3.0f);
+        const juce::String names[] = {"Tight", "Room", "Hall", "Wide"};
+        spaceTypeCombo.setSelectedId(t + 1, juce::dontSendNotification);
     }
 
     // Update active A/B slot on every parameter change
@@ -432,7 +460,6 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     compSlider.setTheme(theme);
     driveSlider.setTheme(theme);
     outputGainSlider.setTheme(theme);
-    spaceSlider.setTheme(theme);
 
     // Labels — fonts sizes for output panel
     logoLabel.setFont(juce::FontOptions(24.0f, juce::Font::bold));
@@ -446,7 +473,6 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     setTextColour(inputTitleLabel);
     setTextColour(toneTitleLabel);
     setTextColour(polishTitleLabel);
-    setTextColour(spaceTitleLabel);
     setTextColour(outputTitleLabel);
     setTextColour(peakRmsLabel);
     setTextColour(meterNamesLabel);
@@ -601,6 +627,12 @@ void VoxlineAudioProcessorEditor::comboBoxChanged(juce::ComboBox* comboBoxThatHa
 {
     if (comboBoxThatHasChanged == &presetDropdown)
         applyPreset(presetDropdown.getText());
+    else if (comboBoxThatHasChanged == &spaceTypeCombo)
+    {
+        const int t = spaceTypeCombo.getSelectedId() - 1;
+        if (auto* p = audioProcessor.getAPVTS().getParameter(VoxlineParameterIDs::spaceType))
+            p->setValueNotifyingHost((float)t / 3.0f);
+    }
 }
 
 void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)

@@ -42,8 +42,6 @@ inline const juce::Rectangle<int> driveSliderBounds { 485, 345, 100, 160 };
 
 inline const juce::Rectangle<int> polishTitleBounds { 616, 188, 285, 26 };
 inline const juce::Rectangle<int> polishSliderBounds { 662, 214, 193, 260 };
-inline const juce::Rectangle<int> spaceTitleBounds { 616, 492, 285, 16 };
-inline const juce::Rectangle<int> spaceSliderBounds { 730, 504, 56, 50 };
 
 inline const juce::Rectangle<int> outputTitleBounds { 916, 186, 130, 24 };
 inline const juce::Rectangle<int> peakRmsBounds { 936, 216, 88, 44 };
@@ -54,6 +52,7 @@ inline const juce::Rectangle<int> outputGainSliderBounds { 946, 476, 70, 70 };
 inline const juce::Rectangle<int> outputValueBounds { 916, 535, 130, 17 };
 
 inline const juce::Rectangle<int> presetDropdownBounds { 94, 616, 200, 36 };
+inline const juce::Rectangle<int> spaceControlBounds { 460, 616, 260, 36 };
 
 inline const juce::Rectangle<int> abButtonBounds { 862, 616, 82, 36 };
 inline const juce::Rectangle<int> listenUtilityBounds { 958, 616, 82, 36 };

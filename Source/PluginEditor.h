@@ -78,11 +78,13 @@ private:
     juce::Label inputTitleLabel;
     juce::Label toneTitleLabel;
     juce::Label polishTitleLabel;
-    juce::Label spaceTitleLabel;
     juce::Label outputTitleLabel;
     juce::Label peakRmsLabel;
     juce::Label meterNamesLabel;
     juce::Label outputValueLabel;
+
+    juce::ComboBox spaceTypeCombo;
+    juce::Label spaceAmountLabel;
 
     juce::TextButton abButton;
 
@@ -95,7 +97,6 @@ private:
     VoxlineCustomKnob compSlider { "Comp", juce::Colour(0xff8e7af0) };
     VoxlineCustomKnob driveSlider { "Drive", juce::Colour(0xffefaa76) };
     VoxlineCustomKnob outputGainSlider { "Out", juce::Colour(0xff9f8ff4) };
-    VoxlineCustomKnob spaceSlider { "", juce::Colour(0xffa0d2f0) };
 
     juce::ToggleButton autoGainButton;
     juce::ToggleButton bypassButton;
@@ -119,7 +120,6 @@ private:
     std::unique_ptr<SliderAttachment> compAttachment;
     std::unique_ptr<SliderAttachment> driveAttachment;
     std::unique_ptr<SliderAttachment> outputGainAttachment;
-    std::unique_ptr<SliderAttachment> spaceAttachment;
 
     std::unique_ptr<ButtonAttachment> autoGainAttachment;
     std::unique_ptr<ButtonAttachment> bypassAttachment;
