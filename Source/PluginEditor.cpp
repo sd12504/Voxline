@@ -251,6 +251,21 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     // EQ band button highlights — LOW active by default
     eqLowButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xffa0c0a0).withAlpha(0.25f));
 
+    // Placeholder controls (UI only, no DSP yet)
+    configureTextLabel(lowCutLabel, "LOW CUT\n80 Hz", juce::Justification::centred);
+    configureTextLabel(cleanLabel, "CLEAN\n30%", juce::Justification::centred);
+    configureTextLabel(deEssLabel, "DE-ESS\n25%", juce::Justification::centred);
+    configureTextLabel(peakLabel, "PEAK", juce::Justification::centredLeft);
+    configureTextLabel(rmsLabel, "RMS", juce::Justification::centredLeft);
+    configureTextLabel(outLabel, "OUT", juce::Justification::centred);
+    configureTextLabel(grLabel, "GR", juce::Justification::centred);
+    configureTextLabel(thresholdLabel, "THRESHOLD\n-18.0 dB", juce::Justification::centred);
+    configureTextLabel(preDelayLabel, "PRE-DELAY\n15 ms", juce::Justification::centred);
+    configureTextLabel(spaceHpfLabel, "HPF\n200 Hz", juce::Justification::centred);
+    configureTextLabel(spaceLpfLabel, "LPF\n8.0 kHz", juce::Justification::centred);
+    configureTextLabel(softClipLabel, "SOFT CLIP", juce::Justification::centred);
+    configureTextLabel(monitorLabel, "MONITOR", juce::Justification::centredLeft);
+
     configurePresetButton(abButton, "A/B");
 
     abButton.addListener(this);
@@ -384,9 +399,9 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
     const auto& t = VoxlineTheme::get(currentThemeIndex);
     g.fillAll(t.editorBg);
 
-    // Top bar
+    // Top bar — just a simple background
     g.setColour(t.mainCardBg);
-    g.fillRoundedRectangle(VoxlineLayout::topBar.toFloat(), VoxlineLayout::mainCornerSize);
+    g.fillRoundedRectangle(20, 20, 1360, 78, 24.0f);
 
     // Six panels
     g.setColour(t.panelBg);
@@ -526,6 +541,21 @@ void VoxlineAudioProcessorEditor::resized()
 
     // === Footer ===
     footerLabel.setBounds(VoxlineLayout::footerBounds);
+
+    // === Placeholder labels ===
+    lowCutLabel.setBounds(VoxlineLayout::lowCutKnobBounds);
+    cleanLabel.setBounds(VoxlineLayout::cleanKnobBounds);
+    deEssLabel.setBounds(VoxlineLayout::deEssKnobBounds);
+    peakLabel.setBounds(VoxlineLayout::peakLabelBounds);
+    rmsLabel.setBounds(VoxlineLayout::rmsLabelBounds);
+    outLabel.setBounds(VoxlineLayout::outMeterBounds.getX() - 35, 168, 50, 20);
+    grLabel.setBounds(VoxlineLayout::grMeterBounds.getX() - 5, 168, 50, 20);
+    thresholdLabel.setBounds(VoxlineLayout::thresholdKnobBounds);
+    softClipLabel.setBounds(VoxlineLayout::softClipBounds);
+    preDelayLabel.setBounds(VoxlineLayout::spacePreDelayBounds);
+    spaceHpfLabel.setBounds(VoxlineLayout::spaceHpfBounds);
+    spaceLpfLabel.setBounds(VoxlineLayout::spaceLpfBounds);
+    monitorLabel.setBounds(995, 848, 120, 20);
 }
 
 // ---------------------------------------------------------------------------

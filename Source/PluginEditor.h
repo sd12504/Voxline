@@ -96,6 +96,13 @@ private:
     juce::TextButton eqAirButton;
     juce::TextButton eqLpfButton;
 
+    // Placeholder labels for future controls
+    juce::Label lowCutLabel, cleanLabel, deEssLabel;
+    juce::Label peakLabel, rmsLabel, outLabel, grLabel;
+    juce::Label thresholdLabel, preDelayLabel, spaceHpfLabel, spaceLpfLabel;
+    juce::Label softClipLabel;
+    juce::Label monitorLabel;
+
     juce::TextButton abButton;
 
     VoxlineCustomKnob inputGainSlider { "Input", juce::Colour(0xffb68cf2) };
