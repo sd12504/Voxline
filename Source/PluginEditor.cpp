@@ -723,7 +723,7 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
     struct PresetDef { float in; bool ag; float pol, bd, cl, ar, sm, cp, dr, out; float spAmt; int spType; };
     static const PresetDef presets[] = {
         // name,            inG,  ag,  pol, bd,  cl,  ar,  sm,  cp,  dr,  out,     spAmt, spType
-        {  0.0f, true,  22,  45,  42,  30,  25,  18,   0,  0.0f,     0, 0 }, // Clean
+        {  0.0f, true,  22,  50,  42,  30,  10,  18,   0,  0.0f,     0, 0 }, // Clean
         { -1.0f, true,  58,  68,  54,  32,  20,  52,  34, -1.5f,    12, 1 }, // Basement Take
         { -1.5f, true,  78,  62,  78,  48,  24,  76,  46, -2.0f,     8, 0 }, // Dirty Lead
         { -1.0f, true,  68,  30,  64,  82,  66,  48,  10, -1.5f,    20, 2 }, // Cold Plug
@@ -740,6 +740,7 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
             param->setValueNotifyingHost(value);
     };
 
+    setParam("cleanMode",  0.0f);
     setParam("inputGain",  (p.in  + 24.0f) / 48.0f);
     setParam("autoGain",   p.ag ? 1.0f : 0.0f);
     setParam("polish",     p.pol / 100.0f);
