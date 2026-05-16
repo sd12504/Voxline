@@ -646,6 +646,25 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     setTextColour(meterNamesLabel);
     setTextColour(outputValueLabel);
     setTextColour(spaceAmountLabel);
+    setTextColour(lowCutLabel);
+    setTextColour(cleanLabel);
+    setTextColour(deEssLabel);
+    setTextColour(peakLabel);
+    setTextColour(rmsLabel);
+    setTextColour(outLabel);
+    setTextColour(grLabel);
+    setTextColour(thresholdLabel);
+    setTextColour(softClipLabel);
+    setTextColour(preDelayLabel);
+    setTextColour(spaceHpfLabel);
+    setTextColour(spaceLpfLabel);
+    setTextColour(monitorLabel);
+
+    // Placeholder label fonts
+    auto stylePH = [&](juce::Label& l) { l.setFont(juce::FontOptions(10.0f)); };
+    stylePH(lowCutLabel); stylePH(cleanLabel); stylePH(deEssLabel);
+    stylePH(thresholdLabel); stylePH(softClipLabel);
+    stylePH(preDelayLabel); stylePH(spaceHpfLabel); stylePH(spaceLpfLabel);
 
     // Footer
     footerLabel.setFont(juce::FontOptions(10.0f));

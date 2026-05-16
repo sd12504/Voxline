@@ -33,8 +33,8 @@ inline const juce::Rectangle<int> polishPanel { 460, 105, 490, 415 };
 inline const juce::Rectangle<int> polishTitleBounds { 620, 128, 180, 42 };
 inline const juce::Rectangle<int> polishSliderBounds { 575, 170, 270, 270 };
 inline const juce::Rectangle<int> polishValueBounds { 610, 430, 200, 58 };
-inline const juce::Rectangle<int> polishStatusBounds { 635, 484, 150, 26 };
-inline const juce::Rectangle<int> polishDescBounds { 525, 514, 360, 42 };
+inline const juce::Rectangle<int> polishStatusBounds { 635, 482, 150, 22 };
+inline const juce::Rectangle<int> polishDescBounds { 535, 505, 340, 30 };
 
 // === Output ===
 inline const juce::Rectangle<int> outputPanel { 960, 105, 420, 415 };
@@ -75,8 +75,8 @@ inline const juce::Rectangle<int> softClip2Bounds { 690, 860, 110, 26 };
 inline const juce::Rectangle<int> spacePanel { 965, 530, 415, 350 };
 inline const juce::Rectangle<int> spaceTitleBounds { 995, 548, 150, 26 };
 inline const juce::Rectangle<int> spaceTypeBounds { 1100, 550, 210, 38 };
-inline const juce::Rectangle<int> spaceSliderBounds { 995, 650, 330, 20 };
-inline const juce::Rectangle<int> spaceValueBounds { 1340, 635, 60, 36 };
+inline const juce::Rectangle<int> spaceSliderBounds { 995, 650, 280, 20 };
+inline const juce::Rectangle<int> spaceValueBounds { 1280, 635, 60, 36 };
 inline const juce::Rectangle<int> spacePreDelayBounds { 1010, 745, 65, 65 };
 inline const juce::Rectangle<int> spaceHpfBounds { 1165, 745, 65, 65 };
 inline const juce::Rectangle<int> spaceLpfBounds { 1325, 745, 65, 65 };
