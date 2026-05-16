@@ -516,10 +516,10 @@ void VoxlineAudioProcessorEditor::resized()
     outputValueLabel.setBounds(VoxlineLayout::outputGainValueBounds);
 
     // === Vocal EQ (placeholder: old tone knobs) ===
-    bodySlider.setBounds(VoxlineLayout::eqLowBounds.withHeight(90).translated(0, 36));
-    claritySlider.setBounds(VoxlineLayout::eqPresBounds.withHeight(90).translated(0, 36));
-    airSlider.setBounds(VoxlineLayout::eqAirBounds.withHeight(90).translated(0, 36));
-    smoothSlider.setBounds(VoxlineLayout::eqLpfBounds.withHeight(90).translated(0, 36));
+    bodySlider.setBounds(VoxlineLayout::eqLowBounds.withHeight(80).translated(0, 28));
+    claritySlider.setBounds(VoxlineLayout::eqPresBounds.withHeight(80).translated(0, 28));
+    airSlider.setBounds(VoxlineLayout::eqAirBounds.withHeight(80).translated(0, 28));
+    smoothSlider.setBounds(VoxlineLayout::eqLpfBounds.withHeight(80).translated(0, 28));
     toneTitleLabel.setBounds(VoxlineLayout::eqTitleBounds);
 
     eqHpfButton.setBounds(VoxlineLayout::eqHpfBounds);
