@@ -211,53 +211,45 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
             {
                 float spaceWet = 0.0f;
                 const auto spaceBufSize = maxSpaceDelaySamples;
-                const auto wp = spaceWritePos;
+                const auto wp = (spaceWritePos + sampleIndex) % spaceBufSize;
+
+                auto readDelay = [&](float ms) -> float {
+                    const auto d = static_cast<int>(currentSampleRate * ms * 0.001);
+                    return spaceBuffer.getSample(channel, (wp - d + spaceBufSize) % spaceBufSize);
+                };
 
                 if (spaceType == 0) // Tight: 18ms/31ms taps
                 {
-                    const auto d1 = static_cast<int>(currentSampleRate * 0.018);
-                    const auto d2 = static_cast<int>(currentSampleRate * 0.031);
-                    const auto read = [&](int d) -> float { return spaceBuffer.getSample(channel, (wp - d + spaceBufSize) % spaceBufSize); };
-                    spaceWet = read(d1) * 0.55f + read(d2) * 0.45f;
+                    spaceWet = readDelay(18.0f) * 0.55f + readDelay(31.0f) * 0.45f;
                 }
                 else if (spaceType == 1) // Room: 18/31/47ms with feedback
                 {
-                    const auto d1 = static_cast<int>(currentSampleRate * 0.018);
-                    const auto d2 = static_cast<int>(currentSampleRate * 0.031);
-                    const auto d3 = static_cast<int>(currentSampleRate * 0.047);
-                    const auto read = [&](int d) -> float { return spaceBuffer.getSample(channel, (wp - d + spaceBufSize) % spaceBufSize); };
-                    spaceWet = read(d1) * 0.35f + read(d2) * 0.35f + read(d3) * 0.30f;
+                    spaceWet = readDelay(18.0f) * 0.35f + readDelay(31.0f) * 0.35f + readDelay(47.0f) * 0.30f;
                 }
                 else if (spaceType == 2) // Slap: 100ms delay with feedback
                 {
-                    const auto d = static_cast<int>(currentSampleRate * 0.100);
-                    const auto fb = spaceBuffer.getSample(channel, (wp - d + spaceBufSize) % spaceBufSize);
-                    spaceWet = fb;
-                    // Write feedback
-                    spaceBuffer.setSample(channel, wp, sample + fb * 0.12f);
+                    spaceWet = readDelay(100.0f);
+                    // Write with feedback
+                    spaceBuffer.setSample(channel, wp, sample + spaceWet * 0.12f);
                 }
-                else // Wide: 18ms L / 28ms R with subtle width
+                else // Wide: 18ms L / 28ms R, cross-channel
                 {
-                    const auto dL = static_cast<int>(currentSampleRate * 0.018);
-                    const auto dR = static_cast<int>(currentSampleRate * 0.028);
-                    const auto other = (channel == 0) ? 1 : 0;
-                    spaceWet = spaceBuffer.getSample(other, (wp - dL + spaceBufSize) % spaceBufSize) * 0.4f
-                             + spaceBuffer.getSample(channel, (wp - dR + spaceBufSize) % spaceBufSize) * 0.4f;
-                    // Write dry to buffer for future reads (use output channel count for width)
+                    const auto other = (channel == 0 && spaceBuffer.getNumChannels() > 1) ? 1 : 0;
+                    spaceWet = readDelay(18.0f) * 0.4f + readDelay(28.0f) * 0.4f;
                     spaceBuffer.setSample(channel, wp, sample);
                 }
 
-                // Write to delay buffer (except Slap which writes with feedback above)
+                // Write to delay buffer (except Slap which writes above)
                 if (spaceType != 2)
-                    spaceBuffer.setSample(channel, wp, sample + spaceWet * 0.08f);
+                    spaceBuffer.setSample(channel, wp, sample + spaceWet * 0.06f);
 
                 // Mix space in
                 const auto spaceMix = [&]() -> float {
                     switch (spaceType) {
-                        case 0: return spaceAmount * 0.08f;
-                        case 1: return spaceAmount * 0.14f;
-                        case 2: return spaceAmount * 0.18f;
-                        default:return spaceAmount * 0.16f;
+                        case 0: return spaceAmount * 0.10f;
+                        case 1: return spaceAmount * 0.18f;
+                        case 2: return spaceAmount * 0.24f;
+                        default:return spaceAmount * 0.20f;
                     }
                 }();
                 sample = sample + spaceWet * spaceMix;
