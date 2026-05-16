@@ -85,6 +85,8 @@ private:
 
     juce::ComboBox spaceTypeCombo;
     juce::Label spaceAmountLabel;
+    juce::Slider spaceSlider;
+    juce::Label footerLabel;
 
     juce::TextButton abButton;
 
@@ -120,6 +122,7 @@ private:
     std::unique_ptr<SliderAttachment> compAttachment;
     std::unique_ptr<SliderAttachment> driveAttachment;
     std::unique_ptr<SliderAttachment> outputGainAttachment;
+    std::unique_ptr<SliderAttachment> spaceAttachment;
 
     std::unique_ptr<ButtonAttachment> autoGainAttachment;
     std::unique_ptr<ButtonAttachment> bypassAttachment;

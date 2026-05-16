@@ -60,6 +60,47 @@ static VoxlineAutoGainLNF voxlineAutoGainLNF;
 int VoxlineAutoGainLNF::currentAutoGainTheme = 0;
 
 // ---------------------------------------------------------------------------
+// Compact horizontal slider LookAndFeel for SPACE
+// ---------------------------------------------------------------------------
+struct VoxlineSpaceSliderLNF final : juce::LookAndFeel_V4
+{
+    void drawLinearSlider(juce::Graphics& g, int x, int y, int w, int h,
+                          float sliderPos, float, float,
+                          const juce::Slider::SliderStyle, juce::Slider& slider) override
+    {
+        const auto b = juce::Rectangle<float>((float)x, (float)y, (float)w, (float)h);
+        const auto trackY = b.getCentreY();
+        const auto trackH = 2.5f;
+        const auto thumbR = 6.0f;
+        const auto& t = VoxlineTheme::get(spaceSliderTheme);
+        const auto dark = (spaceSliderTheme != 0);
+
+        // Track background
+        g.setColour(dark ? juce::Colour(0xff2a2635) : juce::Colour(0xffe0d8cc));
+        g.fillRoundedRectangle(b.getX(), trackY - trackH * 0.5f, (float)w, trackH, 1.5f);
+
+        // Active track
+        const auto activeW = sliderPos - b.getX();
+        if (activeW > 2.0f)
+        {
+            g.setColour(dark ? juce::Colour(0xffD86F96) : juce::Colour(0xffc77daa));
+            g.fillRoundedRectangle(b.getX(), trackY - trackH * 0.5f, activeW, trackH, 1.5f);
+        }
+
+        // Thumb
+        g.setColour(dark ? juce::Colour(0xffE98BAA) : juce::Colour(0xffD86F96));
+        g.fillEllipse(sliderPos - thumbR, trackY - thumbR, thumbR * 2.0f, thumbR * 2.0f);
+        g.setColour(juce::Colour(0x22000000));
+        g.drawEllipse(sliderPos - thumbR + 0.5f, trackY - thumbR + 1.0f, thumbR * 2.0f - 1.0f, thumbR * 2.0f - 1.0f, 0.8f);
+    }
+
+    static int spaceSliderTheme;
+};
+
+int VoxlineSpaceSliderLNF::spaceSliderTheme = 0;
+static VoxlineSpaceSliderLNF voxlineSpaceSliderLNF;
+
+// ---------------------------------------------------------------------------
 // Pill-styled ComboBox LookAndFeel for preset dropdown
 // ---------------------------------------------------------------------------
 struct VoxlinePresetDropdownLNF final : juce::LookAndFeel_V4
@@ -220,7 +261,17 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     spaceTypeCombo.getProperties().set("themeIndex", 0);
     addAndMakeVisible(spaceTypeCombo);
 
+    // SPACE horizontal slider
+    spaceSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    spaceSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    spaceSlider.setRange(0.0, 100.0, 1.0);
+    spaceSlider.setLookAndFeel(&voxlineSpaceSliderLNF);
+    addAndMakeVisible(spaceSlider);
+
     configureTextLabel(spaceAmountLabel, "0%", juce::Justification::centredRight);
+
+    // Footer
+    configureTextLabel(footerLabel, "VOXLINE 1.0.0  |  SADTONY", juce::Justification::centred);
 
 
     configureTextLabel(outputValueLabel, "0.0 dB", juce::Justification::centred);
@@ -245,6 +296,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     compAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::comp, compSlider);
     driveAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::drive, driveSlider);
     outputGainAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::outputGain, outputGainSlider);
+    spaceAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::spaceAmount, spaceSlider);
 
     autoGainAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::autoGain, autoGainButton);
     bypassAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::bypass, bypassButton);
@@ -387,7 +439,9 @@ void VoxlineAudioProcessorEditor::resized()
     abButton.setBounds(VoxlineLayout::abButtonBounds);
     listenButton.setBounds(VoxlineLayout::listenUtilityBounds);
     spaceTypeCombo.setBounds(508, 618, 90, 32);
-    spaceAmountLabel.setBounds(600, 618, 120, 32);
+    spaceSlider.setBounds(608, 620, 190, 28);
+    spaceAmountLabel.setBounds(800, 618, 60, 32);
+    footerLabel.setBounds(VoxlineLayout::footerBounds);
 }
 
 // ---------------------------------------------------------------------------
@@ -477,6 +531,11 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     setTextColour(peakRmsLabel);
     setTextColour(meterNamesLabel);
     setTextColour(outputValueLabel);
+    setTextColour(spaceAmountLabel);
+
+    // Footer
+    footerLabel.setFont(juce::FontOptions(10.0f));
+    footerLabel.setColour(juce::Label::textColourId, theme.textMuted.withAlpha(0.5f));
 
     // === Header ===
     // Bypass text colour (checkbox hidden by LookAndFeel)
@@ -488,6 +547,10 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     const auto inactiveBg = dark ? juce::Colour(0xff1e1b2a) : juce::Colour(0xfffaf7f2);
     abButton.setColour(juce::TextButton::buttonColourId, inactiveBg);
     abButton.setColour(juce::TextButton::textColourOffId, theme.textPrimary);
+
+    // === SPACE ===
+    VoxlineSpaceSliderLNF::spaceSliderTheme = index;
+    spaceSlider.repaint();
 
     // === Preset dropdown ===
     VoxlinePresetDropdownLNF::currentDropdownTheme = index;
