@@ -14,9 +14,9 @@ struct VoxlineToggleLookAndFeel final : juce::LookAndFeel_V4
         const auto on = button.getToggleState();
 
         // Pill background
-        g.setColour(on ? juce::Colour(0xffD86F96).withAlpha(0.2f) : juce::Colour(0, 0, 0, 0));
+        g.setColour(on ? juce::Colour(0xffD86F96).withAlpha(0.2f) : juce::Colours::transparentBlack);
         g.fillRoundedRectangle(b, 7.0f);
-        g.setColour(on ? juce::Colour(0xffD86F96) : juce::Colour(0xffaaaaaa).withAlpha(0.3f));
+        g.setColour(on ? juce::Colour(0xffD86F96) : juce::Colour(0xffaaaaaa).withAlpha(0.4f));
         g.drawRoundedRectangle(b, 7.0f, 1.0f);
 
         g.setFont(juce::FontOptions(12.0f));
