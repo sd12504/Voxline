@@ -97,7 +97,6 @@ private:
     juce::TextButton eqLpfButton;
 
     // Placeholder labels for future controls
-    juce::Label lowCutLabel, cleanLabel, deEssLabel;
     juce::Label peakLabel, rmsLabel, outLabel, grLabel;
     juce::Label thresholdLabel, preDelayLabel, spaceHpfLabel, spaceLpfLabel;
     juce::Label softClipLabel;
@@ -114,6 +113,10 @@ private:
     VoxlineCustomKnob compSlider { "Comp", juce::Colour(0xff8e7af0) };
     VoxlineCustomKnob driveSlider { "Drive", juce::Colour(0xffefaa76) };
     VoxlineCustomKnob outputGainSlider { "Out", juce::Colour(0xff9f8ff4) };
+    // Placeholder knobs (visual only, no DSP yet)
+    VoxlineCustomKnob lowCutKnob { "LOW CUT", juce::Colour(0xffD86F96) };
+    VoxlineCustomKnob cleanKnob { "CLEAN", juce::Colour(0xffE99A5C) };
+    VoxlineCustomKnob deEssKnob { "DE-ESS", juce::Colour(0xffB8A6F3) };
 
     juce::ToggleButton autoGainButton;
     juce::ToggleButton bypassButton;

@@ -33,8 +33,8 @@ inline const juce::Rectangle<int> polishPanel { 460, 105, 490, 415 };
 inline const juce::Rectangle<int> polishTitleBounds { 620, 128, 180, 42 };
 inline const juce::Rectangle<int> polishSliderBounds { 575, 170, 270, 270 };
 inline const juce::Rectangle<int> polishValueBounds { 610, 430, 200, 58 };
-inline const juce::Rectangle<int> polishStatusBounds { 635, 482, 150, 22 };
-inline const juce::Rectangle<int> polishDescBounds { 535, 505, 340, 30 };
+inline const juce::Rectangle<int> polishStatusBounds { 635, 478, 150, 20 };
+inline const juce::Rectangle<int> polishDescBounds { 550, 496, 300, 22 };
 
 // === Output ===
 inline const juce::Rectangle<int> outputPanel { 960, 105, 420, 415 };

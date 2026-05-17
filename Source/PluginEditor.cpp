@@ -271,6 +271,9 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     abButton.addListener(this);
 
     configureKnob(inputGainSlider);
+    configureKnob(lowCutKnob);
+    configureKnob(cleanKnob);
+    configureKnob(deEssKnob);
     configureKnob(polishSlider);
     configureKnob(bodySlider);
     configureKnob(claritySlider);
@@ -501,6 +504,12 @@ void VoxlineAudioProcessorEditor::resized()
     // === Input Panel ===
     inputTitleLabel.setBounds(VoxlineLayout::inputTitleBounds);
     inputGainSlider.setBounds(VoxlineLayout::inputGainKnobBounds);
+    lowCutKnob.setBounds(VoxlineLayout::lowCutKnobBounds);
+    cleanKnob.setBounds(VoxlineLayout::cleanKnobBounds);
+    deEssKnob.setBounds(VoxlineLayout::deEssKnobBounds);
+    lowCutKnob.setValue(80.0, juce::dontSendNotification);
+    cleanKnob.setValue(30.0, juce::dontSendNotification);
+    deEssKnob.setValue(25.0, juce::dontSendNotification);
     autoGainButton.setBounds(VoxlineLayout::autoGainToggleBounds);
 
     // === POLISH ===
@@ -628,6 +637,9 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     compSlider.setTheme(theme);
     driveSlider.setTheme(theme);
     outputGainSlider.setTheme(theme);
+    lowCutKnob.setTheme(theme);
+    cleanKnob.setTheme(theme);
+    deEssKnob.setTheme(theme);
 
     // Labels — fonts sizes for output panel
     logoLabel.setFont(juce::FontOptions(32.0f, juce::Font::bold));
