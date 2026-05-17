@@ -10,15 +10,18 @@ struct VoxlineToggleLookAndFeel final : juce::LookAndFeel_V4
     void drawToggleButton(juce::Graphics& g, juce::ToggleButton& button,
                           bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override
     {
-        // Draw only text — icon is drawn separately in paintIcons.
-        // Offset text right past the icon area (24px) so they don't overlap.
-        auto textArea = button.getLocalBounds().withTrimmedLeft(24);
-        auto font = juce::FontOptions(12.0f);
-        g.setFont(font);
+        const auto b = button.getLocalBounds().toFloat().reduced(2.0f);
         const auto on = button.getToggleState();
-        g.setColour(button.findColour(on ? juce::ToggleButton::tickColourId
-                                         : juce::ToggleButton::textColourId));
-        g.drawText(button.getButtonText(), textArea, juce::Justification::centredLeft, false);
+
+        // Pill background
+        g.setColour(on ? juce::Colour(0xffD86F96).withAlpha(0.2f) : juce::Colour(0, 0, 0, 0));
+        g.fillRoundedRectangle(b, 7.0f);
+        g.setColour(on ? juce::Colour(0xffD86F96) : juce::Colour(0xffaaaaaa).withAlpha(0.3f));
+        g.drawRoundedRectangle(b, 7.0f, 1.0f);
+
+        g.setFont(juce::FontOptions(12.0f));
+        g.setColour(button.findColour(on ? juce::ToggleButton::tickColourId : juce::ToggleButton::textColourId));
+        g.drawText(button.getButtonText(), button.getLocalBounds(), juce::Justification::centred, false);
         juce::ignoreUnused(shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
     }
 };
