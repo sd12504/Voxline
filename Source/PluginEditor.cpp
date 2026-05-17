@@ -252,9 +252,6 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     eqLowButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xffa0c0a0).withAlpha(0.25f));
 
     // Placeholder controls (UI only, no DSP yet)
-    configureTextLabel(lowCutLabel, "LOW CUT\n80 Hz", juce::Justification::centred);
-    configureTextLabel(cleanLabel, "CLEAN\n30%", juce::Justification::centred);
-    configureTextLabel(deEssLabel, "DE-ESS\n25%", juce::Justification::centred);
     configureTextLabel(peakLabel, "PEAK", juce::Justification::centredLeft);
     configureTextLabel(rmsLabel, "RMS", juce::Justification::centredLeft);
     configureTextLabel(outLabel, "OUT", juce::Justification::centred);
@@ -552,9 +549,6 @@ void VoxlineAudioProcessorEditor::resized()
     footerLabel.setBounds(VoxlineLayout::footerBounds);
 
     // === Placeholder labels ===
-    lowCutLabel.setBounds(VoxlineLayout::lowCutKnobBounds);
-    cleanLabel.setBounds(VoxlineLayout::cleanKnobBounds);
-    deEssLabel.setBounds(VoxlineLayout::deEssKnobBounds);
     peakLabel.setBounds(VoxlineLayout::peakLabelBounds);
     rmsLabel.setBounds(VoxlineLayout::rmsLabelBounds);
     outLabel.setBounds(VoxlineLayout::outMeterBounds.getX() - 35, 168, 50, 20);
@@ -658,9 +652,6 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     setTextColour(meterNamesLabel);
     setTextColour(outputValueLabel);
     setTextColour(spaceAmountLabel);
-    setTextColour(lowCutLabel);
-    setTextColour(cleanLabel);
-    setTextColour(deEssLabel);
     setTextColour(peakLabel);
     setTextColour(rmsLabel);
     setTextColour(outLabel);
@@ -674,7 +665,6 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
 
     // Placeholder label fonts
     auto stylePH = [&](juce::Label& l) { l.setFont(juce::FontOptions(10.0f)); };
-    stylePH(lowCutLabel); stylePH(cleanLabel); stylePH(deEssLabel);
     stylePH(thresholdLabel); stylePH(softClipLabel);
     stylePH(preDelayLabel); stylePH(spaceHpfLabel); stylePH(spaceLpfLabel);
 
