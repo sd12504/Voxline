@@ -766,8 +766,8 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         const auto& t = VoxlineTheme::get(currentThemeIndex);
         const auto dark = (currentThemeIndex != 0);
         const char* bandNames[] = { "HPF", "LOW", "MUD", "PRES", "AIR", "LPF" };
-        const char* freqVals[] = { "80 Hz", "200 Hz", "400 Hz", "2.5 kHz", "10 kHz", "18 kHz" };
-        const char* slopeVals[] = { "24 dB/oct", "0.0 dB", "-3.0 dB", "3.0 dB", "2.0 dB", "24 dB/oct" };
+        const char* freqVals[] = { "80 Hz", "160 Hz", "350 Hz", "2.5 kHz", "10 kHz", "18 kHz" };
+        const char* gainVals[] = { "24 dB/oct", "+1.5 dB", "-2.0 dB", "+2.0 dB", "+1.5 dB", "12 dB/oct" };
         const juce::Colour bandCols[] = {
             juce::Colour(dark ? 0xffA98CFF : 0xff8D70E8),
             juce::Colour(dark ? 0xff80b080 : 0xff60a060),
@@ -777,41 +777,41 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
             juce::Colour(dark ? 0xff9D96A8 : 0xff7E7888),
         };
         const int sel = selectedEqBand;
+        const bool isBell = (sel >= 1 && sel <= 4);
 
-        // Band name pill
+        // ── Band name pill ──
         const auto r1 = VoxlineLayout::eqSelBandBtnBounds.toFloat();
         g.setColour(bandCols[sel].withAlpha(dark ? 0.25f : 0.18f));
-        g.fillRoundedRectangle(r1, 6.0f);
+        g.fillRoundedRectangle(r1, 8.0f);
         g.setColour(bandCols[sel]);
-        g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+        g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
         g.drawText(bandNames[sel], VoxlineLayout::eqSelBandBtnBounds, juce::Justification::centred, false);
 
-        // FREQ
-        g.setColour(t.textSecondary);
-        g.setFont(juce::FontOptions(9.0f, juce::Font::bold));
-        g.drawText("FREQ", VoxlineLayout::eqFreqLabelBounds, juce::Justification::centred, false);
-        g.setColour(t.textPrimary);
-        g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-        g.drawText(freqVals[sel], VoxlineLayout::eqFreqValueBounds, juce::Justification::centred, false);
-
-        // SLOPE / GAIN
-        const bool isBell = (sel >= 1 && sel <= 4);
-        const char* slopeLabel = isBell ? "GAIN" : "SLOPE";
-        g.setColour(t.textSecondary);
-        g.setFont(juce::FontOptions(9.0f, juce::Font::bold));
-        g.drawText(slopeLabel, VoxlineLayout::eqSlopeLabelBounds, juce::Justification::centred, false);
-        g.setColour(t.textPrimary);
-        g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-        g.drawText(slopeVals[sel], VoxlineLayout::eqSlopeValueBounds, juce::Justification::centred, false);
-
-        // RESET
-        const auto rr = VoxlineLayout::eqResetBounds.toFloat();
-        g.setColour(t.panelBg);
-        g.fillRoundedRectangle(rr, 4.0f);
-        g.setColour(t.panelBorder);
-        g.drawRoundedRectangle(rr.reduced(0.5f), 4.0f, 1.0f);
+        // ── FREQ group ──
         g.setColour(t.textSecondary);
         g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+        g.drawText("FREQ", VoxlineLayout::eqFreqLabelBounds, juce::Justification::centred, false);
+        g.setColour(t.textPrimary);
+        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+        g.drawText(freqVals[sel], VoxlineLayout::eqFreqValueBounds, juce::Justification::centred, false);
+
+        // ── GAIN / SLOPE group ──
+        const char* gainLabel = isBell ? "GAIN" : "SLOPE";
+        g.setColour(t.textSecondary);
+        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+        g.drawText(gainLabel, VoxlineLayout::eqGainLabelBounds, juce::Justification::centred, false);
+        g.setColour(t.textPrimary);
+        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+        g.drawText(gainVals[sel], VoxlineLayout::eqGainValueBounds, juce::Justification::centred, false);
+
+        // ── RESET button ──
+        const auto rr = VoxlineLayout::eqResetBounds.toFloat();
+        g.setColour(t.panelBg);
+        g.fillRoundedRectangle(rr, 6.0f);
+        g.setColour(t.panelBorder);
+        g.drawRoundedRectangle(rr.reduced(0.5f), 6.0f, 1.0f);
+        g.setColour(t.textSecondary);
+        g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
         g.drawText("RESET", VoxlineLayout::eqResetBounds, juce::Justification::centred, false);
     }
 
@@ -958,8 +958,8 @@ void VoxlineAudioProcessorEditor::resized()
     smoothSlider.setBounds(VoxlineLayout::eqLpfBounds.withHeight(80).translated(0, 28));
     toneTitleLabel.setBounds(VoxlineLayout::eqTitleBounds);
     eqOnButton.setBounds(VoxlineLayout::eqOnToggleBounds);
-    eqFreqKnob.setBounds(VoxlineLayout::eqSelBandBtnBounds.translated(80, -4).withWidth(50).withHeight(50));
-    eqGainKnob.setBounds(VoxlineLayout::eqSelBandBtnBounds.translated(180, -4).withWidth(50).withHeight(50));
+    eqFreqKnob.setBounds(VoxlineLayout::eqFreqKnobBounds);
+    eqGainKnob.setBounds(VoxlineLayout::eqGainKnobBounds);
 
     eqHpfButton.setBounds(VoxlineLayout::eqHpfBounds);
     eqLowButton.setBounds(VoxlineLayout::eqLowBounds);
