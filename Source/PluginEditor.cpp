@@ -779,7 +779,7 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         const int sel = selectedEqBand;
         const bool isBell = (sel >= 1 && sel <= 4);
 
-        // ── Band name pill ──
+        // Band pill
         const auto r1 = VoxlineLayout::eqSelBandBtnBounds.toFloat();
         g.setColour(bandCols[sel].withAlpha(dark ? 0.25f : 0.18f));
         g.fillRoundedRectangle(r1, 8.0f);
@@ -787,7 +787,7 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
         g.drawText(bandNames[sel], VoxlineLayout::eqSelBandBtnBounds, juce::Justification::centred, false);
 
-        // ── FREQ group ──
+        // FREQ
         g.setColour(t.textSecondary);
         g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
         g.drawText("FREQ", VoxlineLayout::eqFreqLabelBounds, juce::Justification::centred, false);
@@ -795,21 +795,21 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
         g.drawText(freqVals[sel], VoxlineLayout::eqFreqValueBounds, juce::Justification::centred, false);
 
-        // ── GAIN / SLOPE group ──
-        const char* gainLabel = isBell ? "GAIN" : "SLOPE";
+        // GAIN / SLOPE
+        const char* gLabel = isBell ? "GAIN" : "SLOPE";
         g.setColour(t.textSecondary);
         g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-        g.drawText(gainLabel, VoxlineLayout::eqGainLabelBounds, juce::Justification::centred, false);
+        g.drawText(gLabel, VoxlineLayout::eqGainLabelBounds, juce::Justification::centred, false);
         g.setColour(t.textPrimary);
         g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
         g.drawText(gainVals[sel], VoxlineLayout::eqGainValueBounds, juce::Justification::centred, false);
 
-        // ── RESET button ──
+        // RESET
         const auto rr = VoxlineLayout::eqResetBounds.toFloat();
         g.setColour(t.panelBg);
-        g.fillRoundedRectangle(rr, 6.0f);
+        g.fillRoundedRectangle(rr, 8.0f);
         g.setColour(t.panelBorder);
-        g.drawRoundedRectangle(rr.reduced(0.5f), 6.0f, 1.0f);
+        g.drawRoundedRectangle(rr.reduced(0.5f), 8.0f, 1.0f);
         g.setColour(t.textSecondary);
         g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
         g.drawText("RESET", VoxlineLayout::eqResetBounds, juce::Justification::centred, false);

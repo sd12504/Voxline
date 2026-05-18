@@ -64,19 +64,18 @@ inline const juce::Rectangle<int> eqPresBounds { 279, 738, 72, 26 };
 inline const juce::Rectangle<int> eqAirBounds { 356, 738, 72, 26 };
 inline const juce::Rectangle<int> eqLpfBounds { 433, 738, 72, 26 };
 
-// Selected band controls
-inline const juce::Rectangle<int> eqSelBandBtnBounds   { 48, 806, 80, 32 };
-inline const juce::Rectangle<int> eqFreqGroupBounds   { 198, 782, 90, 78 };
-inline const juce::Rectangle<int> eqFreqKnobBounds    { 222, 800, 42, 42 };
-inline const juce::Rectangle<int> eqFreqLabelBounds   { 198, 782, 90, 14 };
-inline const juce::Rectangle<int> eqFreqValueBounds   { 198, 844, 90, 16 };
+// Selected band controls (controlsY=784, controlsH=96)
+inline const juce::Rectangle<int> eqSelBandBtnBounds   { 48, 818, 120, 34 };
 
-inline const juce::Rectangle<int> eqGainGroupBounds   { 378, 782, 100, 78 };
-inline const juce::Rectangle<int> eqGainKnobBounds    { 407, 800, 42, 42 };
-inline const juce::Rectangle<int> eqGainLabelBounds   { 378, 782, 100, 14 };
-inline const juce::Rectangle<int> eqGainValueBounds   { 378, 844, 100, 16 };
+inline const juce::Rectangle<int> eqFreqKnobBounds    { 249, 804, 48, 48 };
+inline const juce::Rectangle<int> eqFreqLabelBounds   { 228, 784, 90, 14 };
+inline const juce::Rectangle<int> eqFreqValueBounds   { 228, 856, 90, 16 };
 
-inline const juce::Rectangle<int> eqResetBounds       { 393, 808, 110, 32 };
+inline const juce::Rectangle<int> eqGainKnobBounds    { 321, 804, 48, 48 };
+inline const juce::Rectangle<int> eqGainLabelBounds   { 290, 784, 110, 14 };
+inline const juce::Rectangle<int> eqGainValueBounds   { 290, 856, 110, 16 };
+
+inline const juce::Rectangle<int> eqResetBounds       { 393, 822, 120, 34 };
 
 // === Dynamics ===
 inline const juce::Rectangle<int> dynamicsPanel { 550, 530, 405, 350 };
