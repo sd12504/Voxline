@@ -510,14 +510,16 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         g.setFont(juce::FontOptions(20.0f, juce::Font::bold));
         g.drawText("-60.0 dB", VoxlineLayout::rmsValueBounds, juce::Justification::centredLeft, false);
 
-        // -- Soft Clip pill button (OFF: transparent, thin border, secondary text) --
+        // -- Soft Clip pill button (OFF: panel fill, thin border, secondary text) --
         {
             const auto r = VoxlineLayout::softClipBounds;
+            g.setColour(t.panelBg);
+            g.fillRoundedRectangle(r.toFloat(), 10.0f);
             g.setColour(t.panelBorder);
-            g.drawRoundedRectangle(r.toFloat().reduced(0.5f), 17.0f, 1.0f);
+            g.drawRoundedRectangle(r.toFloat().reduced(0.5f), 10.0f, 1.0f);
             g.setColour(t.textSecondary);
-            g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-            g.drawText("SOFT CLIP", r, juce::Justification::centred, false);
+            g.setFont(juce::Font(12.0f, juce::Font::bold));
+            g.drawFittedText("SOFT CLIP", r, juce::Justification::centred, 1);
         }
 
         // -- Center: OUT / GR meter labels (below meters) --
@@ -527,10 +529,10 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         g.drawText("OUT", 1126, 476, 50, 16, juce::Justification::centred, false);
         g.drawText("GR", 1206, 476, 40, 16, juce::Justification::centred, false);
 
-        // -- Right: OUTPUT GAIN label + value --
+        // -- Right: OUTPUT GAIN label (above knob) + value (below knob) --
         g.setColour(t.textSecondary);
-        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-        g.drawText("OUTPUT GAIN", 1268, 245, 120, 20, juce::Justification::centred, false);
+        g.setFont(juce::Font(11.0f, juce::Font::bold));
+        g.drawFittedText("OUTPUT GAIN", 1268, 245, 120, 20, juce::Justification::centred, 1);
         g.setColour(t.textPrimary);
         g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
         g.drawText(outputGainSlider.getTextFromValue(outputGainSlider.getValue()),
