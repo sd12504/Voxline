@@ -330,8 +330,8 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     listenButton.setLookAndFeel(&voxlineToggleLNF);
     // Listen mode: difference monitor (solo wet signal) — standard audition behavior
 
-    addAndMakeVisible(outputMeter);
-    addAndMakeVisible(gainReductionMeter);
+    addChildComponent(outputMeter);   // level tracking only, visual drawn in paint()
+    addChildComponent(gainReductionMeter);
     // Placeholder floor so meters show visible fill even during silence
     outputMeter.setMinimumLevel(0.35f);
     gainReductionMeter.setMinimumLevel(0.20f);
@@ -510,10 +510,53 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         g.setFont(juce::FontOptions(20.0f, juce::Font::bold));
         g.drawText("-60.0 dB", VoxlineLayout::rmsValueBounds, juce::Justification::centredLeft, false);
 
-        // -- Soft Clip pill button (OFF: panel fill, thin border, secondary text) --
+        // -- OUT / GR meters (drawn directly, VoxlineLevelMeter is now invisible) --
+        {
+            const float outLevel = 0.35f, grLevel = 0.20f;
+            const float outPeak = 0.42f, grPeak = 0.25f;
+            const auto dark = (currentThemeIndex != 0);
+
+            auto drawMeter = [&](juce::Rectangle<int> bounds, float level, float peak, juce::Colour fillColour)
+            {
+                const auto well = bounds.toFloat().reduced(2.0f);
+                // 1. Well background
+                g.setColour(dark ? juce::Colour(0xff14121A) : juce::Colour(0xffD5CFC8));
+                g.fillRoundedRectangle(well, 5.0f);
+                // 2. Fill from bottom
+                const auto fillH = well.getHeight() * level;
+                if (fillH > 0.5f)
+                {
+                    const auto fillR = well.withTop(well.getBottom() - fillH);
+                    g.setColour(fillColour);
+                    g.fillRoundedRectangle(fillR, 4.0f);
+                }
+                // 3. Peak hold line
+                if (peak > 0.005f)
+                {
+                    const auto peakY = well.getBottom() - well.getHeight() * peak;
+                    g.setColour(fillColour.brighter(0.3f));
+                    g.drawLine(well.getX() + 2.0f, peakY, well.getRight() - 2.0f, peakY, 1.5f);
+                }
+                // 4. Border
+                g.setColour(t.panelBorder);
+                g.drawRoundedRectangle(well.reduced(0.5f), 4.0f, 1.0f);
+            };
+
+            drawMeter(VoxlineLayout::outMeterBounds, outLevel, outPeak, t.accentRose);
+            drawMeter(VoxlineLayout::grMeterBounds,  grLevel,  grPeak,  t.accentLavender);
+        }
+
+        // -- Meter labels (below meters) --
+        g.setColour(t.textSecondary);
+        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+        g.drawText("OUT", 1126, 476, 50, 16, juce::Justification::centred, false);
+        g.drawText("GR",  1206, 476, 40, 16, juce::Justification::centred, false);
+
+        // -- Soft Clip pill button --
         {
             const auto r = VoxlineLayout::softClipBounds;
-            g.setColour(t.panelBg);
+            const auto dark = (currentThemeIndex != 0);
+            g.setColour(dark ? juce::Colour(0xff1E1B2A) : juce::Colour(0xffF0EBE4));
             g.fillRoundedRectangle(r.toFloat(), 10.0f);
             g.setColour(t.panelBorder);
             g.drawRoundedRectangle(r.toFloat().reduced(0.5f), 10.0f, 1.0f);
@@ -522,14 +565,7 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
             g.drawFittedText("SOFT CLIP", r, juce::Justification::centred, 1);
         }
 
-        // -- Center: OUT / GR meter labels (below meters) --
-        g.setColour(t.textSecondary);
-        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
-        // OUT meter center x = 1151; GR meter center x = 1226
-        g.drawText("OUT", 1126, 476, 50, 16, juce::Justification::centred, false);
-        g.drawText("GR", 1206, 476, 40, 16, juce::Justification::centred, false);
-
-        // -- Right: OUTPUT GAIN label (above knob) + value (below knob) --
+        // -- Right: OUTPUT GAIN label + value --
         g.setColour(t.textSecondary);
         g.setFont(juce::Font(11.0f, juce::Font::bold));
         g.drawFittedText("OUTPUT GAIN", 1268, 245, 120, 20, juce::Justification::centred, 1);
