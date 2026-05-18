@@ -401,6 +401,17 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     eqOnButton.setToggleState(true, juce::dontSendNotification);
     eqOnButton.addListener(this);
 
+    // EQ band knobs
+    configureKnob(eqFreqKnob);
+    configureKnob(eqGainKnob);
+    eqFreqKnob.setShowInternalLabel(false);
+    eqFreqKnob.setShowInternalValue(false);
+    eqGainKnob.setShowInternalLabel(false);
+    eqGainKnob.setShowInternalValue(false);
+    eqFreqKnob.addListener(this);
+    eqGainKnob.addListener(this);
+    syncEQKnobsToSelectedBand();
+
     addChildComponent(outputMeter);   // level tracking only, visual drawn in paint()
     addChildComponent(gainReductionMeter);
     // Placeholder floor so meters show visible fill even during silence
@@ -422,6 +433,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     bypassAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::bypass, bypassButton);
     cleanModeAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::cleanMode, cleanModeButton);
     listenAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::listen, listenButton);
+    eqEnabledAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::eqEnabled, eqOnButton);
 
     apvts.addParameterListener(VoxlineParameterIDs::polish, this);
     apvts.addParameterListener(VoxlineParameterIDs::inputGain, this);
@@ -946,6 +958,8 @@ void VoxlineAudioProcessorEditor::resized()
     smoothSlider.setBounds(VoxlineLayout::eqLpfBounds.withHeight(80).translated(0, 28));
     toneTitleLabel.setBounds(VoxlineLayout::eqTitleBounds);
     eqOnButton.setBounds(VoxlineLayout::eqOnToggleBounds);
+    eqFreqKnob.setBounds(VoxlineLayout::eqSelBandBtnBounds.translated(80, -4).withWidth(50).withHeight(50));
+    eqGainKnob.setBounds(VoxlineLayout::eqSelBandBtnBounds.translated(180, -4).withWidth(50).withHeight(50));
 
     eqHpfButton.setBounds(VoxlineLayout::eqHpfBounds);
     eqLowButton.setBounds(VoxlineLayout::eqLowBounds);
@@ -1065,6 +1079,8 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     preDelayKnob.setTheme(theme);
     spaceHpfKnob.setTheme(theme);
     spaceLpfKnob.setTheme(theme);
+    eqFreqKnob.setTheme(theme);
+    eqGainKnob.setTheme(theme);
     outputGainSlider.setTheme(theme);
     lowCutKnob.setTheme(theme);
     cleanKnob.setTheme(theme);
@@ -1287,6 +1303,8 @@ void VoxlineAudioProcessorEditor::buttonClicked(juce::Button* button)
     if (button == &eqPresButton) selectedEqBand = 3;
     if (button == &eqAirButton) selectedEqBand = 4;
     if (button == &eqLpfButton) selectedEqBand = 5;
+
+    syncEQKnobsToSelectedBand();
     repaint();
 }
 
@@ -1434,3 +1452,50 @@ void VoxlineAudioProcessorEditor::configureButton(juce::ToggleButton& b, const j
 void VoxlineAudioProcessorEditor::configureHeaderButton(juce::TextButton& b, const juce::String& t) { b.setButtonText(t); addAndMakeVisible(b); }
 void VoxlineAudioProcessorEditor::configurePresetButton(juce::TextButton& b, const juce::String& t, bool) { b.setButtonText(t); b.setEnabled(true); addAndMakeVisible(b); }
 void VoxlineAudioProcessorEditor::configureTextLabel(juce::Label& l, const juce::String& t, juce::Justification j) { l.setText(t, juce::dontSendNotification); l.setJustificationType(j); addAndMakeVisible(l); }
+
+void VoxlineAudioProcessorEditor::sliderValueChanged(juce::Slider* slider)
+{
+    auto& apvts = audioProcessor.getAPVTS();
+    if (slider == &eqFreqKnob || slider == &eqGainKnob)
+    {
+        const int sel = selectedEqBand;
+        const float val = (float)slider->getValue();
+
+        const char* freqIDs[] = { VoxlineParameterIDs::hpfFreq, VoxlineParameterIDs::lowFreq, VoxlineParameterIDs::mudFreq, VoxlineParameterIDs::presFreq, VoxlineParameterIDs::airFreq, VoxlineParameterIDs::lpfFreq };
+        const char* gainIDs[] = { VoxlineParameterIDs::hpfSlope, VoxlineParameterIDs::lowGain, VoxlineParameterIDs::mudGain, VoxlineParameterIDs::presGain, VoxlineParameterIDs::airGain, VoxlineParameterIDs::lpfSlope };
+
+        if (slider == &eqFreqKnob)
+        {
+            if (auto* p = apvts.getParameter(freqIDs[sel]))
+                p->setValueNotifyingHost(p->convertTo0to1(val));
+        }
+        else
+        {
+            if (auto* p = apvts.getParameter(gainIDs[sel]))
+                p->setValueNotifyingHost(p->convertTo0to1(val));
+        }
+        repaint();
+    }
+}
+
+void VoxlineAudioProcessorEditor::syncEQKnobsToSelectedBand()
+{
+    auto& apvts = audioProcessor.getAPVTS();
+    const int sel = selectedEqBand;
+
+    const char* freqIDs[] = { VoxlineParameterIDs::hpfFreq, VoxlineParameterIDs::lowFreq, VoxlineParameterIDs::mudFreq, VoxlineParameterIDs::presFreq, VoxlineParameterIDs::airFreq, VoxlineParameterIDs::lpfFreq };
+    const char* gainIDs[] = { VoxlineParameterIDs::hpfSlope, VoxlineParameterIDs::lowGain, VoxlineParameterIDs::mudGain, VoxlineParameterIDs::presGain, VoxlineParameterIDs::airGain, VoxlineParameterIDs::lpfSlope };
+    const float freqDefaults[] = { 80.0f, 160.0f, 350.0f, 2500.0f, 10000.0f, 18000.0f };
+    const float gainDefaults[] = { 1.0f, 1.5f, -2.0f, 2.0f, 1.5f, 0.0f }; // hpfSlope=24(1), lpfSlope=12(0)
+
+    if (auto* p = apvts.getParameter(freqIDs[sel]))
+    {
+        eqFreqKnob.setRange(p->getNormalisableRange().start, p->getNormalisableRange().end, p->getNormalisableRange().interval);
+        eqFreqKnob.setValue(p->getValue(), juce::dontSendNotification);
+    }
+    if (auto* p = apvts.getParameter(gainIDs[sel]))
+    {
+        eqGainKnob.setRange(p->getNormalisableRange().start, p->getNormalisableRange().end, p->getNormalisableRange().interval);
+        eqGainKnob.setValue(p->getValue(), juce::dontSendNotification);
+    }
+}

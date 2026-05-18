@@ -16,6 +16,7 @@ class VoxlineAudioProcessorEditor final : public juce::AudioProcessorEditor,
                                           private juce::KeyListener,
                                           private juce::Button::Listener,
                                           private juce::ComboBox::Listener,
+                                          private juce::Slider::Listener,
                                           private juce::Timer
 {
 public:
@@ -49,6 +50,7 @@ private:
     bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
     void buttonClicked(juce::Button* button) override;
     void comboBoxChanged(juce::ComboBox* comboBoxThatHasChanged) override;
+    void sliderValueChanged(juce::Slider* slider) override;
     void timerCallback() override;
 
     void applyPreset(const juce::String& name);
@@ -64,6 +66,7 @@ private:
 
     void applyTheme(const VoxlineTheme& theme, int index);
     void loadIconDrawables(bool dark);
+    void syncEQKnobsToSelectedBand();
 
     void paintLedDots(juce::Graphics& g, juce::Rectangle<int> bounds);
     void paintIcons(juce::Graphics& g);
@@ -127,6 +130,9 @@ private:
     VoxlineCustomKnob preDelayKnob { "PreDelay", juce::Colour(0xffD8A548) };
     VoxlineCustomKnob spaceHpfKnob { "HPF", juce::Colour(0xff8D70E8) };
     VoxlineCustomKnob spaceLpfKnob { "LPF", juce::Colour(0xffB8A6F3) };
+    // EQ band control knobs
+    VoxlineCustomKnob eqFreqKnob { "FREQ", juce::Colour(0xff8D70E8) };
+    VoxlineCustomKnob eqGainKnob { "GAIN", juce::Colour(0xffD8A548) };
 
     juce::ToggleButton autoGainButton;
     juce::ToggleButton bypassButton;
@@ -158,6 +164,7 @@ private:
     std::unique_ptr<ButtonAttachment> bypassAttachment;
     std::unique_ptr<ButtonAttachment> cleanModeAttachment;
     std::unique_ptr<ButtonAttachment> listenAttachment;
+    std::unique_ptr<ButtonAttachment> eqEnabledAttachment;
 
     // A/B compare
     ParameterSnapshot snapshotA, snapshotB;

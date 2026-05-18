@@ -21,6 +21,24 @@ static constexpr auto spaceAmount = "spaceAmount";
 static constexpr auto spaceType = "spaceType";
 static constexpr auto hpfFreq = "hpfFreq";
 static constexpr auto mudAmount = "mudAmount";
+
+// Vocal EQ
+static constexpr auto eqEnabled   = "eqEnabled";
+static constexpr auto hpfSlope    = "hpfSlope";
+static constexpr auto lowFreq     = "lowFreq";
+static constexpr auto lowGain     = "lowGain";
+static constexpr auto lowQ        = "lowQ";
+static constexpr auto mudFreq     = "mudFreq";
+static constexpr auto mudGain     = "mudGain";
+static constexpr auto mudQ        = "mudQ";
+static constexpr auto presFreq    = "presFreq";
+static constexpr auto presGain    = "presGain";
+static constexpr auto presQ       = "presQ";
+static constexpr auto airFreq     = "airFreq";
+static constexpr auto airGain     = "airGain";
+static constexpr auto airQ        = "airQ";
+static constexpr auto lpfFreq     = "lpfFreq";
+static constexpr auto lpfSlope    = "lpfSlope";
 } // namespace VoxlineParameterIDs
 
 class VoxlineAudioProcessor final : public juce::AudioProcessor
@@ -64,15 +82,16 @@ public:
 
     static APVTS::ParameterLayout createParameterLayout();
 
-    // Meter values (updated in processBlock, read from editor timer)
+    // Meter values
     std::atomic<float> inputPeak { 0.0f };
     std::atomic<float> inputRms { 0.0f };
     std::atomic<float> outputPeak { 0.0f };
     std::atomic<float> outputRms { 0.0f };
-    std::atomic<float> gainReduction { 0.0f }; // in dB
+    std::atomic<float> gainReduction { 0.0f };
 
 private:
     void updateToneFilters();
+    void updateEQFilters();
     float updateCompressorGain(float detector, float amount);
     static float applySoftClip(float sample) noexcept;
 
@@ -80,24 +99,27 @@ private:
     juce::SmoothedValue<float> inputGainSmoothed;
     juce::SmoothedValue<float> outputGainSmoothed;
     juce::SmoothedValue<float> bypassSmoothed;
+
+    // Tone filters (shared between legacy tone and new EQ UI)
     std::array<juce::IIRFilter, 2> bodyFilters;
     std::array<juce::IIRFilter, 2> clarityFilters;
     std::array<juce::IIRFilter, 2> airFilters;
     std::array<juce::IIRFilter, 2> smoothFilters;
     std::array<juce::IIRFilter, 2> hpfFilters;
     std::array<juce::IIRFilter, 2> mudFilters;
+    std::array<juce::IIRFilter, 2> lpfFilters;   // new: LPF for EQ
+    std::array<juce::IIRFilter, 2> lowFilters;   // new: dedicated LOW bell
+
     juce::AudioBuffer<float> dryBuffer;
     double currentSampleRate = 44100.0;
     float compressorEnvelope = 1.0f;
 
-    // cleanMode HPF state (one-pole, per channel)
     float cleanModeXPrev[2] = {0.0f, 0.0f};
     float cleanModeYPrev[2] = {0.0f, 0.0f};
 
-    // SPACE effect: delay lines (mono or stereo)
     juce::AudioBuffer<float> spaceBuffer;
     int spaceWritePos = 0;
-    static constexpr int maxSpaceDelaySamples = 9600; // ~200ms @ 48kHz
-    float spaceHpfState[2] = {0.0f, 0.0f}; // per-channel HPF state
-    float spaceLpfState[2] = {0.0f, 0.0f}; // per-channel LPF state
+    static constexpr int maxSpaceDelaySamples = 9600;
+    float spaceHpfState[2] = {0.0f, 0.0f};
+    float spaceLpfState[2] = {0.0f, 0.0f};
 };

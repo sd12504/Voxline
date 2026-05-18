@@ -49,7 +49,7 @@ void VoxlineAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
     outputGainSmoothed.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(
         apvts.getRawParameterValue(VoxlineParameterIDs::outputGain)->load()));
 
-    for (auto* filters : { &hpfFilters, &bodyFilters, &mudFilters, &clarityFilters, &airFilters, &smoothFilters })
+    for (auto* filters : { &hpfFilters, &bodyFilters, &mudFilters, &clarityFilters, &airFilters, &smoothFilters, &lpfFilters, &lowFilters })
         for (auto& filter : *filters)
             filter.reset();
 
@@ -179,6 +179,7 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
     outputGainSmoothed.setTargetValue(juce::Decibels::decibelsToGain(outputGainDb));
 
     updateToneFilters();
+    updateEQFilters();
 
     const auto drivePreGain = juce::Decibels::decibelsToGain(driveAmount * 12.0f);
     const auto driveNormalizer = std::tanh(drivePreGain);
@@ -213,11 +214,13 @@ void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
             }
 
             sample = hpfFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
+            sample = lowFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
             sample = bodyFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
             sample = mudFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
             sample = clarityFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
             sample = airFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
             sample = smoothFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
+            sample = lpfFilters[static_cast<size_t>(channel)].processSingleSampleRaw(sample);
             sample *= compressorGain;
 
             if (driveAmount > 0.0f)
@@ -469,10 +472,58 @@ VoxlineAudioProcessor::APVTS::ParameterLayout VoxlineAudioProcessor::createParam
     params.push_back(std::make_unique<juce::AudioParameterInt>(
         juce::ParameterID{VoxlineParameterIDs::spaceType, 1}, "Space Type", 0, 3, 0));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{VoxlineParameterIDs::hpfFreq, 1}, "HPF Freq", juce::NormalisableRange<float>{40.0f, 200.0f, 1.0f}, 80.0f,
+        juce::ParameterID{VoxlineParameterIDs::hpfFreq, 1}, "HPF Freq", juce::NormalisableRange<float>{20.0f, 300.0f, 1.0f}, 80.0f,
         juce::AudioParameterFloatAttributes().withLabel("Hz")));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{VoxlineParameterIDs::hpfSlope, 1}, "HPF Slope", juce::StringArray{"12", "24", "36"}, 1));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{VoxlineParameterIDs::mudAmount, 1}, "Mud Amount", percentRange, 0.0f, makePercentAttributes()));
+
+    // Vocal EQ
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{VoxlineParameterIDs::eqEnabled, 1}, "EQ Enabled", true));
+    // LOW
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::lowFreq, 1}, "Low Freq", juce::NormalisableRange<float>{80.0f, 250.0f, 1.0f}, 160.0f,
+        juce::AudioParameterFloatAttributes().withLabel("Hz")));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::lowGain, 1}, "Low Gain", juce::NormalisableRange<float>{-6.0f, 6.0f, 0.1f}, 1.5f,
+        juce::AudioParameterFloatAttributes().withLabel("dB")));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::lowQ, 1}, "Low Q", juce::NormalisableRange<float>{0.4f, 2.0f, 0.05f}, 0.8f));
+    // MUD
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::mudFreq, 1}, "Mud Freq", juce::NormalisableRange<float>{200.0f, 700.0f, 1.0f}, 350.0f,
+        juce::AudioParameterFloatAttributes().withLabel("Hz")));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::mudGain, 1}, "Mud Gain", juce::NormalisableRange<float>{-6.0f, 3.0f, 0.1f}, -2.0f,
+        juce::AudioParameterFloatAttributes().withLabel("dB")));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::mudQ, 1}, "Mud Q", juce::NormalisableRange<float>{0.5f, 3.0f, 0.05f}, 1.1f));
+    // PRES
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::presFreq, 1}, "Pres Freq", juce::NormalisableRange<float>{1000.0f, 5000.0f, 10.0f}, 2500.0f,
+        juce::AudioParameterFloatAttributes().withLabel("Hz")));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::presGain, 1}, "Pres Gain", juce::NormalisableRange<float>{-3.0f, 6.0f, 0.1f}, 2.0f,
+        juce::AudioParameterFloatAttributes().withLabel("dB")));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::presQ, 1}, "Pres Q", juce::NormalisableRange<float>{0.5f, 3.0f, 0.05f}, 1.0f));
+    // AIR
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::airFreq, 1}, "Air Freq", juce::NormalisableRange<float>{6000.0f, 16000.0f, 100.0f}, 10000.0f,
+        juce::AudioParameterFloatAttributes().withLabel("Hz")));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::airGain, 1}, "Air Gain", juce::NormalisableRange<float>{-3.0f, 6.0f, 0.1f}, 1.5f,
+        juce::AudioParameterFloatAttributes().withLabel("dB")));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::airQ, 1}, "Air Q", juce::NormalisableRange<float>{0.4f, 2.0f, 0.05f}, 0.7f));
+    // LPF
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::lpfFreq, 1}, "LPF Freq", juce::NormalisableRange<float>{8000.0f, 20000.0f, 100.0f}, 18000.0f,
+        juce::AudioParameterFloatAttributes().withLabel("Hz")));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{VoxlineParameterIDs::lpfSlope, 1}, "LPF Slope", juce::StringArray{"12", "24"}, 0));
 
     return {params.begin(), params.end()};
 }
@@ -513,6 +564,60 @@ void VoxlineAudioProcessor::updateToneFilters()
         clarityFilters[channel].setCoefficients(clarityCoefficients);
         airFilters[channel].setCoefficients(airCoefficients);
         smoothFilters[channel].setCoefficients(smoothCoefficients);
+    }
+}
+
+void VoxlineAudioProcessor::updateEQFilters()
+{
+    const auto eqOn = apvts.getRawParameterValue(VoxlineParameterIDs::eqEnabled)->load() > 0.5f;
+
+    // HPF: freq + slope
+    const auto hpfF = apvts.getRawParameterValue(VoxlineParameterIDs::hpfFreq)->load();
+    const auto hpfS = static_cast<int>(apvts.getRawParameterValue(VoxlineParameterIDs::hpfSlope)->load());
+    const int hpfOrder = (hpfS == 0) ? 2 : ((hpfS == 1) ? 4 : 6);
+    const auto hpfCoef = juce::IIRCoefficients::makeHighPass(currentSampleRate, hpfF);
+    for (auto& f : hpfFilters) f.setCoefficients(hpfCoef);
+    (void)hpfOrder; // TODO: cascade for higher orders
+
+    // LOW bell
+    const auto lf = apvts.getRawParameterValue(VoxlineParameterIDs::lowFreq)->load();
+    const auto lg = apvts.getRawParameterValue(VoxlineParameterIDs::lowGain)->load();
+    const auto lq = apvts.getRawParameterValue(VoxlineParameterIDs::lowQ)->load();
+    auto lowCoef = juce::IIRCoefficients::makePeakFilter(currentSampleRate, lf, lq, juce::Decibels::decibelsToGain(lg));
+    for (auto& f : lowFilters) f.setCoefficients(lowCoef);
+
+    // MUD bell
+    const auto mf = apvts.getRawParameterValue(VoxlineParameterIDs::mudFreq)->load();
+    const auto mg = apvts.getRawParameterValue(VoxlineParameterIDs::mudGain)->load();
+    const auto mq = apvts.getRawParameterValue(VoxlineParameterIDs::mudQ)->load();
+    auto mudCoef = juce::IIRCoefficients::makePeakFilter(currentSampleRate, mf, mq, juce::Decibels::decibelsToGain(mg));
+    for (auto& f : mudFilters) f.setCoefficients(mudCoef);
+
+    // PRES bell (reuses clarityFilters)
+    const auto pf = apvts.getRawParameterValue(VoxlineParameterIDs::presFreq)->load();
+    const auto pg = apvts.getRawParameterValue(VoxlineParameterIDs::presGain)->load();
+    const auto pq = apvts.getRawParameterValue(VoxlineParameterIDs::presQ)->load();
+    auto presCoef = juce::IIRCoefficients::makePeakFilter(currentSampleRate, pf, pq, juce::Decibels::decibelsToGain(pg));
+    for (auto& f : clarityFilters) f.setCoefficients(presCoef);
+
+    // AIR shelf (reuses airFilters)
+    const auto af = apvts.getRawParameterValue(VoxlineParameterIDs::airFreq)->load();
+    const auto ag = apvts.getRawParameterValue(VoxlineParameterIDs::airGain)->load();
+    const auto aq = apvts.getRawParameterValue(VoxlineParameterIDs::airQ)->load();
+    auto airCoef = juce::IIRCoefficients::makeHighShelf(currentSampleRate, af, aq, juce::Decibels::decibelsToGain(ag));
+    for (auto& f : airFilters) f.setCoefficients(airCoef);
+
+    // LPF
+    const auto lpfF = apvts.getRawParameterValue(VoxlineParameterIDs::lpfFreq)->load();
+    auto lpfCoef = juce::IIRCoefficients::makeLowPass(currentSampleRate, lpfF);
+    for (auto& f : lpfFilters) f.setCoefficients(lpfCoef);
+
+    // If EQ is off, set all filters to neutral
+    if (!eqOn)
+    {
+        for (auto& f : lowFilters)    f.makeInactive();
+        for (auto& f : lpfFilters)    f.makeInactive();
+        // hpf/mud/clarity/air/smooth keep running but at unity (updated already)
     }
 }
 
