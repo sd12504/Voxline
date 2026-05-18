@@ -25,8 +25,9 @@ void VoxlineLevelMeter::paint(juce::Graphics& g)
         g.drawHorizontalLine(y, bounds.getX() + 4, bounds.getRight() - 4);
     }
 
-    // Fill
-    const auto fillHeight = bounds.getHeight() * juce::jlimit(0.0f, 1.0f, smoothed);
+    // Fill (use minimumLevel as visual floor so meters never appear completely dead)
+    const auto displayLevel = juce::jmax(smoothed, minimumLevel);
+    const auto fillHeight = bounds.getHeight() * juce::jlimit(0.0f, 1.0f, displayLevel);
     const auto fillRect = bounds.withTop(bounds.getBottom() - fillHeight);
 
     if (fillHeight > 0.0f)
@@ -67,5 +68,11 @@ void VoxlineLevelMeter::setLevel(float v)
         peakHold += (level - peakHold) * 0.15f;
 
     smoothed += (level - smoothed) * 0.3f;
+    repaint();
+}
+
+void VoxlineLevelMeter::setMinimumLevel(float v)
+{
+    minimumLevel = juce::jlimit(0.0f, 1.0f, v);
     repaint();
 }
