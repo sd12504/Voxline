@@ -69,8 +69,8 @@ inline const juce::Rectangle<int> compKnobBounds      { 580, 635, 70, 70 };
 inline const juce::Rectangle<int> compLabelBounds     { 580, 616, 70, 16 };
 inline const juce::Rectangle<int> compValueBounds     { 580, 708, 70, 16 };
 
-inline const juce::Rectangle<int> dynamicsGrMeterBounds { 732, 635, 22, 100 };
-inline const juce::Rectangle<int> dynamicsGrLabelBounds { 724, 738, 38, 14 };
+inline const juce::Rectangle<int> dynamicsGrMeterBounds { 732, 620, 22, 100 };
+inline const juce::Rectangle<int> dynamicsGrLabelBounds { 724, 722, 38, 14 };
 
 inline const juce::Rectangle<int> thresholdKnobBounds  { 850, 635, 70, 70 };
 inline const juce::Rectangle<int> thresholdLabelBounds { 844, 616, 82, 16 };
