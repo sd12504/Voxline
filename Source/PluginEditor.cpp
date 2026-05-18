@@ -448,11 +448,11 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
     // LED dots
     paintLedDots(g, VoxlineLayout::inputLedDotsBounds);
 
-    // Input panel upper section labels — centered in panel (centerX=235)
+    // Input panel upper section — split left/right
     g.setColour(t.textSecondary);
     g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
-    g.drawText("INPUT GAIN", 92, 168, 90, 18, juce::Justification::centred, false);
-    g.drawText("AUTO GAIN", 185, 168, 100, 18, juce::Justification::centred, false);
+    g.drawText("INPUT GAIN", 82, 168, 90, 18, juce::Justification::centred, false);
+    g.drawText("AUTO GAIN", 293, 168, 100, 18, juce::Justification::centred, false);
 
     // Gain value
     g.setColour(t.textPrimary);
@@ -460,13 +460,13 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
     g.drawText(inputGainSlider.getTextFromValue(inputGainSlider.getValue()),
                VoxlineLayout::inputGainValueBounds, juce::Justification::centred, false);
 
-    // Input level label + dB value — centered
+    // Input level label + dB value — centered on right half
     g.setColour(t.textSecondary);
     g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    g.drawText("INPUT LEVEL", 170, 260, 130, 18, juce::Justification::centred, false);
+    g.drawText("INPUT LEVEL", 278, 260, 130, 18, juce::Justification::centred, false);
     g.setColour(t.textMuted);
     g.setFont(juce::FontOptions(12.0f));
-    g.drawText("-18.4 dB", 185, 312, 100, 22, juce::Justification::centred, false);
+    g.drawText("-18.4 dB", 293, 312, 100, 22, juce::Justification::centred, false);
 
     // Input panel knob labels (drawn externally because knobs are too small)
     g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
