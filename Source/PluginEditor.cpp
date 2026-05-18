@@ -498,23 +498,21 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         // -- Left: PEAK / RMS readout --
         g.setColour(t.textSecondary);
         g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-        g.drawText("PEAK", 995, 210, 65, 18, juce::Justification::centredLeft, false);
+        g.drawText("PEAK", VoxlineLayout::peakLabelBounds, juce::Justification::centredLeft, false);
         g.setColour(t.textPrimary);
         g.setFont(juce::FontOptions(20.0f, juce::Font::bold));
-        g.drawText("-60.0 dB", 1002, 240, 130, 28, juce::Justification::centredLeft, false);
+        g.drawText("-60.0 dB", VoxlineLayout::peakValueBounds, juce::Justification::centredLeft, false);
 
         g.setColour(t.textSecondary);
         g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-        g.drawText("RMS", 995, 300, 65, 18, juce::Justification::centredLeft, false);
+        g.drawText("RMS", VoxlineLayout::rmsLabelBounds, juce::Justification::centredLeft, false);
         g.setColour(t.textPrimary);
         g.setFont(juce::FontOptions(20.0f, juce::Font::bold));
-        g.drawText("-60.0 dB", 1002, 330, 130, 28, juce::Justification::centredLeft, false);
+        g.drawText("-60.0 dB", VoxlineLayout::rmsValueBounds, juce::Justification::centredLeft, false);
 
-        // -- Soft Clip pill button (OFF: transparent, border, secondary text) --
+        // -- Soft Clip pill button (OFF: transparent, thin border, secondary text) --
         {
             const auto r = VoxlineLayout::softClipBounds;
-            g.setColour(t.panelBg.withAlpha(0.25f));
-            g.fillRoundedRectangle(r.toFloat(), 17.0f);
             g.setColour(t.panelBorder);
             g.drawRoundedRectangle(r.toFloat().reduced(0.5f), 17.0f, 1.0f);
             g.setColour(t.textSecondary);
@@ -799,9 +797,10 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     listenButton.setColour(juce::ToggleButton::tickColourId, theme.accentLavender);
 
     // === Meters ===
-    outputMeter.setColour(VoxlineLevelMeter::backgroundColour, theme.panelBorder);
+    const auto meterWell = dark ? juce::Colour(0xff14121A) : juce::Colour(0xffD5CFC8);
+    outputMeter.setColour(VoxlineLevelMeter::backgroundColour, meterWell);
     outputMeter.setColour(VoxlineLevelMeter::foregroundColour, theme.meterMid);
-    gainReductionMeter.setColour(VoxlineLevelMeter::backgroundColour, theme.panelBorder);
+    gainReductionMeter.setColour(VoxlineLevelMeter::backgroundColour, meterWell);
     gainReductionMeter.setColour(VoxlineLevelMeter::foregroundColour, theme.meterLow);
 
     // === Icons ===
