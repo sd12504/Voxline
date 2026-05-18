@@ -306,6 +306,11 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     compSlider.setShowInternalValue(false);
     driveSlider.setShowInternalLabel(false);
     driveSlider.setShowInternalValue(false);
+
+    thresholdKnob.setShowInternalLabel(false);
+    thresholdKnob.setShowInternalValue(false);
+    thresholdKnob.setRange(-24.0, 0.0, 0.1);
+    thresholdKnob.setValue(-18.0, juce::dontSendNotification);
     configureKnob(polishSlider);
     configureKnob(bodySlider);
     configureKnob(claritySlider);
@@ -313,6 +318,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     configureKnob(smoothSlider);
     configureKnob(compSlider);
     configureKnob(driveSlider);
+    configureKnob(thresholdKnob);
     configureKnob(ratioKnob);
     configureKnob(attackKnob);
     configureKnob(releaseKnob);
@@ -639,15 +645,14 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         const auto& t = VoxlineTheme::get(currentThemeIndex);
         const auto dark = (currentThemeIndex != 0);
 
-        // -- GR meter (drawn between COMP and THRESHOLD) --
+        // -- GR meter (between COMP and THRESHOLD) --
         {
             const auto well = VoxlineLayout::dynamicsGrMeterBounds.toFloat().reduced(2.0f);
             const float grFill = 0.25f, grPeak = 0.32f;
 
-            // Well background
             g.setColour(dark ? juce::Colour(0xff14121A) : juce::Colour(0xffD5CFC8));
             g.fillRoundedRectangle(well, 4.0f);
-            // Fill from bottom
+
             const auto fillH = well.getHeight() * grFill;
             if (fillH > 0.5f)
             {
@@ -655,60 +660,57 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
                 g.setColour(t.accentPurple);
                 g.fillRoundedRectangle(fillR, 3.0f);
             }
-            // Peak hold line
             if (grPeak > 0.005f)
             {
                 const auto peakY = well.getBottom() - well.getHeight() * grPeak;
                 g.setColour(t.accentPurple.brighter(0.3f));
                 g.drawLine(well.getX() + 1.0f, peakY, well.getRight() - 1.0f, peakY, 1.5f);
             }
-            // Border
             g.setColour(t.panelBorder);
             g.drawRoundedRectangle(well.reduced(0.5f), 4.0f, 1.0f);
         }
 
-        // -- GR meter label --
         g.setColour(t.textSecondary);
         g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
         g.drawText("GR", VoxlineLayout::dynamicsGrLabelBounds, juce::Justification::centred, false);
 
-        // -- Row 1 labels & values --
-        auto drawControlText = [&](juce::Rectangle<int> labelR, const juce::String& label,
-                                    juce::Rectangle<int> valueR, const juce::String& value)
+        // -- Row 1 labels & values (11px label, 12px value) --
+        auto drawRow1 = [&](juce::Rectangle<int> lr, const juce::String& label,
+                             juce::Rectangle<int> vr, const juce::String& value)
+        {
+            g.setColour(t.textSecondary);
+            g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+            g.drawText(label, lr, juce::Justification::centred, false);
+            g.setColour(t.textPrimary);
+            g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+            g.drawText(value, vr, juce::Justification::centred, false);
+        };
+
+        drawRow1(VoxlineLayout::compLabelBounds, "COMP",
+                 VoxlineLayout::compValueBounds, "42%");
+        drawRow1(VoxlineLayout::thresholdLabelBounds, "THRESHOLD",
+                 VoxlineLayout::thresholdValueBounds, "-18.0 dB");
+
+        // -- Row 2 labels & values (10px label, 11px value) --
+        auto drawRow2 = [&](juce::Rectangle<int> lr, const juce::String& label,
+                             juce::Rectangle<int> vr, const juce::String& value)
         {
             g.setColour(t.textSecondary);
             g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-            g.drawText(label, labelR, juce::Justification::centred, false);
+            g.drawText(label, lr, juce::Justification::centred, false);
             g.setColour(t.textPrimary);
             g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-            g.drawText(value, valueR, juce::Justification::centred, false);
+            g.drawText(value, vr, juce::Justification::centred, false);
         };
 
-        drawControlText(VoxlineLayout::compLabelBounds, "COMP",
-                        VoxlineLayout::compValueBounds, "42%");
-        drawControlText(VoxlineLayout::thresholdLabelBounds, "THRESHOLD",
-                        VoxlineLayout::thresholdValueBounds, "-18.0 dB");
-
-        // -- Row 2 labels & values --
-        auto drawSmallText = [&](juce::Rectangle<int> labelR, const juce::String& label,
-                                  juce::Rectangle<int> valueR, const juce::String& value)
-        {
-            g.setColour(t.textSecondary);
-            g.setFont(juce::FontOptions(9.0f, juce::Font::bold));
-            g.drawText(label, labelR, juce::Justification::centred, false);
-            g.setColour(t.textPrimary);
-            g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-            g.drawText(value, valueR, juce::Justification::centred, false);
-        };
-
-        drawSmallText(VoxlineLayout::ratioLabelBounds, "RATIO",
-                      VoxlineLayout::ratioValueBounds, "3.0:1");
-        drawSmallText(VoxlineLayout::attackLabelBounds, "ATTACK",
-                      VoxlineLayout::attackValueBounds, "15 ms");
-        drawSmallText(VoxlineLayout::releaseLabelBounds, "RELEASE",
-                      VoxlineLayout::releaseValueBounds, "80 ms");
-        drawSmallText(VoxlineLayout::driveLabelBounds, "DRIVE",
-                      VoxlineLayout::driveValueBounds, "18%");
+        drawRow2(VoxlineLayout::ratioLabelBounds, "RATIO",
+                 VoxlineLayout::ratioValueBounds, "3.0:1");
+        drawRow2(VoxlineLayout::attackLabelBounds, "ATTACK",
+                 VoxlineLayout::attackValueBounds, "15 ms");
+        drawRow2(VoxlineLayout::releaseLabelBounds, "RELEASE",
+                 VoxlineLayout::releaseValueBounds, "80 ms");
+        drawRow2(VoxlineLayout::driveLabelBounds, "DRIVE",
+                 VoxlineLayout::driveValueBounds, "18%");
     }
 }
 
@@ -762,6 +764,7 @@ void VoxlineAudioProcessorEditor::resized()
     // === Dynamics ===
     meterNamesLabel.setBounds(VoxlineLayout::dynamicsTitleBounds);
     compSlider.setBounds(VoxlineLayout::compKnobBounds);
+    thresholdKnob.setBounds(VoxlineLayout::thresholdKnobBounds);
     driveSlider.setBounds(VoxlineLayout::driveKnobBounds);
     ratioKnob.setBounds(VoxlineLayout::ratioKnobBounds);
     attackKnob.setBounds(VoxlineLayout::attackKnobBounds);
@@ -855,6 +858,7 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     smoothSlider.setTheme(theme);
     compSlider.setTheme(theme);
     driveSlider.setTheme(theme);
+    thresholdKnob.setTheme(theme);
     ratioKnob.setTheme(theme);
     attackKnob.setTheme(theme);
     releaseKnob.setTheme(theme);

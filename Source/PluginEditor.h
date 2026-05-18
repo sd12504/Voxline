@@ -117,6 +117,7 @@ private:
     VoxlineCustomKnob ratioKnob { "Ratio", juce::Colour(0xffD8A548) };
     VoxlineCustomKnob attackKnob { "Attack", juce::Colour(0xff8D70E8) };
     VoxlineCustomKnob releaseKnob { "Release", juce::Colour(0xffB8A6F3) };
+    VoxlineCustomKnob thresholdKnob { "Threshold", juce::Colour(0xffE6B45C) };
 
     juce::ToggleButton autoGainButton;
     juce::ToggleButton bypassButton;
