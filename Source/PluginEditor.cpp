@@ -271,6 +271,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     abButton.addListener(this);
 
     configureKnob(inputGainSlider);
+    inputGainSlider.setShowInternalValue(false);
     configureKnob(lowCutKnob);
     lowCutKnob.setShowInternalLabel(false);
     lowCutKnob.setShowInternalValue(false);
@@ -446,6 +447,26 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
 
     // LED dots
     paintLedDots(g, VoxlineLayout::inputLedDotsBounds);
+
+    // Input panel upper section labels
+    g.setColour(t.textSecondary);
+    g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
+    g.drawText("INPUT GAIN", 92, 168, 90, 18, juce::Justification::centred, false);
+    g.drawText("AUTO GAIN", 268, 168, 120, 18, juce::Justification::centred, false);
+
+    // Gain value
+    g.setColour(t.textPrimary);
+    g.setFont(juce::FontOptions(15.0f, juce::Font::bold));
+    g.drawText(inputGainSlider.getTextFromValue(inputGainSlider.getValue()),
+               VoxlineLayout::inputGainValueBounds, juce::Justification::centred, false);
+
+    // Input level label + dB value
+    g.setColour(t.textSecondary);
+    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    g.drawText("INPUT LEVEL", 270, 258, 125, 18, juce::Justification::centred, false);
+    g.setColour(t.textMuted);
+    g.setFont(juce::FontOptions(12.0f));
+    g.drawText("-18.4 dB", 290, 318, 100, 22, juce::Justification::centred, false);
 
     // Input panel knob labels (drawn externally because knobs are too small)
     g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
