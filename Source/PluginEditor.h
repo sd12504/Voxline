@@ -79,9 +79,7 @@ private:
     juce::Label toneTitleLabel;
     juce::Label polishTitleLabel;
     juce::Label outputTitleLabel;
-    juce::Label peakRmsLabel;
     juce::Label meterNamesLabel;
-    juce::Label outputValueLabel;
 
     juce::ComboBox spaceTypeCombo;
     juce::Label spaceAmountLabel;
@@ -97,9 +95,7 @@ private:
     juce::TextButton eqLpfButton;
 
     // Placeholder labels for future controls
-    juce::Label peakLabel, rmsLabel, outLabel, grLabel;
     juce::Label thresholdLabel, preDelayLabel, spaceHpfLabel, spaceLpfLabel;
-    juce::Label softClipLabel;
     juce::Label monitorLabel;
 
     juce::TextButton abButton;

@@ -235,7 +235,6 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     configureTextLabel(toneTitleLabel, "VOCAL EQ", juce::Justification::centredLeft);
     configureTextLabel(polishTitleLabel, "POLISH", juce::Justification::centred);
     configureTextLabel(outputTitleLabel, "OUTPUT", juce::Justification::centred);
-    configureTextLabel(peakRmsLabel, "PEAK -3.4\nRMS -14.8", juce::Justification::centred);
     configureTextLabel(meterNamesLabel, "DYNAMICS / COLOR", juce::Justification::centred);
 
     // EQ band buttons
@@ -255,15 +254,10 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     eqLowButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xffa0c0a0).withAlpha(0.25f));
 
     // Placeholder controls (UI only, no DSP yet)
-    configureTextLabel(peakLabel, "PEAK", juce::Justification::centredLeft);
-    configureTextLabel(rmsLabel, "RMS", juce::Justification::centredLeft);
-    configureTextLabel(outLabel, "OUT", juce::Justification::centred);
-    configureTextLabel(grLabel, "GR", juce::Justification::centred);
     configureTextLabel(thresholdLabel, "THRESHOLD\n-18.0 dB", juce::Justification::centred);
     configureTextLabel(preDelayLabel, "PRE-DELAY\n15 ms", juce::Justification::centred);
     configureTextLabel(spaceHpfLabel, "HPF\n200 Hz", juce::Justification::centred);
     configureTextLabel(spaceLpfLabel, "LPF\n8.0 kHz", juce::Justification::centred);
-    configureTextLabel(softClipLabel, "SOFT CLIP", juce::Justification::centred);
     configureTextLabel(monitorLabel, "MONITOR", juce::Justification::centredLeft);
 
     configurePresetButton(abButton, "A/B");
@@ -324,7 +318,6 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     configureTextLabel(footerLabel, "VOXLINE 2.0.0  |  SADTONY", juce::Justification::centred);
 
 
-    configureTextLabel(outputValueLabel, "0.0 dB", juce::Justification::centred);
 
     configureButton(bypassButton, " BYPASS");
     bypassButton.setLookAndFeel(&voxlineToggleLNF);
@@ -606,11 +599,9 @@ void VoxlineAudioProcessorEditor::resized()
 
     // === Output ===
     outputTitleLabel.setBounds(VoxlineLayout::outputTitleBounds);
-    peakRmsLabel.setBounds(VoxlineLayout::peakValueBounds);
     outputMeter.setBounds(VoxlineLayout::outMeterBounds);
     gainReductionMeter.setBounds(VoxlineLayout::grMeterBounds);
     outputGainSlider.setBounds(VoxlineLayout::outputGainKnobBounds);
-    outputValueLabel.setBounds(VoxlineLayout::outputGainValueBounds);
 
     // === Vocal EQ (placeholder: old tone knobs) ===
     bodySlider.setBounds(VoxlineLayout::eqLowBounds.withHeight(80).translated(0, 28));
@@ -640,12 +631,7 @@ void VoxlineAudioProcessorEditor::resized()
     footerLabel.setBounds(VoxlineLayout::footerBounds);
 
     // === Placeholder labels ===
-    peakLabel.setBounds(VoxlineLayout::peakLabelBounds);
-    rmsLabel.setBounds(VoxlineLayout::rmsLabelBounds);
-    outLabel.setBounds(VoxlineLayout::outMeterBounds.getX() - 35, 168, 50, 20);
-    grLabel.setBounds(VoxlineLayout::grMeterBounds.getX() - 5, 168, 50, 20);
     thresholdLabel.setBounds(VoxlineLayout::thresholdKnobBounds);
-    softClipLabel.setBounds(VoxlineLayout::softClipBounds);
     preDelayLabel.setBounds(VoxlineLayout::spacePreDelayBounds);
     spaceHpfLabel.setBounds(VoxlineLayout::spaceHpfBounds);
     spaceLpfLabel.setBounds(VoxlineLayout::spaceLpfBounds);
@@ -665,8 +651,6 @@ void VoxlineAudioProcessorEditor::parameterChanged(const juce::String& parameter
     else if (parameterID == VoxlineParameterIDs::outputGain)
     {
         auto* param = audioProcessor.getAPVTS().getParameter(parameterID);
-        if (param)
-            outputValueLabel.setText(param->getCurrentValueAsText(), juce::dontSendNotification);
     }
     else if (parameterID == VoxlineParameterIDs::spaceAmount)
     {
@@ -733,9 +717,7 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     // Labels — fonts sizes for output panel
     logoLabel.setFont(juce::FontOptions(32.0f, juce::Font::bold));
     subtitleLabel.setFont(juce::FontOptions(13.0f));
-    peakRmsLabel.setFont(juce::FontOptions(12.0f));
     meterNamesLabel.setFont(juce::FontOptions(11.0f));
-    outputValueLabel.setFont(juce::FontOptions(12.0f, juce::Font::bold));
     const auto setTextColour = [&](juce::Label& l) { l.setColour(juce::Label::textColourId, theme.textPrimary); };
     setTextColour(logoLabel);
     setTextColour(subtitleLabel);
@@ -743,16 +725,8 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     setTextColour(toneTitleLabel);
     setTextColour(polishTitleLabel);
     setTextColour(outputTitleLabel);
-    setTextColour(peakRmsLabel);
     setTextColour(meterNamesLabel);
-    setTextColour(outputValueLabel);
     setTextColour(spaceAmountLabel);
-    setTextColour(peakLabel);
-    setTextColour(rmsLabel);
-    setTextColour(outLabel);
-    setTextColour(grLabel);
-    setTextColour(thresholdLabel);
-    setTextColour(softClipLabel);
     setTextColour(preDelayLabel);
     setTextColour(spaceHpfLabel);
     setTextColour(spaceLpfLabel);
@@ -760,7 +734,6 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
 
     // Placeholder label fonts
     auto stylePH = [&](juce::Label& l) { l.setFont(juce::FontOptions(10.0f)); };
-    stylePH(thresholdLabel); stylePH(softClipLabel);
     stylePH(preDelayLabel); stylePH(spaceHpfLabel); stylePH(spaceLpfLabel);
 
     // Footer
@@ -915,7 +888,6 @@ void VoxlineAudioProcessorEditor::timerCallback()
     // Update PEAK/RMS readout
     const auto outPeakDb = juce::Decibels::gainToDecibels(juce::jmax(outPeak, 0.00001f), -60.0f);
     const auto outRmsDb = juce::Decibels::gainToDecibels(juce::jmax(outRms, 0.00001f), -60.0f);
-    peakRmsLabel.setText("PEAK " + juce::String(outPeakDb, 1) + "\nRMS " + juce::String(outRmsDb, 1), juce::dontSendNotification);
 
     repaint();
 }
