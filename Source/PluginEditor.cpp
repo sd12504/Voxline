@@ -451,11 +451,11 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
     g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
     auto drawKnobLabel = [&](juce::Rectangle<int> r, const juce::String& label, const juce::String& value) {
         g.setColour(t.textSecondary);
-        g.drawText(label, r.getX(), r.getY() - 32, r.getWidth(), 14, juce::Justification::centred, false);
+        g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
+        g.drawText(label, r.getX(), r.getY() - 30, r.getWidth(), 16, juce::Justification::centred, false);
         g.setColour(t.textPrimary);
-        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-        g.drawText(value, r.getX(), r.getBottom() - 2, r.getWidth(), 16, juce::Justification::centred, false);
-        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+        g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+        g.drawText(value, r.getX(), r.getBottom() - 4, r.getWidth(), 18, juce::Justification::centred, false);
     };
     drawKnobLabel(VoxlineLayout::lowCutKnobBounds, "LOW CUT", "80 Hz");
     drawKnobLabel(VoxlineLayout::cleanKnobBounds, "CLEAN", "30%");
