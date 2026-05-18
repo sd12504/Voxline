@@ -271,6 +271,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     abButton.addListener(this);
 
     configureKnob(inputGainSlider);
+    inputGainSlider.setShowInternalLabel(false);
     inputGainSlider.setShowInternalValue(false);
     configureKnob(lowCutKnob);
     lowCutKnob.setShowInternalLabel(false);
