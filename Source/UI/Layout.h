@@ -10,11 +10,11 @@ static constexpr float panelCornerSize = 18.0f;
 // === Top Bar ===
 inline const juce::Rectangle<int> logoBounds { 30, 22, 260, 42 };
 inline const juce::Rectangle<int> subtitleBounds { 32, 66, 260, 20 };
-inline const juce::Rectangle<int> presetDropdownBounds { 500, 24, 260, 52 };
-inline const juce::Rectangle<int> abButtonBounds { 880, 28, 72, 44 };
-inline const juce::Rectangle<int> listenUtilityBounds { 960, 28, 128, 44 };
-inline const juce::Rectangle<int> bypassToggleBounds { 1100, 28, 136, 44 };
-inline const juce::Rectangle<int> settingsButtonBounds { 1320, 32, 42, 32 };
+inline const juce::Rectangle<int> presetDropdownBounds { 500, 26, 260, 52 };
+inline const juce::Rectangle<int> abButtonBounds { 880, 30, 72, 44 };
+inline const juce::Rectangle<int> listenUtilityBounds { 960, 30, 128, 44 };
+inline const juce::Rectangle<int> bypassToggleBounds { 1100, 30, 136, 44 };
+inline const juce::Rectangle<int> settingsButtonBounds { 1320, 36, 42, 32 };
 
 // === Input / Clean ===
 inline const juce::Rectangle<int> inputPanel { 20, 105, 430, 415 };
