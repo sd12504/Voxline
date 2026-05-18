@@ -327,7 +327,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
 
     configureButton(bypassButton, " BYPASS");
     bypassButton.setLookAndFeel(&voxlineToggleLNF);
-    configureButton(autoGainButton, "Auto Gain");
+    configureButton(autoGainButton, "ON");
     autoGainButton.setLookAndFeel(&voxlineAutoGainLNF);
     configureButton(cleanModeButton, "Clean");
     cleanModeButton.setLookAndFeel(&voxlineToggleLNF);
@@ -466,7 +466,7 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
     g.drawText("INPUT LEVEL", 270, 258, 125, 18, juce::Justification::centred, false);
     g.setColour(t.textMuted);
     g.setFont(juce::FontOptions(12.0f));
-    g.drawText("-18.4 dB", 290, 318, 100, 22, juce::Justification::centred, false);
+    g.drawText("-18.4 dB", 290, 312, 100, 22, juce::Justification::centred, false);
 
     // Input panel knob labels (drawn externally because knobs are too small)
     g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
@@ -637,6 +637,10 @@ void VoxlineAudioProcessorEditor::parameterChanged(const juce::String& parameter
         const int t = juce::roundToInt(newValue * 3.0f);
         const juce::String names[] = {"Tight Ambience", "Filtered Slap", "Stereo Wide", "Vocal Space"};
         spaceTypeCombo.setSelectedId(t + 1, juce::dontSendNotification);
+    }
+    else if (parameterID == VoxlineParameterIDs::autoGain)
+    {
+        autoGainButton.setButtonText(newValue >= 0.5f ? "ON" : "OFF");
     }
 
     // Update active A/B slot on every parameter change
