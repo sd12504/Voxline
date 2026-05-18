@@ -496,7 +496,7 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         g.drawText(status, VoxlineLayout::polishStatusBounds, juce::Justification::centred, false);
         g.setColour(t.textMuted);
         g.setFont(juce::FontOptions(10.0f));
-        g.drawText("Core vocal processing macro — does not affect SPACE", VoxlineLayout::polishDescBounds, juce::Justification::centred, false);
+        g.drawText("VOCAL FINISH MACRO", VoxlineLayout::polishDescBounds, juce::Justification::centred, false);
     }
 
     // EQ curve display
