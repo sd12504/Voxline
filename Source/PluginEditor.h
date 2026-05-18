@@ -100,6 +100,10 @@ private:
     juce::Label monitorLabel;
 
     juce::TextButton abButton;
+    // Monitor buttons
+    juce::TextButton monitorAbBtn;
+    juce::TextButton monitorListenBtn;
+    juce::TextButton monitorBypassBtn;
 
     VoxlineCustomKnob inputGainSlider { "Input", juce::Colour(0xffb68cf2) };
     VoxlineHeroKnob polishSlider { "", juce::Colour(0xffe48aa2) };
@@ -118,6 +122,10 @@ private:
     VoxlineCustomKnob attackKnob { "Attack", juce::Colour(0xff8D70E8) };
     VoxlineCustomKnob releaseKnob { "Release", juce::Colour(0xffB8A6F3) };
     VoxlineCustomKnob thresholdKnob { "Threshold", juce::Colour(0xffE6B45C) };
+    // Space placeholder knobs
+    VoxlineCustomKnob preDelayKnob { "PreDelay", juce::Colour(0xffD8A548) };
+    VoxlineCustomKnob spaceHpfKnob { "HPF", juce::Colour(0xff8D70E8) };
+    VoxlineCustomKnob spaceLpfKnob { "LPF", juce::Colour(0xffB8A6F3) };
 
     juce::ToggleButton autoGainButton;
     juce::ToggleButton bypassButton;

@@ -96,18 +96,33 @@ inline const juce::Rectangle<int> driveValueBounds  { 873, 828, 60, 14 };
 // === Space ===
 inline const juce::Rectangle<int> spacePanel { 965, 530, 415, 350 };
 inline const juce::Rectangle<int> spaceTitleBounds { 993, 552, 359, 24 };
-inline const juce::Rectangle<int> monitorTitleBounds { 993, 840, 359, 24 };
-inline const juce::Rectangle<int> spaceTypeBounds { 1100, 550, 210, 38 };
-inline const juce::Rectangle<int> spaceSliderBounds { 995, 650, 280, 20 };
-inline const juce::Rectangle<int> spaceValueBounds { 1280, 635, 60, 36 };
-inline const juce::Rectangle<int> spacePreDelayBounds { 1010, 745, 65, 65 };
-inline const juce::Rectangle<int> spaceHpfBounds { 1165, 745, 65, 65 };
-inline const juce::Rectangle<int> spaceLpfBounds { 1325, 745, 65, 65 };
 
-// === Monitor ===
-inline const juce::Rectangle<int> monitorAbBounds { 995, 875, 130, 36 };
-inline const juce::Rectangle<int> monitorListenBounds { 1145, 875, 130, 36 };
-inline const juce::Rectangle<int> monitorBypassBounds { 1295, 875, 130, 36 };
+// Space type dropdown
+inline const juce::Rectangle<int> spaceTypeBounds { 1100, 580, 210, 36 };
+
+// Amount slider row
+inline const juce::Rectangle<int> spaceAmountLabelBounds { 993, 630, 70, 16 };
+inline const juce::Rectangle<int> spaceSliderBounds { 993, 652, 280, 28 };
+inline const juce::Rectangle<int> spaceValueBounds { 1283, 650, 56, 20 };
+
+// Three knobs: PRE-DELAY | HPF | LPF
+inline const juce::Rectangle<int> spacePreDelayKnobBounds  { 1045, 720, 50, 50 };
+inline const juce::Rectangle<int> spacePreDelayLabelBounds { 1038, 703, 64, 14 };
+inline const juce::Rectangle<int> spacePreDelayValueBounds { 1038, 773, 64, 14 };
+
+inline const juce::Rectangle<int> spaceHpfKnobBounds  { 1147, 720, 50, 50 };
+inline const juce::Rectangle<int> spaceHpfLabelBounds { 1140, 703, 64, 14 };
+inline const juce::Rectangle<int> spaceHpfValueBounds { 1140, 773, 64, 14 };
+
+inline const juce::Rectangle<int> spaceLpfKnobBounds  { 1249, 720, 50, 50 };
+inline const juce::Rectangle<int> spaceLpfLabelBounds { 1242, 703, 64, 14 };
+inline const juce::Rectangle<int> spaceLpfValueBounds { 1242, 773, 64, 14 };
+
+// Monitor
+inline const juce::Rectangle<int> monitorTitleBounds { 993, 820, 359, 24 };
+inline const juce::Rectangle<int> monitorAbBounds { 993, 848, 100, 30 };
+inline const juce::Rectangle<int> monitorListenBounds { 1110, 848, 100, 30 };
+inline const juce::Rectangle<int> monitorBypassBounds { 1227, 848, 100, 30 };
 
 // === Footer ===
 inline const juce::Rectangle<int> footerBounds { 0, 878, 1400, 18 };

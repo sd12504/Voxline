@@ -328,7 +328,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     outputGainSlider.setShowInternalValue(false);
 
     // SPACE control in bottom bar
-    spaceTypeCombo.addItemList({"Tight Ambience", "Filtered Slap", "Stereo Wide"}, 1);
+    spaceTypeCombo.addItemList({"Tight", "Slap", "Wide"}, 1);
     spaceTypeCombo.setSelectedId(1, juce::dontSendNotification);
     spaceTypeCombo.addListener(this);
     spaceTypeCombo.setLookAndFeel(&voxlineDropdownLNF);
@@ -343,7 +343,36 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     spaceSlider.setLookAndFeel(&voxlineSpaceSliderLNF);
     addAndMakeVisible(spaceSlider);
 
-    configureTextLabel(spaceAmountLabel, "0%", juce::Justification::centredRight);
+    configureKnob(preDelayKnob);
+    configureKnob(spaceHpfKnob);
+    configureKnob(spaceLpfKnob);
+
+    preDelayKnob.setShowInternalLabel(false);
+    preDelayKnob.setShowInternalValue(false);
+    preDelayKnob.setRange(0.0, 100.0, 1.0);
+    preDelayKnob.setValue(15.0, juce::dontSendNotification);
+
+    spaceHpfKnob.setShowInternalLabel(false);
+    spaceHpfKnob.setShowInternalValue(false);
+    spaceHpfKnob.setRange(20.0, 1000.0, 1.0);
+    spaceHpfKnob.setValue(200.0, juce::dontSendNotification);
+
+    spaceLpfKnob.setShowInternalLabel(false);
+    spaceLpfKnob.setShowInternalValue(false);
+    spaceLpfKnob.setRange(500.0, 20000.0, 100.0);
+    spaceLpfKnob.setValue(8000.0, juce::dontSendNotification);
+
+    // Old placeholder labels → empty (now drawn in paint())
+    preDelayLabel.setText("", juce::dontSendNotification);
+    spaceHpfLabel.setText("", juce::dontSendNotification);
+    spaceLpfLabel.setText("", juce::dontSendNotification);
+
+    // Monitor buttons
+    configurePresetButton(monitorAbBtn, "A/B");
+    configurePresetButton(monitorListenBtn, "Listen");
+    configurePresetButton(monitorBypassBtn, "Bypass");
+
+    configureTextLabel(spaceAmountLabel, "24%", juce::Justification::centredRight);
 
     // Footer
     configureTextLabel(footerLabel, "VOXLINE 2.0.0  |  SADTONY", juce::Justification::centred);
@@ -712,6 +741,35 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         drawRow2(VoxlineLayout::driveLabelBounds, "DRIVE",
                  VoxlineLayout::driveValueBounds, "18%");
     }
+
+    // Space / Monitor panel
+    {
+        const auto& t = VoxlineTheme::get(currentThemeIndex);
+
+        // AMOUNT label
+        g.setColour(t.textSecondary);
+        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+        g.drawText("AMOUNT", VoxlineLayout::spaceAmountLabelBounds, juce::Justification::centredLeft, false);
+
+        // Three knobs labels & values
+        auto drawSpaceKnob = [&](juce::Rectangle<int> lr, const juce::String& label,
+                                  juce::Rectangle<int> vr, const juce::String& value)
+        {
+            g.setColour(t.textSecondary);
+            g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+            g.drawText(label, lr, juce::Justification::centred, false);
+            g.setColour(t.textPrimary);
+            g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+            g.drawText(value, vr, juce::Justification::centred, false);
+        };
+
+        drawSpaceKnob(VoxlineLayout::spacePreDelayLabelBounds, "PRE-DELAY",
+                      VoxlineLayout::spacePreDelayValueBounds, "15 ms");
+        drawSpaceKnob(VoxlineLayout::spaceHpfLabelBounds, "HPF",
+                      VoxlineLayout::spaceHpfValueBounds, "200 Hz");
+        drawSpaceKnob(VoxlineLayout::spaceLpfLabelBounds, "LPF",
+                      VoxlineLayout::spaceLpfValueBounds, "8.0 kHz");
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -773,17 +831,24 @@ void VoxlineAudioProcessorEditor::resized()
     // === SPACE ===
     spaceTitleLabel.setBounds(VoxlineLayout::spaceTitleBounds);
     spaceTypeCombo.setBounds(VoxlineLayout::spaceTypeBounds);
-    spaceSlider.setBounds(VoxlineLayout::spaceSliderBounds.withHeight(28).translated(0, 10));
-    spaceAmountLabel.setBounds(VoxlineLayout::spaceValueBounds.translated(-10, 0));
+    spaceSlider.setBounds(VoxlineLayout::spaceSliderBounds);
+    spaceAmountLabel.setBounds(VoxlineLayout::spaceValueBounds);
+    preDelayKnob.setBounds(VoxlineLayout::spacePreDelayKnobBounds);
+    spaceHpfKnob.setBounds(VoxlineLayout::spaceHpfKnobBounds);
+    spaceLpfKnob.setBounds(VoxlineLayout::spaceLpfKnobBounds);
+    monitorLabel.setBounds(VoxlineLayout::monitorTitleBounds);
+    monitorAbBtn.setBounds(VoxlineLayout::monitorAbBounds);
+    monitorListenBtn.setBounds(VoxlineLayout::monitorListenBounds);
+    monitorBypassBtn.setBounds(VoxlineLayout::monitorBypassBounds);
 
     // === Footer ===
     footerLabel.setBounds(VoxlineLayout::footerBounds);
 
     // === Placeholder labels ===
     thresholdLabel.setBounds(VoxlineLayout::thresholdKnobBounds);
-    preDelayLabel.setBounds(VoxlineLayout::spacePreDelayBounds);
-    spaceHpfLabel.setBounds(VoxlineLayout::spaceHpfBounds);
-    spaceLpfLabel.setBounds(VoxlineLayout::spaceLpfBounds);
+    preDelayLabel.setBounds(VoxlineLayout::spacePreDelayKnobBounds);
+    spaceHpfLabel.setBounds(VoxlineLayout::spaceHpfKnobBounds);
+    spaceLpfLabel.setBounds(VoxlineLayout::spaceLpfKnobBounds);
     monitorLabel.setBounds(VoxlineLayout::monitorTitleBounds);
 }
 
@@ -810,7 +875,7 @@ void VoxlineAudioProcessorEditor::parameterChanged(const juce::String& parameter
     else if (parameterID == VoxlineParameterIDs::spaceType)
     {
         const int t = juce::roundToInt(newValue * 3.0f);
-        const juce::String names[] = {"Tight Ambience", "Filtered Slap", "Stereo Wide", "Vocal Space"};
+        const juce::String names[] = {"Tight", "Slap", "Wide"};
         spaceTypeCombo.setSelectedId(t + 1, juce::dontSendNotification);
     }
     else if (parameterID == VoxlineParameterIDs::autoGain)
@@ -862,6 +927,9 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     ratioKnob.setTheme(theme);
     attackKnob.setTheme(theme);
     releaseKnob.setTheme(theme);
+    preDelayKnob.setTheme(theme);
+    spaceHpfKnob.setTheme(theme);
+    spaceLpfKnob.setTheme(theme);
     outputGainSlider.setTheme(theme);
     lowCutKnob.setTheme(theme);
     cleanKnob.setTheme(theme);
@@ -914,6 +982,15 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     const auto inactiveBg = dark ? juce::Colour(0xff1e1b2a) : juce::Colour(0xfffaf7f2);
     abButton.setColour(juce::TextButton::buttonColourId, inactiveBg);
     abButton.setColour(juce::TextButton::textColourOffId, theme.textPrimary);
+
+    // Monitor buttons — same style but quieter
+    auto styleMonitorBtn = [&](juce::TextButton& b) {
+        b.setColour(juce::TextButton::buttonColourId, inactiveBg);
+        b.setColour(juce::TextButton::textColourOffId, theme.textSecondary);
+    };
+    styleMonitorBtn(monitorAbBtn);
+    styleMonitorBtn(monitorListenBtn);
+    styleMonitorBtn(monitorBypassBtn);
 
     // === SPACE ===
     VoxlineSpaceSliderLNF::spaceSliderTheme = index;
