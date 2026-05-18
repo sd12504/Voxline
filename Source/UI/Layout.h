@@ -24,9 +24,9 @@ inline const juce::Rectangle<int> inputGainValueBounds { 70, 326, 110, 24 };
 inline const juce::Rectangle<int> autoGainToggleBounds { 290, 202, 72, 30 };
 inline const juce::Rectangle<int> inputLedDotsBounds { 265, 290, 135, 18 };
 inline const juce::Rectangle<int> inputDividerBounds { 48, 382, 365, 1 };
-inline const juce::Rectangle<int> lowCutKnobBounds { 55, 425, 78, 78 };
-inline const juce::Rectangle<int> cleanKnobBounds { 195, 425, 78, 78 };
-inline const juce::Rectangle<int> deEssKnobBounds { 327, 425, 78, 78 };
+inline const juce::Rectangle<int> lowCutKnobBounds { 55, 415, 78, 78 };
+inline const juce::Rectangle<int> cleanKnobBounds { 195, 415, 78, 78 };
+inline const juce::Rectangle<int> deEssKnobBounds { 327, 415, 78, 78 };
 
 // === POLISH ===
 inline const juce::Rectangle<int> polishPanel { 460, 105, 490, 415 };
