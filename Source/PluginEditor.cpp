@@ -272,8 +272,19 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
 
     configureKnob(inputGainSlider);
     configureKnob(lowCutKnob);
+    lowCutKnob.setRange(40.0, 200.0, 1.0);
+    lowCutKnob.setValue(80.0, juce::dontSendNotification);
+    lowCutKnob.textFromValueFunction = [](double v) { return juce::String(juce::roundToInt(v)) + " Hz"; };
+
     configureKnob(cleanKnob);
+    cleanKnob.setRange(0.0, 100.0, 1.0);
+    cleanKnob.setValue(30.0, juce::dontSendNotification);
+    cleanKnob.textFromValueFunction = [](double v) { return juce::String(juce::roundToInt(v)) + "%"; };
+
     configureKnob(deEssKnob);
+    deEssKnob.setRange(0.0, 100.0, 1.0);
+    deEssKnob.setValue(25.0, juce::dontSendNotification);
+    deEssKnob.textFromValueFunction = [](double v) { return juce::String(juce::roundToInt(v)) + "%"; };
     configureKnob(polishSlider);
     configureKnob(bodySlider);
     configureKnob(claritySlider);
@@ -507,9 +518,6 @@ void VoxlineAudioProcessorEditor::resized()
     lowCutKnob.setBounds(VoxlineLayout::lowCutKnobBounds);
     cleanKnob.setBounds(VoxlineLayout::cleanKnobBounds);
     deEssKnob.setBounds(VoxlineLayout::deEssKnobBounds);
-    lowCutKnob.setValue(80.0, juce::dontSendNotification);
-    cleanKnob.setValue(30.0, juce::dontSendNotification);
-    deEssKnob.setValue(25.0, juce::dontSendNotification);
     autoGainButton.setBounds(VoxlineLayout::autoGainToggleBounds);
 
     // === POLISH ===
