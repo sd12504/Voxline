@@ -502,21 +502,43 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
     // Output panel
     {
         const auto& t = VoxlineTheme::get(currentThemeIndex);
+        // Left: PEAK/RMS readout
+        g.setColour(t.textMuted);
+        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+        g.drawText("PEAK", 995, 210, 50, 16, juce::Justification::centredLeft, false);
+        g.setColour(t.textPrimary);
+        g.setFont(juce::FontOptions(20.0f, juce::Font::bold));
+        g.drawText("-60.0 dB", 995, 228, 140, 28, juce::Justification::centredLeft, false);
+
+        g.setColour(t.textMuted);
+        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+        g.drawText("RMS", 995, 300, 50, 16, juce::Justification::centredLeft, false);
+        g.setColour(t.textPrimary);
+        g.setFont(juce::FontOptions(20.0f, juce::Font::bold));
+        g.drawText("-60.0 dB", 995, 318, 140, 28, juce::Justification::centredLeft, false);
+
+        // Soft Clip indicator
         g.setColour(t.textSecondary);
         g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-        g.drawText("PEAK", VoxlineLayout::peakLabelBounds, juce::Justification::centredLeft, false);
-        g.drawText("RMS", VoxlineLayout::rmsLabelBounds, juce::Justification::centredLeft, false);
-        g.setColour(t.textPrimary);
-        g.setFont(juce::FontOptions(16.0f, juce::Font::bold));
-        g.drawText("-60.0", VoxlineLayout::peakValueBounds, juce::Justification::centredLeft, false);
-        g.drawText("-60.0", VoxlineLayout::rmsValueBounds, juce::Justification::centredLeft, false);
+        g.fillRoundedRectangle(995, 370, 90, 24, 6.0f);
+        g.setColour(t.panelBorder);
+        g.drawRoundedRectangle(995.5f, 370.5f, 89, 23, 6.0f, 1.0f);
+        g.setColour(t.textSecondary);
+        g.drawText("SOFT CLIP", 995, 370, 90, 24, juce::Justification::centred, false);
+
+        // Center: OUT/GR meters — already positioned by components, just labels below
         g.setColour(t.textSecondary);
         g.setFont(juce::FontOptions(10.0f));
-        g.drawText("OUT", VoxlineLayout::outMeterBounds.getX() - 4, VoxlineLayout::outMeterBounds.getBottom() + 2, 40, 14, juce::Justification::centred, false);
-        g.drawText("GR", VoxlineLayout::grMeterBounds.getX() - 4, VoxlineLayout::grMeterBounds.getBottom() + 2, 30, 14, juce::Justification::centred, false);
+        g.drawText("OUT", 1125, 470, 50, 14, juce::Justification::centred, false);
+        g.drawText("GR", 1205, 470, 40, 14, juce::Justification::centred, false);
+
+        // Right: OUTPUT GAIN label + value
         g.setColour(t.textSecondary);
         g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-        g.drawText("OUTPUT GAIN", VoxlineLayout::outputGainKnobBounds.getX() - 10, VoxlineLayout::outputGainKnobBounds.getY() - 20, 120, 16, juce::Justification::centred, false);
+        g.drawText("OUTPUT\nGAIN", 1270, 240, 100, 36, juce::Justification::centred, false);
+        g.setColour(t.textPrimary);
+        g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+        g.drawText(outputGainSlider.getTextFromValue(outputGainSlider.getValue()), VoxlineLayout::outputGainValueBounds, juce::Justification::centred, false);
     }
 
     // EQ curve display
