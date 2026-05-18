@@ -8,13 +8,13 @@ static constexpr int editorHeight = 900;
 static constexpr float panelCornerSize = 18.0f;
 
 // === Top Bar ===
-inline const juce::Rectangle<int> logoBounds { 30, 22, 260, 42 };
-inline const juce::Rectangle<int> subtitleBounds { 32, 66, 260, 20 };
-inline const juce::Rectangle<int> presetDropdownBounds { 500, 26, 260, 52 };
-inline const juce::Rectangle<int> abButtonBounds { 880, 30, 72, 44 };
-inline const juce::Rectangle<int> listenUtilityBounds { 960, 30, 128, 44 };
-inline const juce::Rectangle<int> bypassToggleBounds { 1100, 30, 136, 44 };
-inline const juce::Rectangle<int> settingsButtonBounds { 1320, 36, 42, 32 };
+inline const juce::Rectangle<int> logoBounds { 30, 28, 260, 42 };
+inline const juce::Rectangle<int> subtitleBounds { 32, 72, 260, 20 };
+inline const juce::Rectangle<int> presetDropdownBounds { 500, 32, 260, 52 };
+inline const juce::Rectangle<int> abButtonBounds { 880, 36, 72, 44 };
+inline const juce::Rectangle<int> listenUtilityBounds { 960, 36, 128, 44 };
+inline const juce::Rectangle<int> bypassToggleBounds { 1100, 36, 136, 44 };
+inline const juce::Rectangle<int> settingsButtonBounds { 1295, 42, 42, 32 };
 
 // === Input / Clean ===
 inline const juce::Rectangle<int> inputPanel { 20, 105, 430, 415 };
