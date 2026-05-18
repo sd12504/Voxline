@@ -396,6 +396,11 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     listenButton.setLookAndFeel(&voxlineToggleLNF);
     // Listen mode: difference monitor (solo wet signal) — standard audition behavior
 
+    configureButton(eqOnButton, "ON");
+    eqOnButton.setLookAndFeel(&voxlineToggleLNF);
+    eqOnButton.setToggleState(true, juce::dontSendNotification);
+    eqOnButton.addListener(this);
+
     addChildComponent(outputMeter);   // level tracking only, visual drawn in paint()
     addChildComponent(gainReductionMeter);
     // Placeholder floor so meters show visible fill even during silence
@@ -648,50 +653,46 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         const auto& t = VoxlineTheme::get(currentThemeIndex);
         const auto cbI = cb.toNearestInt();
 
-        // Background
-        g.setColour(dark ? juce::Colour(0xff12101A) : juce::Colour(0xffE8E2D8));
+        // Dark background
+        g.setColour(dark ? juce::Colour(0xff100E18) : juce::Colour(0xff282430));
         g.fillRoundedRectangle(cb, 8.0f);
 
-        // ───── Clip everything to graph bounds ─────
         g.saveState();
         g.reduceClipRegion(cbI);
 
-        // Grid — frequency (log scale) and dB lines
-        const auto gridC = t.panelBorder.withAlpha(dark ? 0.25f : 0.35f);
-        const float freqHz[] = { 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000 };
         const float logMin = std::log10(20.0f), logMax = std::log10(20000.0f);
         const float x0 = cb.getX() + 18, xW = cb.getWidth() - 36;
+        const float yTop = cb.getY() + 14, yBot = cb.getBottom() - 14;
         const float yMid = cb.getCentreY();
-        const float yTop = cb.getY() + 12, yBot = cb.getBottom() - 12;
-        const float yScale = (cb.getHeight() - 24) / 24.0f;
+        const float yScale = (cb.getHeight() - 28) / 24.0f;
 
-        g.setColour(gridC);
-        for (auto f : freqHz)
+        // Grid
+        const auto gridMajor = juce::Colour(dark ? 0xff2A2638 : 0xff3A3648);
+        const auto gridMinor = juce::Colour(dark ? 0xff1E1B2A : 0xff2E2A38);
+        const float minorHz[] = { 20,30,40,50,60,80,100,200,300,400,500,600,800,1000,2000,3000,4000,5000,6000,8000,10000,20000 };
+        for (auto f : minorHz)
         {
             const float x = x0 + xW * (std::log10(f) - logMin) / (logMax - logMin);
+            const bool major = (f == 20 || f == 50 || f == 100 || f == 200 || f == 500 || f == 1000 || f == 2000 || f == 5000 || f == 10000 || f == 20000);
+            g.setColour(major ? gridMajor : gridMinor);
             g.drawVerticalLine(juce::roundToInt(x), juce::roundToInt(yTop), juce::roundToInt(yBot));
         }
-        const float dbLevels[] = { 12, 6, 0, -6, -12 };
-        for (auto db : dbLevels)
+        for (int db = -12; db <= 12; db += 6)
         {
-            const float y = yMid - db * yScale;
-            g.drawHorizontalLine(juce::roundToInt(y), cb.getX() + 12, cb.getRight() - 12);
+            const float y = yMid - (float)db * yScale;
+            g.setColour(db == 0 ? gridMajor.brighter(0.3f) : gridMinor);
+            g.drawHorizontalLine(juce::roundToInt(y), juce::roundToInt(x0 - 6), juce::roundToInt(x0 + xW + 6));
         }
-        // 0 dB line slightly more visible
-        g.setColour(gridC.brighter(0.3f));
-        g.drawHorizontalLine(juce::roundToInt(yMid), cb.getX() + 12, cb.getRight() - 12);
 
-        // Helper lambdas
         auto toX = [&](float hz) { return x0 + xW * (std::log10(juce::jlimit(20.0f, 20000.0f, hz)) - logMin) / (logMax - logMin); };
         auto toY = [&](float db) { return juce::jlimit(yTop, yBot, yMid - juce::jlimit(-12.0f, 12.0f, db) * yScale); };
 
-        // EQ curve — composite response
+        // White EQ curve
         juce::Path eqPath;
-        const int steps = 120;
+        const int steps = 140;
         for (int i = 0; i <= steps; ++i)
         {
-            const float frac = (float)i / (float)steps;
-            const float hz = 20.0f * std::pow(1000.0f, frac);
+            const float hz = 20.0f * std::pow(1000.0f, (float)i / (float)steps);
             float resp = 0.0f;
             if (hz < 80.0f) resp -= 24.0f * std::log2(80.0f / hz);
             { const float w = hz / 200.0f; resp += 2.0f / (1.0f + (w - 1.0f/w) * (w - 1.0f/w)); }
@@ -699,63 +700,99 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
             { const float w = hz / 2500.0f; resp += 3.0f / (1.0f + ((w - 1.0f/w) / 1.2f) * ((w - 1.0f/w) / 1.2f)); }
             { const float w = hz / 10000.0f; resp += 2.0f * (w * w / (w * w + 1.0f)); }
             if (hz > 18000.0f) resp -= 24.0f * std::log2(hz / 18000.0f);
-
-            const float px = toX(hz);
-            const float py = toY(resp);
+            const float px = toX(hz), py = toY(resp);
             if (i == 0) eqPath.startNewSubPath(px, py);
             else        eqPath.lineTo(px, py);
         }
+        g.setColour(juce::Colour(dark ? 0xffF0ECF8 : 0xffFAF8FF).withAlpha(0.12f));
+        g.strokePath(eqPath, juce::PathStrokeType(5.0f, juce::PathStrokeType::curved));
+        g.setColour(dark ? juce::Colour(0xffE8E4F0) : juce::Colour(0xffF5F2FA));
+        g.strokePath(eqPath, juce::PathStrokeType(1.8f, juce::PathStrokeType::curved));
 
-        g.setColour(t.accentRose.withAlpha(0.7f));
-        g.strokePath(eqPath, juce::PathStrokeType(2.0f, juce::PathStrokeType::curved));
-
-        // Band nodes
-        struct BandDot { float hz; float db; juce::Colour col; };
+        // Colored band nodes with selection glow
+        struct BandDot { float hz; float db; int idx; juce::Colour col; };
         const BandDot dots[] = {
-            { 80.0f,   -3.0f, juce::Colour(dark ? 0xffA98CFF : 0xff8D70E8) },
-            { 200.0f,   2.0f, juce::Colour(dark ? 0xff80b080 : 0xff60a060) },
-            { 400.0f,  -3.0f, juce::Colour(dark ? 0xffE6B45C : 0xffD8A548) },
-            { 2500.0f,  3.0f, juce::Colour(dark ? 0xffF2A766 : 0xffE99A5C) },
-            { 10000.0f, 2.0f, juce::Colour(dark ? 0xffC7B7FF : 0xffB8A6F3) },
-            { 18000.0f,-3.0f, juce::Colour(dark ? 0xffA98CFF : 0xff8D70E8) },
+            { 80.0f,  -3.0f, 0, juce::Colour(dark ? 0xffA98CFF : 0xff8D70E8) },
+            { 200.0f,  2.0f, 1, juce::Colour(dark ? 0xff80b080 : 0xff60a060) },
+            { 400.0f, -3.0f, 2, juce::Colour(dark ? 0xffE6B45C : 0xffD8A548) },
+            { 2500.0f, 3.0f, 3, juce::Colour(dark ? 0xffF2A766 : 0xffE99A5C) },
+            { 10000.0f,2.0f, 4, juce::Colour(dark ? 0xff7BA4D8 : 0xff5B8EC0) },
+            { 18000.0f,-3.0f,5, juce::Colour(dark ? 0xff9D96A8 : 0xff7E7888) },
         };
         for (auto& d : dots)
         {
             const auto cx = toX(d.hz), cy = toY(d.db);
+            if (d.idx == selectedEqBand)
+            {
+                g.setColour(d.col.withAlpha(0.35f));
+                g.fillEllipse(cx - 8, cy - 8, 16, 16);
+                g.setColour(d.col.withAlpha(0.6f));
+                g.drawEllipse(cx - 8.5f, cy - 8.5f, 17, 17, 1.5f);
+            }
             g.setColour(d.col);
             g.fillEllipse(cx - 4, cy - 4, 8, 8);
         }
 
         // Frequency labels
-        g.setColour(t.textMuted.withAlpha(0.6f));
+        g.setColour(juce::Colour(dark ? 0xff6E6878 : 0xff8E8898));
         g.setFont(juce::FontOptions(8.0f));
-        for (auto f : { 100, 1000, 10000 })
+        for (auto f : { 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000 })
         {
             const float x = toX((float)f);
             const juce::String label = (f >= 1000) ? juce::String(f / 1000) + "k" : juce::String(f);
-            g.drawText(label, juce::roundToInt(x - 15), juce::roundToInt(cb.getBottom() - 14), 30, 12, juce::Justification::centred, false);
+            g.drawText(label, juce::roundToInt(x - 15), juce::roundToInt(yBot + 2), 30, 12, juce::Justification::centred, false);
         }
 
         g.restoreState();
-        // ───── End clip region ─────
 
-        // Border (drawn after clip restore so it's crisp)
-        g.setColour(t.panelBorder);
+        g.setColour(dark ? juce::Colour(0xff2A2635) : juce::Colour(0xff3A3645));
         g.drawRoundedRectangle(cb.reduced(0.5f), 8.0f, 1.0f);
     }
 
-    // EQ band buttons — already styled by applyTheme
-
-    // Selected band info
+    // Selected band control row
     {
         const auto& t = VoxlineTheme::get(currentThemeIndex);
+        const auto dark = (currentThemeIndex != 0);
+        const char* bandNames[] = { "HPF", "LOW", "MUD", "PRES", "AIR", "LPF" };
+        const char* freqVals[] = { "80 Hz", "200 Hz", "400 Hz", "2.5 kHz", "10 kHz", "18 kHz" };
+        const char* slopeVals[] = { "24 dB/oct", "0.0 dB", "-3.0 dB", "3.0 dB", "2.0 dB", "24 dB/oct" };
+        const juce::Colour bandCols[] = {
+            juce::Colour(dark ? 0xffA98CFF : 0xff8D70E8),
+            juce::Colour(dark ? 0xff80b080 : 0xff60a060),
+            juce::Colour(dark ? 0xffE6B45C : 0xffD8A548),
+            juce::Colour(dark ? 0xffF2A766 : 0xffE99A5C),
+            juce::Colour(dark ? 0xff7BA4D8 : 0xff5B8EC0),
+            juce::Colour(dark ? 0xff9D96A8 : 0xff7E7888),
+        };
+        const int sel = selectedEqBand;
 
-        g.setColour(t.textSecondary);
+        // Band name pill
+        const auto r1 = VoxlineLayout::eqSelBandBtnBounds.toFloat();
+        g.setColour(bandCols[sel].withAlpha(dark ? 0.25f : 0.18f));
+        g.fillRoundedRectangle(r1, 6.0f);
+        g.setColour(bandCols[sel]);
         g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-        g.drawText("SELECTED: HPF     FREQ 80 Hz     SLOPE 24 dB/oct",
-                   VoxlineLayout::eqBandLabelBounds, juce::Justification::centredLeft, false);
+        g.drawText(bandNames[sel], VoxlineLayout::eqSelBandBtnBounds, juce::Justification::centred, false);
 
-        // Reset button
+        // FREQ
+        g.setColour(t.textSecondary);
+        g.setFont(juce::FontOptions(9.0f, juce::Font::bold));
+        g.drawText("FREQ", VoxlineLayout::eqFreqLabelBounds, juce::Justification::centred, false);
+        g.setColour(t.textPrimary);
+        g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+        g.drawText(freqVals[sel], VoxlineLayout::eqFreqValueBounds, juce::Justification::centred, false);
+
+        // SLOPE / GAIN
+        const bool isBell = (sel >= 1 && sel <= 4);
+        const char* slopeLabel = isBell ? "GAIN" : "SLOPE";
+        g.setColour(t.textSecondary);
+        g.setFont(juce::FontOptions(9.0f, juce::Font::bold));
+        g.drawText(slopeLabel, VoxlineLayout::eqSlopeLabelBounds, juce::Justification::centred, false);
+        g.setColour(t.textPrimary);
+        g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+        g.drawText(slopeVals[sel], VoxlineLayout::eqSlopeValueBounds, juce::Justification::centred, false);
+
+        // RESET
         const auto rr = VoxlineLayout::eqResetBounds.toFloat();
         g.setColour(t.panelBg);
         g.fillRoundedRectangle(rr, 4.0f);
@@ -908,6 +945,7 @@ void VoxlineAudioProcessorEditor::resized()
     airSlider.setBounds(VoxlineLayout::eqAirBounds.withHeight(80).translated(0, 28));
     smoothSlider.setBounds(VoxlineLayout::eqLpfBounds.withHeight(80).translated(0, 28));
     toneTitleLabel.setBounds(VoxlineLayout::eqTitleBounds);
+    eqOnButton.setBounds(VoxlineLayout::eqOnToggleBounds);
 
     eqHpfButton.setBounds(VoxlineLayout::eqHpfBounds);
     eqLowButton.setBounds(VoxlineLayout::eqLowBounds);
@@ -1098,15 +1136,16 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
 
     // === Vocal EQ band buttons ===
     auto styleEqBand = [&](juce::TextButton& b, juce::Colour c) {
-        b.setColour(juce::TextButton::buttonColourId, c.withAlpha(dark ? 0.15f : 0.10f));
+        b.setColour(juce::TextButton::buttonColourId, c.withAlpha(dark ? 0.18f : 0.12f));
         b.setColour(juce::TextButton::textColourOffId, c);
+        b.setColour(juce::TextButton::buttonOnColourId, c.withAlpha(dark ? 0.35f : 0.22f));
     };
-    styleEqBand(eqHpfButton, theme.accentPurple);
+    styleEqBand(eqHpfButton, juce::Colour(dark ? 0xffA98CFF : 0xff8D70E8));
     styleEqBand(eqLowButton, juce::Colour(dark ? 0xff80b080 : 0xff60a060));
     styleEqBand(eqMudButton, juce::Colour(dark ? 0xffE6B45C : 0xffD8A548));
     styleEqBand(eqPresButton, juce::Colour(dark ? 0xffF2A766 : 0xffE99A5C));
-    styleEqBand(eqAirButton, theme.accentLavender);
-    styleEqBand(eqLpfButton, theme.accentPurple);
+    styleEqBand(eqAirButton,  juce::Colour(dark ? 0xff7BA4D8 : 0xff5B8EC0));
+    styleEqBand(eqLpfButton, juce::Colour(dark ? 0xff9D96A8 : 0xff7E7888));
     VoxlineAutoGainLNF::currentAutoGainTheme = index;
     presetDropdown.getProperties().set("themeIndex", index);
     presetDropdown.repaint();
@@ -1118,6 +1157,9 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     cleanModeButton.setColour(juce::ToggleButton::tickColourId, theme.accentLavender);
     listenButton.setColour(juce::ToggleButton::textColourId, theme.textSecondary);
     listenButton.setColour(juce::ToggleButton::tickColourId, theme.accentLavender);
+
+    eqOnButton.setColour(juce::ToggleButton::textColourId, dark ? juce::Colour(0xff9d99a8) : juce::Colour(0xff666666));
+    eqOnButton.setColour(juce::ToggleButton::tickColourId, theme.accentRose);
 
     // === Meters ===
     const auto meterWell = dark ? juce::Colour(0xff14121A) : juce::Colour(0xffD5CFC8);
@@ -1237,6 +1279,15 @@ void VoxlineAudioProcessorEditor::timerCallback()
 void VoxlineAudioProcessorEditor::buttonClicked(juce::Button* button)
 {
     if (button == &abButton)  toggleAb();
+
+    // EQ band button selection
+    if (button == &eqHpfButton) selectedEqBand = 0;
+    if (button == &eqLowButton) selectedEqBand = 1;
+    if (button == &eqMudButton) selectedEqBand = 2;
+    if (button == &eqPresButton) selectedEqBand = 3;
+    if (button == &eqAirButton) selectedEqBand = 4;
+    if (button == &eqLpfButton) selectedEqBand = 5;
+    repaint();
 }
 
 void VoxlineAudioProcessorEditor::comboBoxChanged(juce::ComboBox* comboBoxThatHasChanged)

@@ -36,6 +36,7 @@ public:
 
     void cycleTheme();
     int currentThemeIndex { 0 };
+    int selectedEqBand { 0 };  // 0=HPF 1=LOW 2=MUD 3=PRES 4=AIR 5=LPF
 
 private:
     using APVTS = juce::AudioProcessorValueTreeState;
@@ -131,6 +132,7 @@ private:
     juce::ToggleButton bypassButton;
     juce::ToggleButton cleanModeButton;
     juce::ToggleButton listenButton;
+    juce::ToggleButton eqOnButton;  // EQ bypass toggle
 
     VoxlineLevelMeter outputMeter;
     VoxlineLevelMeter gainReductionMeter;
