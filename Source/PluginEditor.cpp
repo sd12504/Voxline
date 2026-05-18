@@ -272,19 +272,22 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
 
     configureKnob(inputGainSlider);
     configureKnob(lowCutKnob);
+    lowCutKnob.setShowInternalLabel(false);
+    lowCutKnob.setShowInternalValue(false);
     lowCutKnob.setRange(40.0, 200.0, 1.0);
     lowCutKnob.setValue(80.0, juce::dontSendNotification);
-    lowCutKnob.textFromValueFunction = [](double v) { return juce::String(juce::roundToInt(v)) + " Hz"; };
 
     configureKnob(cleanKnob);
+    cleanKnob.setShowInternalLabel(false);
+    cleanKnob.setShowInternalValue(false);
     cleanKnob.setRange(0.0, 100.0, 1.0);
     cleanKnob.setValue(30.0, juce::dontSendNotification);
-    cleanKnob.textFromValueFunction = [](double v) { return juce::String(juce::roundToInt(v)) + "%"; };
 
     configureKnob(deEssKnob);
+    deEssKnob.setShowInternalLabel(false);
+    deEssKnob.setShowInternalValue(false);
     deEssKnob.setRange(0.0, 100.0, 1.0);
     deEssKnob.setValue(25.0, juce::dontSendNotification);
-    deEssKnob.textFromValueFunction = [](double v) { return juce::String(juce::roundToInt(v)) + "%"; };
     configureKnob(polishSlider);
     configureKnob(bodySlider);
     configureKnob(claritySlider);
@@ -443,6 +446,20 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
 
     // LED dots
     paintLedDots(g, VoxlineLayout::inputLedDotsBounds);
+
+    // Input panel knob labels (drawn externally because knobs are too small)
+    g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+    auto drawKnobLabel = [&](juce::Rectangle<int> r, const juce::String& label, const juce::String& value) {
+        g.setColour(t.textSecondary);
+        g.drawText(label, r.getX(), r.getY() - 36, r.getWidth(), 16, juce::Justification::centred, false);
+        g.setColour(t.textPrimary);
+        g.setFont(juce::FontOptions(11.0f));
+        g.drawText(value, r.getX(), r.getBottom() + 2, r.getWidth(), 18, juce::Justification::centred, false);
+        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+    };
+    drawKnobLabel(VoxlineLayout::lowCutKnobBounds, "LOW CUT", "80 Hz");
+    drawKnobLabel(VoxlineLayout::cleanKnobBounds, "CLEAN", "30%");
+    drawKnobLabel(VoxlineLayout::deEssKnobBounds, "DE-ESS", "25%");
 
     // Panel titles that don't have dedicated labels
     g.setColour(t.textPrimary);
