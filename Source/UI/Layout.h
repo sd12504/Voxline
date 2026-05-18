@@ -63,10 +63,8 @@ inline const juce::Rectangle<int> eqAirBounds { 368, 726, 72, 28 };
 inline const juce::Rectangle<int> eqLpfBounds { 448, 726, 72, 28 };
 
 // Selected band info
-inline const juce::Rectangle<int> eqBandLabelBounds { 48, 765, 160, 20 };
-inline const juce::Rectangle<int> eqFreqBounds  { 225, 762, 100, 24 };
-inline const juce::Rectangle<int> eqSlopeBounds { 345, 762, 108, 24 };
-inline const juce::Rectangle<int> eqResetBounds { 478, 765, 44, 22 };
+inline const juce::Rectangle<int> eqBandLabelBounds { 48, 765, 380, 20 };
+inline const juce::Rectangle<int> eqResetBounds { 440, 765, 60, 22 };
 
 // === Dynamics ===
 inline const juce::Rectangle<int> dynamicsPanel { 550, 530, 405, 350 };
