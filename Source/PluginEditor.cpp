@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include "UI/Layout.h"
+#include <cmath>
 
 // ---------------------------------------------------------------------------
 // Minimal LookAndFeel — hides ToggleButton tick box frame, text only
@@ -316,6 +317,12 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     configureKnob(claritySlider);
     configureKnob(airSlider);
     configureKnob(smoothSlider);
+
+    // Old EQ DSP knobs hidden — controlled by band buttons, values shown in selected-band panel
+    bodySlider.setVisible(false);
+    claritySlider.setVisible(false);
+    airSlider.setVisible(false);
+    smoothSlider.setVisible(false);
     configureKnob(compSlider);
     configureKnob(driveSlider);
     configureKnob(thresholdKnob);
@@ -634,39 +641,128 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
                    VoxlineLayout::outputGainValueBounds, juce::Justification::centred, false);
     }
 
-    // EQ curve display
+    // Vocal EQ curve display
     {
-        auto curveBounds = VoxlineLayout::eqCurveBounds.toFloat();
+        const auto cb = VoxlineLayout::eqCurveBounds.toFloat();
         const auto dark = (currentThemeIndex != 0);
-        g.setColour(dark ? juce::Colour(0xff1e1b2a) : juce::Colour(0xfff0eae0));
-        g.fillRoundedRectangle(curveBounds, 8.0f);
+        const auto& t = VoxlineTheme::get(currentThemeIndex);
+
+        // Background
+        g.setColour(dark ? juce::Colour(0xff12101A) : juce::Colour(0xffE8E2D8));
+        g.fillRoundedRectangle(cb, 8.0f);
         g.setColour(t.panelBorder);
-        g.drawRoundedRectangle(curveBounds, 8.0f, 1.0f);
-        // Frequency grid lines
-        g.setColour(t.panelBorder.withAlpha(0.4f));
-        for (int i = 0; i < 5; ++i)
-            g.drawVerticalLine(juce::roundToInt(curveBounds.getX() + curveBounds.getWidth() * (0.15f + 0.18f * i)),
-                               curveBounds.getY() + 12, curveBounds.getBottom() - 12);
-        g.drawHorizontalLine(juce::roundToInt(curveBounds.getCentreY()), curveBounds.getX() + 12, curveBounds.getRight() - 12);
-        // EQ curve
-        g.setColour(t.accentRose.withAlpha(0.5f));
-        juce::Path curve;
-        curve.startNewSubPath(curveBounds.getX() + 20, curveBounds.getCentreY() + 15);
-        curve.lineTo(curveBounds.getCentreX() - 40, curveBounds.getCentreY() + 5);
-        curve.lineTo(curveBounds.getCentreX(), curveBounds.getCentreY() - 8);
-        curve.lineTo(curveBounds.getCentreX() + 60, curveBounds.getCentreY() + 3);
-        curve.lineTo(curveBounds.getRight() - 20, curveBounds.getCentreY() + 10);
-        g.strokePath(curve, juce::PathStrokeType(2.0f));
-        // Band nodes
-        for (auto& pt : { juce::Point<float>(curveBounds.getX() + 60, curveBounds.getCentreY() + 10),
-                          juce::Point<float>(curveBounds.getCentreX() - 40, curveBounds.getCentreY() + 5),
-                          juce::Point<float>(curveBounds.getCentreX(), curveBounds.getCentreY() - 8),
-                          juce::Point<float>(curveBounds.getCentreX() + 60, curveBounds.getCentreY() + 3),
-                          juce::Point<float>(curveBounds.getRight() - 70, curveBounds.getCentreY() + 8) })
+        g.drawRoundedRectangle(cb.reduced(0.5f), 8.0f, 1.0f);
+
+        // Grid — frequency (log scale) and dB lines
+        const auto gridC = t.panelBorder.withAlpha(dark ? 0.25f : 0.35f);
+        g.setColour(gridC);
+        const float freqHz[] = { 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000 };
+        const float logMin = std::log10(20.0f), logMax = std::log10(20000.0f);
+        const float x0 = cb.getX() + 18, xW = cb.getWidth() - 36;
+        for (auto f : freqHz)
         {
-            g.setColour(t.accentRose);
-            g.fillEllipse(pt.x - 3, pt.y - 3, 6, 6);
+            const float x = x0 + xW * (std::log10(f) - logMin) / (logMax - logMin);
+            g.drawVerticalLine(juce::roundToInt(x), cb.getY() + 10, cb.getBottom() - 10);
         }
+        const float dbLevels[] = { 12, 6, 0, -6, -12 };
+        const float yMid = cb.getCentreY();
+        const float yScale = (cb.getHeight() - 24) / 24.0f;
+        for (auto db : dbLevels)
+        {
+            const float y = yMid - db * yScale;
+            g.drawHorizontalLine(juce::roundToInt(y), cb.getX() + 12, cb.getRight() - 12);
+        }
+
+        // 0 dB line slightly more visible
+        g.setColour(gridC.brighter(0.3f));
+        g.drawHorizontalLine(juce::roundToInt(yMid), cb.getX() + 12, cb.getRight() - 12);
+
+        // EQ curve — full composite response
+        juce::Path eqPath;
+        auto toX = [&](float hz) { return x0 + xW * (std::log10(juce::jlimit(20.0f, 20000.0f, hz)) - logMin) / (logMax - logMin); };
+        auto toY = [&](float db) { return yMid - db * yScale; };
+
+        // Sample curve across frequency range
+        const int steps = 120;
+        for (int i = 0; i <= steps; ++i)
+        {
+            const float frac = (float)i / (float)steps;
+            const float hz = 20.0f * std::pow(1000.0f, frac);
+            float resp = 0.0f;
+            // HPF 80 Hz, 24 dB/oct
+            if (hz < 80.0f) resp -= 24.0f * std::log2(80.0f / hz);
+            // LOW bell 200 Hz, +2 dB, Q 1.0
+            { const float w = hz / 200.0f; resp += 2.0f / (1.0f + (w - 1.0f/w) * (w - 1.0f/w)); }
+            // MUD cut 400 Hz, -3 dB, Q 1.5
+            { const float w = hz / 400.0f; resp -= 3.0f / (1.0f + ((w - 1.0f/w) / 1.5f) * ((w - 1.0f/w) / 1.5f)); }
+            // PRES boost 2.5 kHz, +3 dB, Q 1.2
+            { const float w = hz / 2500.0f; resp += 3.0f / (1.0f + ((w - 1.0f/w) / 1.2f) * ((w - 1.0f/w) / 1.2f)); }
+            // AIR shelf 10 kHz, +2 dB
+            { const float w = hz / 10000.0f; resp += 2.0f * (w * w / (w * w + 1.0f)); }
+            // LPF 18 kHz, 24 dB/oct
+            if (hz > 18000.0f) resp -= 24.0f * std::log2(hz / 18000.0f);
+
+            const float px = toX(hz);
+            const float py = toY(resp);
+            if (i == 0) eqPath.startNewSubPath(px, py);
+            else        eqPath.lineTo(px, py);
+        }
+
+        g.setColour(t.accentRose.withAlpha(0.7f));
+        g.strokePath(eqPath, juce::PathStrokeType(2.0f, juce::PathStrokeType::curved));
+
+        // Band nodes — colored dots at band centres
+        struct BandDot { float hz; float db; juce::Colour col; };
+        const BandDot dots[] = {
+            { 80.0f,   -3.0f, juce::Colour(dark ? 0xffA98CFF : 0xff8D70E8) },
+            { 200.0f,   2.0f, juce::Colour(dark ? 0xff80b080 : 0xff60a060) },
+            { 400.0f,  -3.0f, juce::Colour(dark ? 0xffE6B45C : 0xffD8A548) },
+            { 2500.0f,  3.0f, juce::Colour(dark ? 0xffF2A766 : 0xffE99A5C) },
+            { 10000.0f, 2.0f, juce::Colour(dark ? 0xffC7B7FF : 0xffB8A6F3) },
+            { 18000.0f,-3.0f, juce::Colour(dark ? 0xffA98CFF : 0xff8D70E8) },
+        };
+        for (auto& d : dots)
+        {
+            const auto cx = toX(d.hz), cy = toY(d.db);
+            g.setColour(d.col);
+            g.fillEllipse(cx - 4, cy - 4, 8, 8);
+        }
+
+        // Frequency labels
+        g.setColour(t.textMuted.withAlpha(0.6f));
+        g.setFont(juce::FontOptions(8.0f));
+        for (auto f : { 100, 1000, 10000 })
+        {
+            const float x = toX((float)f);
+            const juce::String label = (f >= 1000) ? juce::String(f / 1000) + "k" : juce::String(f);
+            g.drawText(label, juce::roundToInt(x - 15), juce::roundToInt(cb.getBottom() - 14), 30, 12, juce::Justification::centred, false);
+        }
+    }
+
+    // EQ band buttons — already styled by applyTheme, just repositioned
+
+    // Selected band info
+    {
+        const auto& t = VoxlineTheme::get(currentThemeIndex);
+
+        g.setColour(t.textPrimary);
+        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+        g.drawText("SELECTED: HPF", VoxlineLayout::eqBandLabelBounds, juce::Justification::centredLeft, false);
+
+        g.setColour(t.textSecondary);
+        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+        g.drawText("FREQ  80 Hz", VoxlineLayout::eqFreqBounds, juce::Justification::centred, false);
+        g.drawText("SLOPE  24 dB/oct", VoxlineLayout::eqSlopeBounds, juce::Justification::centred, false);
+
+        // Reset button
+        const auto rr = VoxlineLayout::eqResetBounds.toFloat();
+        g.setColour(t.panelBg);
+        g.fillRoundedRectangle(rr, 4.0f);
+        g.setColour(t.panelBorder);
+        g.drawRoundedRectangle(rr.reduced(0.5f), 4.0f, 1.0f);
+        g.setColour(t.textSecondary);
+        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+        g.drawText("RST", VoxlineLayout::eqResetBounds, juce::Justification::centred, false);
     }
 
     // Dynamics / Color panel

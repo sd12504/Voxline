@@ -52,13 +52,21 @@ inline const juce::Rectangle<int> outputGainValueBounds { 1280, 420, 100, 24 };
 // === Vocal EQ ===
 inline const juce::Rectangle<int> eqPanel { 20, 530, 520, 350 };
 inline const juce::Rectangle<int> eqTitleBounds { 48, 552, 464, 24 };
-inline const juce::Rectangle<int> eqCurveBounds { 48, 585, 465, 145 };
-inline const juce::Rectangle<int> eqHpfBounds { 48, 750, 72, 30 };
-inline const juce::Rectangle<int> eqLowBounds { 128, 750, 72, 30 };
-inline const juce::Rectangle<int> eqMudBounds { 208, 750, 72, 30 };
-inline const juce::Rectangle<int> eqPresBounds { 288, 750, 72, 30 };
-inline const juce::Rectangle<int> eqAirBounds { 368, 750, 72, 30 };
-inline const juce::Rectangle<int> eqLpfBounds { 448, 750, 72, 30 };
+inline const juce::Rectangle<int> eqCurveBounds { 48, 585, 465, 135 };
+
+// Band buttons
+inline const juce::Rectangle<int> eqHpfBounds { 48, 726, 72, 28 };
+inline const juce::Rectangle<int> eqLowBounds { 128, 726, 72, 28 };
+inline const juce::Rectangle<int> eqMudBounds { 208, 726, 72, 28 };
+inline const juce::Rectangle<int> eqPresBounds { 288, 726, 72, 28 };
+inline const juce::Rectangle<int> eqAirBounds { 368, 726, 72, 28 };
+inline const juce::Rectangle<int> eqLpfBounds { 448, 726, 72, 28 };
+
+// Selected band info
+inline const juce::Rectangle<int> eqBandLabelBounds { 48, 765, 160, 20 };
+inline const juce::Rectangle<int> eqFreqBounds  { 225, 762, 100, 24 };
+inline const juce::Rectangle<int> eqSlopeBounds { 345, 762, 108, 24 };
+inline const juce::Rectangle<int> eqResetBounds { 478, 765, 44, 22 };
 
 // === Dynamics ===
 inline const juce::Rectangle<int> dynamicsPanel { 550, 530, 405, 350 };
