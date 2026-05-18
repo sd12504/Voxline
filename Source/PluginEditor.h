@@ -114,6 +114,9 @@ private:
     VoxlineCustomKnob lowCutKnob { "LOW CUT", juce::Colour(0xffD86F96) };
     VoxlineCustomKnob cleanKnob { "CLEAN", juce::Colour(0xffE99A5C) };
     VoxlineCustomKnob deEssKnob { "DE-ESS", juce::Colour(0xffB8A6F3) };
+    VoxlineCustomKnob ratioKnob { "Ratio", juce::Colour(0xffD8A548) };
+    VoxlineCustomKnob attackKnob { "Attack", juce::Colour(0xff8D70E8) };
+    VoxlineCustomKnob releaseKnob { "Release", juce::Colour(0xffB8A6F3) };
 
     juce::ToggleButton autoGainButton;
     juce::ToggleButton bypassButton;

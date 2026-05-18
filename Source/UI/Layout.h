@@ -63,13 +63,35 @@ inline const juce::Rectangle<int> eqLpfBounds { 448, 750, 72, 30 };
 // === Dynamics ===
 inline const juce::Rectangle<int> dynamicsPanel { 550, 530, 405, 350 };
 inline const juce::Rectangle<int> dynamicsTitleBounds { 550, 552, 405, 24 };
-inline const juce::Rectangle<int> compKnobBounds { 595, 620, 80, 80 };
-inline const juce::Rectangle<int> compValueBounds { 607, 704, 70, 22 };
-inline const juce::Rectangle<int> grMeter2Bounds { 740, 620, 22, 110 };
-inline const juce::Rectangle<int> thresholdKnobBounds { 820, 620, 90, 90 };
-inline const juce::Rectangle<int> dynamicsDividerBounds { 590, 748, 330, 1 };
-inline const juce::Rectangle<int> driveKnobBounds { 865, 790, 72, 72 };
-inline const juce::Rectangle<int> softClip2Bounds { 690, 860, 110, 26 };
+
+// Row 1: COMP | GR meter | THRESHOLD
+inline const juce::Rectangle<int> compKnobBounds   { 580, 615, 70, 70 };
+inline const juce::Rectangle<int> compLabelBounds  { 580, 596, 70, 16 };
+inline const juce::Rectangle<int> compValueBounds  { 580, 688, 70, 16 };
+
+inline const juce::Rectangle<int> dynamicsGrMeterBounds { 732, 612, 22, 108 };
+inline const juce::Rectangle<int> dynamicsGrLabelBounds { 725, 724, 38, 14 };
+
+inline const juce::Rectangle<int> thresholdKnobBounds  { 850, 615, 70, 70 };
+inline const juce::Rectangle<int> thresholdLabelBounds { 840, 596, 90, 16 };
+inline const juce::Rectangle<int> thresholdValueBounds { 840, 688, 90, 16 };
+
+// Row 2: RATIO | ATTACK | RELEASE | DRIVE
+inline const juce::Rectangle<int> ratioKnobBounds   { 578, 775, 50, 50 };
+inline const juce::Rectangle<int> ratioLabelBounds  { 570, 758, 66, 14 };
+inline const juce::Rectangle<int> ratioValueBounds  { 570, 828, 66, 14 };
+
+inline const juce::Rectangle<int> attackKnobBounds  { 678, 775, 50, 50 };
+inline const juce::Rectangle<int> attackLabelBounds { 670, 758, 66, 14 };
+inline const juce::Rectangle<int> attackValueBounds { 670, 828, 66, 14 };
+
+inline const juce::Rectangle<int> releaseKnobBounds  { 778, 775, 50, 50 };
+inline const juce::Rectangle<int> releaseLabelBounds { 770, 758, 66, 14 };
+inline const juce::Rectangle<int> releaseValueBounds { 770, 828, 66, 14 };
+
+inline const juce::Rectangle<int> driveKnobBounds   { 878, 775, 50, 50 };
+inline const juce::Rectangle<int> driveLabelBounds  { 870, 758, 66, 14 };
+inline const juce::Rectangle<int> driveValueBounds  { 870, 828, 66, 14 };
 
 // === Space ===
 inline const juce::Rectangle<int> spacePanel { 965, 530, 415, 350 };
