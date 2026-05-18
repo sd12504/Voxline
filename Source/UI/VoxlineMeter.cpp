@@ -3,7 +3,9 @@
 VoxlineLevelMeter::VoxlineLevelMeter()
 {
     setRepaintsOnMouseActivity(false);
-    setOpaque(false);         // panel background shows through empty area
+    // Default colours (overridden by applyTheme) so early paints are visible
+    setColour(backgroundColour, juce::Colour(0xff1a1a1a));
+    setColour(foregroundColour, juce::Colour(0xff888888));
 }
 
 void VoxlineLevelMeter::paint(juce::Graphics& g)
