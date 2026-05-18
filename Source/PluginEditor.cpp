@@ -452,7 +452,6 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
     // Input panel upper section — split left/right
     g.setColour(t.textSecondary);
     g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
-    g.drawText("INPUT GAIN", 82, 168, 90, 18, juce::Justification::centred, false);
     g.drawText("AUTO GAIN", 293, 168, 100, 18, juce::Justification::centred, false);
 
     // Gain value
