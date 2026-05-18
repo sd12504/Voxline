@@ -236,6 +236,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     configureTextLabel(polishTitleLabel, "POLISH", juce::Justification::centred);
     configureTextLabel(outputTitleLabel, "OUTPUT", juce::Justification::centred);
     configureTextLabel(meterNamesLabel, "DYNAMICS / COLOR", juce::Justification::centred);
+    configureTextLabel(spaceTitleLabel, "SPACE", juce::Justification::centredLeft);
 
     // EQ band buttons
     auto addEqBand = [&](juce::TextButton& b, const juce::String& t) {
@@ -478,11 +479,6 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
     drawKnobLabel(VoxlineLayout::cleanKnobBounds, "CLEAN", "30%");
     drawKnobLabel(VoxlineLayout::deEssKnobBounds, "DE-ESS", "25%");
 
-    // Panel titles that don't have dedicated labels
-    g.setColour(t.textPrimary);
-    g.setFont(juce::FontOptions(15.0f, juce::Font::bold));
-    g.drawText("SPACE", VoxlineLayout::spaceTitleBounds, juce::Justification::centredLeft, false);
-
     // POLISH status + description
     {
         const auto val = polishSlider.getValue();
@@ -632,6 +628,7 @@ void VoxlineAudioProcessorEditor::resized()
     driveSlider.setBounds(VoxlineLayout::driveKnobBounds);
 
     // === SPACE ===
+    spaceTitleLabel.setBounds(VoxlineLayout::spaceTitleBounds);
     spaceTypeCombo.setBounds(VoxlineLayout::spaceTypeBounds);
     spaceSlider.setBounds(VoxlineLayout::spaceSliderBounds.withHeight(28).translated(0, 10));
     spaceAmountLabel.setBounds(VoxlineLayout::spaceValueBounds.translated(-10, 0));
@@ -644,7 +641,7 @@ void VoxlineAudioProcessorEditor::resized()
     preDelayLabel.setBounds(VoxlineLayout::spacePreDelayBounds);
     spaceHpfLabel.setBounds(VoxlineLayout::spaceHpfBounds);
     spaceLpfLabel.setBounds(VoxlineLayout::spaceLpfBounds);
-    monitorLabel.setBounds(995, 848, 120, 20);
+    monitorLabel.setBounds(VoxlineLayout::monitorTitleBounds);
 }
 
 // ---------------------------------------------------------------------------
@@ -723,10 +720,20 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     cleanKnob.setTheme(theme);
     deEssKnob.setTheme(theme);
 
-    // Labels — fonts sizes for output panel
+    // Labels — logo + subtitle
     logoLabel.setFont(juce::FontOptions(32.0f, juce::Font::bold));
     subtitleLabel.setFont(juce::FontOptions(13.0f));
-    meterNamesLabel.setFont(juce::FontOptions(11.0f));
+
+    // Panel titles — unified: 14px bold, subtle tracking, Text Primary
+    const auto titleFont = juce::Font(14.0f, juce::Font::bold).withExtraKerningFactor(0.06f);
+    inputTitleLabel.setFont(titleFont);
+    toneTitleLabel.setFont(titleFont);
+    polishTitleLabel.setFont(titleFont);
+    outputTitleLabel.setFont(titleFont);
+    meterNamesLabel.setFont(titleFont);
+    spaceTitleLabel.setFont(titleFont);
+    monitorLabel.setFont(titleFont);
+
     const auto setTextColour = [&](juce::Label& l) { l.setColour(juce::Label::textColourId, theme.textPrimary); };
     setTextColour(logoLabel);
     setTextColour(subtitleLabel);
@@ -735,6 +742,7 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     setTextColour(polishTitleLabel);
     setTextColour(outputTitleLabel);
     setTextColour(meterNamesLabel);
+    setTextColour(spaceTitleLabel);
     setTextColour(spaceAmountLabel);
     setTextColour(preDelayLabel);
     setTextColour(spaceHpfLabel);

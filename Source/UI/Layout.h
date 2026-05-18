@@ -18,7 +18,7 @@ inline const juce::Rectangle<int> settingsButtonBounds { 1320, 32, 42, 32 };
 
 // === Input / Clean ===
 inline const juce::Rectangle<int> inputPanel { 20, 105, 430, 415 };
-inline const juce::Rectangle<int> inputTitleBounds { 48, 122, 240, 26 };
+inline const juce::Rectangle<int> inputTitleBounds { 48, 127, 374, 24 };
 inline const juce::Rectangle<int> inputGainKnobBounds { 62, 205, 120, 120 };
 inline const juce::Rectangle<int> inputGainValueBounds { 70, 326, 110, 24 };
 inline const juce::Rectangle<int> autoGainToggleBounds { 310, 202, 72, 30 };
@@ -30,7 +30,7 @@ inline const juce::Rectangle<int> deEssKnobBounds { 323, 420, 78, 78 };
 
 // === POLISH ===
 inline const juce::Rectangle<int> polishPanel { 460, 105, 490, 415 };
-inline const juce::Rectangle<int> polishTitleBounds { 620, 128, 180, 42 };
+inline const juce::Rectangle<int> polishTitleBounds { 460, 127, 490, 24 };
 inline const juce::Rectangle<int> polishSliderBounds { 575, 170, 270, 270 };
 inline const juce::Rectangle<int> polishValueBounds { 610, 430, 200, 58 };
 inline const juce::Rectangle<int> polishStatusBounds { 635, 478, 150, 20 };
@@ -38,7 +38,7 @@ inline const juce::Rectangle<int> polishDescBounds { 550, 496, 300, 22 };
 
 // === Output ===
 inline const juce::Rectangle<int> outputPanel { 960, 105, 420, 415 };
-inline const juce::Rectangle<int> outputTitleBounds { 990, 122, 180, 26 };
+inline const juce::Rectangle<int> outputTitleBounds { 960, 127, 420, 24 };
 inline const juce::Rectangle<int> peakLabelBounds { 995, 210, 65, 20 };
 inline const juce::Rectangle<int> peakValueBounds { 995, 242, 120, 36 };
 inline const juce::Rectangle<int> rmsLabelBounds { 995, 322, 65, 20 };
@@ -51,7 +51,7 @@ inline const juce::Rectangle<int> outputGainValueBounds { 1280, 420, 100, 24 };
 
 // === Vocal EQ ===
 inline const juce::Rectangle<int> eqPanel { 20, 530, 520, 350 };
-inline const juce::Rectangle<int> eqTitleBounds { 48, 548, 180, 26 };
+inline const juce::Rectangle<int> eqTitleBounds { 48, 552, 464, 24 };
 inline const juce::Rectangle<int> eqCurveBounds { 48, 585, 465, 145 };
 inline const juce::Rectangle<int> eqHpfBounds { 48, 750, 72, 30 };
 inline const juce::Rectangle<int> eqLowBounds { 128, 750, 72, 30 };
@@ -62,7 +62,7 @@ inline const juce::Rectangle<int> eqLpfBounds { 448, 750, 72, 30 };
 
 // === Dynamics ===
 inline const juce::Rectangle<int> dynamicsPanel { 550, 530, 405, 350 };
-inline const juce::Rectangle<int> dynamicsTitleBounds { 660, 548, 240, 26 };
+inline const juce::Rectangle<int> dynamicsTitleBounds { 550, 552, 405, 24 };
 inline const juce::Rectangle<int> compKnobBounds { 595, 620, 80, 80 };
 inline const juce::Rectangle<int> compValueBounds { 607, 704, 70, 22 };
 inline const juce::Rectangle<int> grMeter2Bounds { 740, 620, 22, 110 };
@@ -73,7 +73,8 @@ inline const juce::Rectangle<int> softClip2Bounds { 690, 860, 110, 26 };
 
 // === Space ===
 inline const juce::Rectangle<int> spacePanel { 965, 530, 415, 350 };
-inline const juce::Rectangle<int> spaceTitleBounds { 995, 548, 150, 26 };
+inline const juce::Rectangle<int> spaceTitleBounds { 993, 552, 359, 24 };
+inline const juce::Rectangle<int> monitorTitleBounds { 993, 840, 359, 24 };
 inline const juce::Rectangle<int> spaceTypeBounds { 1100, 550, 210, 38 };
 inline const juce::Rectangle<int> spaceSliderBounds { 995, 650, 280, 20 };
 inline const juce::Rectangle<int> spaceValueBounds { 1280, 635, 60, 36 };

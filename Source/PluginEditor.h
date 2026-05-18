@@ -80,6 +80,7 @@ private:
     juce::Label polishTitleLabel;
     juce::Label outputTitleLabel;
     juce::Label meterNamesLabel;
+    juce::Label spaceTitleLabel;
 
     juce::ComboBox spaceTypeCombo;
     juce::Label spaceAmountLabel;
