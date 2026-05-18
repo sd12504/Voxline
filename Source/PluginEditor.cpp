@@ -499,6 +499,26 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         g.drawText("VOCAL FINISH MACRO", VoxlineLayout::polishDescBounds, juce::Justification::centred, false);
     }
 
+    // Output panel
+    {
+        const auto& t = VoxlineTheme::get(currentThemeIndex);
+        g.setColour(t.textSecondary);
+        g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+        g.drawText("PEAK", VoxlineLayout::peakLabelBounds, juce::Justification::centredLeft, false);
+        g.drawText("RMS", VoxlineLayout::rmsLabelBounds, juce::Justification::centredLeft, false);
+        g.setColour(t.textPrimary);
+        g.setFont(juce::FontOptions(16.0f, juce::Font::bold));
+        g.drawText("-60.0", VoxlineLayout::peakValueBounds, juce::Justification::centredLeft, false);
+        g.drawText("-60.0", VoxlineLayout::rmsValueBounds, juce::Justification::centredLeft, false);
+        g.setColour(t.textSecondary);
+        g.setFont(juce::FontOptions(10.0f));
+        g.drawText("OUT", VoxlineLayout::outMeterBounds.getX() - 4, VoxlineLayout::outMeterBounds.getBottom() + 2, 40, 14, juce::Justification::centred, false);
+        g.drawText("GR", VoxlineLayout::grMeterBounds.getX() - 4, VoxlineLayout::grMeterBounds.getBottom() + 2, 30, 14, juce::Justification::centred, false);
+        g.setColour(t.textSecondary);
+        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+        g.drawText("OUTPUT GAIN", VoxlineLayout::outputGainKnobBounds.getX() - 10, VoxlineLayout::outputGainKnobBounds.getY() - 20, 120, 16, juce::Justification::centred, false);
+    }
+
     // EQ curve display
     {
         auto curveBounds = VoxlineLayout::eqCurveBounds.toFloat();

@@ -13,9 +13,17 @@ void VoxlineLevelMeter::paint(juce::Graphics& g)
     const auto bg = findColour(backgroundColour);
     const auto fg = findColour(foregroundColour);
 
-    // Well
+    // Deep well background
     g.setColour(bg);
     g.fillRoundedRectangle(bounds, corner);
+
+    // Scale marks
+    g.setColour(bg.brighter(0.08f));
+    for (int i = 1; i < 6; ++i)
+    {
+        const auto y = juce::roundToInt(bounds.getBottom() - bounds.getHeight() * i / 6.0f);
+        g.drawHorizontalLine(y, bounds.getX() + 4, bounds.getRight() - 4);
+    }
 
     // Fill
     const auto fillHeight = bounds.getHeight() * juce::jlimit(0.0f, 1.0f, smoothed);
@@ -40,12 +48,12 @@ void VoxlineLevelMeter::paint(juce::Graphics& g)
     if (peakHold > 0.001f)
     {
         const auto peakY = bounds.getBottom() - bounds.getHeight() * peakHold;
-        g.setColour(fg.brighter(0.25f));
-        g.fillRect(bounds.getX(), peakY - 1.0f, bounds.getWidth(), 2.0f);
+        g.setColour(fg.brighter(0.4f));
+        g.fillRect(bounds.getX() + 2, peakY - 1.0f, bounds.getWidth() - 4, 2.0f);
     }
 
     // Border
-    g.setColour(juce::Colour(0x18FFFFFF));
+    g.setColour(findColour(backgroundColour).darker(0.3f));
     g.drawRoundedRectangle(bounds.reduced(0.5f), corner, 1.0f);
 }
 
