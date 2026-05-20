@@ -34,6 +34,10 @@ public:
     /** Resize the button to match image dimensions (call after setting images). */
     void resizeToImage();
 
+    /** When true, scale the PNG proportionally to fit button bounds.
+        When false (default), draw at original PNG size, centered. */
+    void setScaleToFit(bool shouldScale)   { scaleToFit = shouldScale; }
+
     //==============================================================================
     void paintButton(juce::Graphics& g, bool shouldDrawButtonAsHighlighted,
                      bool shouldDrawButtonAsDown) override;
@@ -50,6 +54,7 @@ private:
     juce::Image aDark, aLight;
     int themeIndex = 0;
     bool isThemed = false;
+    bool scaleToFit = false;
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(VoxlineImageButton)

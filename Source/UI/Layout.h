@@ -55,26 +55,26 @@ inline const juce::Rectangle<int> eqTitleBounds { 48, 552, 320, 24 };
 inline const juce::Rectangle<int> eqOnToggleBounds { 408, 546, 112, 44 };
 inline const juce::Rectangle<int> eqCurveBounds { 48, 585, 465, 148 };
 
-// Band buttons — two rows of 3, matching PNG size (96×40)
-inline const juce::Rectangle<int> eqHpfBounds { 48, 734, 96, 40 };
-inline const juce::Rectangle<int> eqLowBounds { 149, 734, 96, 40 };
-inline const juce::Rectangle<int> eqMudBounds { 250, 734, 96, 40 };
-inline const juce::Rectangle<int> eqPresBounds { 48, 779, 96, 40 };
-inline const juce::Rectangle<int> eqAirBounds { 149, 779, 96, 40 };
-inline const juce::Rectangle<int> eqLpfBounds { 250, 779, 96, 40 };
+// Band buttons — single row, scale-to-fit PNGs
+inline const juce::Rectangle<int> eqHpfBounds { 48, 738, 72, 28 };
+inline const juce::Rectangle<int> eqLowBounds { 125, 738, 72, 28 };
+inline const juce::Rectangle<int> eqMudBounds { 202, 738, 72, 28 };
+inline const juce::Rectangle<int> eqPresBounds { 279, 738, 72, 28 };
+inline const juce::Rectangle<int> eqAirBounds { 356, 738, 72, 28 };
+inline const juce::Rectangle<int> eqLpfBounds { 433, 738, 72, 28 };
 
 // Selected band controls
-inline const juce::Rectangle<int> eqSelBandBtnBounds   { 48, 825, 120, 34 };
+inline const juce::Rectangle<int> eqSelBandBtnBounds   { 48, 818, 120, 34 };
 
-inline const juce::Rectangle<int> eqFreqKnobBounds    { 249, 814, 48, 48 };
-inline const juce::Rectangle<int> eqFreqLabelBounds   { 228, 794, 90, 14 };
-inline const juce::Rectangle<int> eqFreqValueBounds   { 228, 866, 90, 16 };
+inline const juce::Rectangle<int> eqFreqKnobBounds    { 249, 804, 48, 48 };
+inline const juce::Rectangle<int> eqFreqLabelBounds   { 228, 784, 90, 14 };
+inline const juce::Rectangle<int> eqFreqValueBounds   { 228, 856, 90, 16 };
 
-inline const juce::Rectangle<int> eqGainKnobBounds    { 321, 814, 48, 48 };
-inline const juce::Rectangle<int> eqGainLabelBounds   { 290, 794, 110, 14 };
-inline const juce::Rectangle<int> eqGainValueBounds   { 290, 866, 110, 16 };
+inline const juce::Rectangle<int> eqGainKnobBounds    { 321, 804, 48, 48 };
+inline const juce::Rectangle<int> eqGainLabelBounds   { 290, 784, 110, 14 };
+inline const juce::Rectangle<int> eqGainValueBounds   { 290, 856, 110, 16 };
 
-inline const juce::Rectangle<int> eqResetBounds       { 393, 830, 120, 34 };
+inline const juce::Rectangle<int> eqResetBounds       { 393, 822, 120, 34 };
 
 // === Dynamics ===
 inline const juce::Rectangle<int> dynamicsPanel { 550, 530, 405, 350 };

@@ -44,10 +44,19 @@ void VoxlineImageButton::paintButton(juce::Graphics& g,
     if (! img.isValid())
         return;
 
-    // Center the image at its original pixel size — no scaling
-    const auto bx = (getWidth()  - img.getWidth())  / 2;
-    const auto by = (getHeight() - img.getHeight()) / 2;
-    g.drawImageAt(img, bx, by);
+    if (scaleToFit)
+    {
+        // Scale proportionally to fit button bounds
+        g.drawImageWithin(img, 0, 0, getWidth(), getHeight(),
+                          juce::RectanglePlacement::centred);
+    }
+    else
+    {
+        // Center the image at its original pixel size
+        const auto bx = (getWidth()  - img.getWidth())  / 2;
+        const auto by = (getHeight() - img.getHeight()) / 2;
+        g.drawImageAt(img, bx, by);
+    }
 }
 
 //==============================================================================

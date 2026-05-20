@@ -246,6 +246,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     {
         b.setNormalImage(juce::ImageCache::getFromMemory(normData, normSize));
         b.setActiveImage(juce::ImageCache::getFromMemory(actData,  actSize));
+        b.setScaleToFit(true);
         b.setClickingTogglesState(false);
         b.addListener(this);
         addAndMakeVisible(b);
