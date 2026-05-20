@@ -55,6 +55,8 @@ target_sources(VOXLINE
         Source/UI/CustomKnob.h
         Source/UI/HeroKnob.cpp
         Source/UI/HeroKnob.h
+        Source/UI/ImageButton.cpp
+        Source/UI/ImageButton.h
         Source/UI/Layout.h
         Source/UI/Theme.cpp
         Source/UI/Theme.h
