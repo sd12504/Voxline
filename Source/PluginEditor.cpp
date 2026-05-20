@@ -239,21 +239,30 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     configureTextLabel(meterNamesLabel, "DYNAMICS / COLOR", juce::Justification::centred);
     configureTextLabel(spaceTitleLabel, "SPACE", juce::Justification::centredLeft);
 
-    // EQ band buttons
-    auto addEqBand = [&](juce::TextButton& b, const juce::String& t) {
-        b.setButtonText(t);
-        b.setEnabled(true);
+    // EQ band buttons — single-theme PNG, radio behavior (handled in buttonClicked)
+    auto setupEqBand = [&](VoxlineImageButton& b,
+                            const char* normData, int normSize,
+                            const char* actData,  int actSize)
+    {
+        b.setNormalImage(juce::ImageCache::getFromMemory(normData, normSize));
+        b.setActiveImage(juce::ImageCache::getFromMemory(actData,  actSize));
+        b.setClickingTogglesState(false);
+        b.addListener(this);
         addAndMakeVisible(b);
     };
-    addEqBand(eqHpfButton, "HPF");
-    addEqBand(eqLowButton, "LOW");
-    addEqBand(eqMudButton, "MUD");
-    addEqBand(eqPresButton, "PRES");
-    addEqBand(eqAirButton, "AIR");
-    addEqBand(eqLpfButton, "LPF");
-
-    // EQ band button highlights — LOW active by default
-    eqLowButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xffa0c0a0).withAlpha(0.25f));
+    setupEqBand(eqHpfButton, BinaryData::hpf_normal_png,  BinaryData::hpf_normal_pngSize,
+                               BinaryData::hpf_active_png, BinaryData::hpf_active_pngSize);
+    setupEqBand(eqLowButton, BinaryData::low_normal_png,  BinaryData::low_normal_pngSize,
+                               BinaryData::low_active_png, BinaryData::low_active_pngSize);
+    setupEqBand(eqMudButton, BinaryData::mud_normal_png,  BinaryData::mud_normal_pngSize,
+                               BinaryData::mud_active_png, BinaryData::mud_active_pngSize);
+    setupEqBand(eqPresButton, BinaryData::pres_normal_png, BinaryData::pres_normal_pngSize,
+                                BinaryData::pres_active_png, BinaryData::pres_active_pngSize);
+    setupEqBand(eqAirButton, BinaryData::air_normal_png,  BinaryData::air_normal_pngSize,
+                               BinaryData::air_active_png, BinaryData::air_active_pngSize);
+    setupEqBand(eqLpfButton, BinaryData::lpf_normal_png,  BinaryData::lpf_normal_pngSize,
+                               BinaryData::lpf_active_png, BinaryData::lpf_active_pngSize);
+    eqLowButton.setToggleState(true, juce::dontSendNotification);  // LOW active by default
 
     // Placeholder controls (UI only, no DSP yet)
     configureTextLabel(thresholdLabel, "", juce::Justification::centred);  // text now drawn in paint()
@@ -386,20 +395,45 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
 
 
 
-    configureButton(bypassButton, " BYPASS");
-    bypassButton.setLookAndFeel(&voxlineToggleLNF);
+    // Bypass — theme-aware image button
+    addAndMakeVisible(bypassButton);
+    bypassButton.setThemeImages(
+        juce::ImageCache::getFromMemory(BinaryData::bypass_normal_dark_png,  BinaryData::bypass_normal_dark_pngSize),
+        juce::ImageCache::getFromMemory(BinaryData::bypass_normal_light_png, BinaryData::bypass_normal_light_pngSize),
+        juce::ImageCache::getFromMemory(BinaryData::bypass_active_dark_png,  BinaryData::bypass_active_dark_pngSize),
+        juce::ImageCache::getFromMemory(BinaryData::bypass_active_light_png, BinaryData::bypass_active_light_pngSize)
+    );
+    bypassButton.setThemeIndex(0);
+    bypassButton.addListener(this);
+
+    // Listen — theme-aware image button
+    addAndMakeVisible(listenButton);
+    listenButton.setThemeImages(
+        juce::ImageCache::getFromMemory(BinaryData::listen_normal_dark_png,  BinaryData::listen_normal_dark_pngSize),
+        juce::ImageCache::getFromMemory(BinaryData::listen_normal_light_png, BinaryData::listen_normal_light_pngSize),
+        juce::ImageCache::getFromMemory(BinaryData::listen_active_dark_png,  BinaryData::listen_active_dark_pngSize),
+        juce::ImageCache::getFromMemory(BinaryData::listen_active_light_png, BinaryData::listen_active_light_pngSize)
+    );
+    listenButton.setThemeIndex(0);
+    listenButton.addListener(this);
+
+    // EQ On/Off — theme-aware image button
+    addAndMakeVisible(eqOnButton);
+    eqOnButton.setThemeImages(
+        juce::ImageCache::getFromMemory(BinaryData::on_normal_dark_png,  BinaryData::on_normal_dark_pngSize),
+        juce::ImageCache::getFromMemory(BinaryData::on_normal_light_png, BinaryData::on_normal_light_pngSize),
+        juce::ImageCache::getFromMemory(BinaryData::on_active_dark_png,  BinaryData::on_active_dark_pngSize),
+        juce::ImageCache::getFromMemory(BinaryData::on_active_light_png, BinaryData::on_active_light_pngSize)
+    );
+    eqOnButton.setThemeIndex(0);
+    eqOnButton.setToggleState(true, juce::dontSendNotification);
+    eqOnButton.addListener(this);
+
+    // Auto-gain / Clean — remain ToggleButtons (no PNG assets yet)
     configureButton(autoGainButton, "ON");
     autoGainButton.setLookAndFeel(&voxlineAutoGainLNF);
     configureButton(cleanModeButton, "Clean");
     cleanModeButton.setLookAndFeel(&voxlineToggleLNF);
-    configureButton(listenButton, "  Listen");
-    listenButton.setLookAndFeel(&voxlineToggleLNF);
-    // Listen mode: difference monitor (solo wet signal) — standard audition behavior
-
-    configureButton(eqOnButton, "ON");
-    eqOnButton.setLookAndFeel(&voxlineToggleLNF);
-    eqOnButton.setToggleState(true, juce::dontSendNotification);
-    eqOnButton.addListener(this);
 
     // EQ band knobs
     configureKnob(eqFreqKnob);
@@ -482,8 +516,6 @@ VoxlineAudioProcessorEditor::~VoxlineAudioProcessorEditor()
     audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::spaceAmount, this);
     audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::spaceType, this);
     removeKeyListener(this);
-    bypassButton.setLookAndFeel(nullptr);
-    listenButton.setLookAndFeel(nullptr);
     autoGainButton.setLookAndFeel(nullptr);
     presetDropdown.removeListener(this);
     presetDropdown.setLookAndFeel(nullptr);
@@ -1123,11 +1155,9 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     footerLabel.setFont(juce::FontOptions(10.0f));
     footerLabel.setColour(juce::Label::textColourId, theme.textMuted.withAlpha(0.5f));
 
-    // === Header ===
-    // Bypass text colour (checkbox hidden by LookAndFeel)
-    bypassButton.setColour(juce::ToggleButton::textColourId, theme.textPrimary);
-    bypassButton.setColour(juce::ToggleButton::textColourId, theme.textPrimary);
-    bypassButton.setColour(juce::ToggleButton::tickColourId, theme.accentRose);
+    // === Header — theme-aware image buttons ===
+    bypassButton.setThemeIndex(index);
+    listenButton.setThemeIndex(index);
 
     // === Bottom bar utility buttons ===
     const auto inactiveBg = dark ? juce::Colour(0xff1e1b2a) : juce::Colour(0xfffaf7f2);
@@ -1150,18 +1180,7 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     // === Preset dropdown ===
     VoxlinePresetDropdownLNF::currentDropdownTheme = index;
 
-    // === Vocal EQ band buttons ===
-    auto styleEqBand = [&](juce::TextButton& b, juce::Colour c) {
-        b.setColour(juce::TextButton::buttonColourId, c.withAlpha(dark ? 0.18f : 0.12f));
-        b.setColour(juce::TextButton::textColourOffId, c);
-        b.setColour(juce::TextButton::buttonOnColourId, c.withAlpha(dark ? 0.35f : 0.22f));
-    };
-    styleEqBand(eqHpfButton, juce::Colour(dark ? 0xffA98CFF : 0xff8D70E8));
-    styleEqBand(eqLowButton, juce::Colour(dark ? 0xff80b080 : 0xff60a060));
-    styleEqBand(eqMudButton, juce::Colour(dark ? 0xffE6B45C : 0xffD8A548));
-    styleEqBand(eqPresButton, juce::Colour(dark ? 0xffF2A766 : 0xffE99A5C));
-    styleEqBand(eqAirButton,  juce::Colour(dark ? 0xff7BA4D8 : 0xff5B8EC0));
-    styleEqBand(eqLpfButton, juce::Colour(dark ? 0xff9D96A8 : 0xff7E7888));
+    // === Vocal EQ band buttons (single-theme PNGs, no theme update needed) ===
     VoxlineAutoGainLNF::currentAutoGainTheme = index;
     presetDropdown.getProperties().set("themeIndex", index);
     presetDropdown.repaint();
@@ -1171,11 +1190,8 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
         dark ? juce::Colour(0xff9d99a8) : juce::Colour(0xff666666));
     cleanModeButton.setColour(juce::ToggleButton::textColourId, theme.textSecondary);
     cleanModeButton.setColour(juce::ToggleButton::tickColourId, theme.accentLavender);
-    listenButton.setColour(juce::ToggleButton::textColourId, theme.textSecondary);
-    listenButton.setColour(juce::ToggleButton::tickColourId, theme.accentLavender);
-
-    eqOnButton.setColour(juce::ToggleButton::textColourId, dark ? juce::Colour(0xff9d99a8) : juce::Colour(0xff666666));
-    eqOnButton.setColour(juce::ToggleButton::tickColourId, theme.accentRose);
+    // listen / eqOn — VoxlineImageButton (theme-aware), already updated via setThemeIndex above
+    eqOnButton.setThemeIndex(index);
 
     // === Meters ===
     const auto meterWell = dark ? juce::Colour(0xff14121A) : juce::Colour(0xffD5CFC8);
@@ -1294,18 +1310,23 @@ void VoxlineAudioProcessorEditor::timerCallback()
 // ---------------------------------------------------------------------------
 void VoxlineAudioProcessorEditor::buttonClicked(juce::Button* button)
 {
-    if (button == &abButton)  toggleAb();
+    if (button == &abButton) { toggleAb(); return; }
 
-    // EQ band button selection
-    if (button == &eqHpfButton) selectedEqBand = 0;
-    if (button == &eqLowButton) selectedEqBand = 1;
-    if (button == &eqMudButton) selectedEqBand = 2;
-    if (button == &eqPresButton) selectedEqBand = 3;
-    if (button == &eqAirButton) selectedEqBand = 4;
-    if (button == &eqLpfButton) selectedEqBand = 5;
-
-    syncEQKnobsToSelectedBand();
-    repaint();
+    // EQ band button selection — radio behavior
+    VoxlineImageButton* bandBtns[] = { &eqHpfButton, &eqLowButton, &eqMudButton,
+                                       &eqPresButton, &eqAirButton, &eqLpfButton };
+    for (int i = 0; i < 6; ++i)
+    {
+        if (button == bandBtns[i])
+        {
+            selectedEqBand = i;
+            for (int j = 0; j < 6; ++j)
+                bandBtns[j]->setToggleState(j == i, juce::dontSendNotification);
+            syncEQKnobsToSelectedBand();
+            repaint();
+            return;
+        }
+    }
 }
 
 void VoxlineAudioProcessorEditor::comboBoxChanged(juce::ComboBox* comboBoxThatHasChanged)

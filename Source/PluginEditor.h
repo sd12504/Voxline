@@ -4,6 +4,7 @@
 #include "UI/Assets.h"
 #include "UI/CustomKnob.h"
 #include "UI/HeroKnob.h"
+#include "UI/ImageButton.h"
 #include "UI/Theme.h"
 #include "UI/VoxlineMeter.h"
 
@@ -91,13 +92,13 @@ private:
     juce::Slider spaceSlider;
     juce::Label footerLabel;
 
-    // EQ band buttons
-    juce::TextButton eqHpfButton;
-    juce::TextButton eqLowButton;
-    juce::TextButton eqMudButton;
-    juce::TextButton eqPresButton;
-    juce::TextButton eqAirButton;
-    juce::TextButton eqLpfButton;
+    // EQ band buttons (VoxlineImageButton, single-theme)
+    VoxlineImageButton eqHpfButton { "HPF" };
+    VoxlineImageButton eqLowButton { "LOW" };
+    VoxlineImageButton eqMudButton { "MUD" };
+    VoxlineImageButton eqPresButton { "PRES" };
+    VoxlineImageButton eqAirButton { "AIR" };
+    VoxlineImageButton eqLpfButton { "LPF" };
 
     // Placeholder labels for future controls
     juce::Label thresholdLabel, preDelayLabel, spaceHpfLabel, spaceLpfLabel;
@@ -135,10 +136,10 @@ private:
     VoxlineCustomKnob eqGainKnob { "GAIN", juce::Colour(0xffD8A548) };
 
     juce::ToggleButton autoGainButton;
-    juce::ToggleButton bypassButton;
+    VoxlineImageButton   bypassButton { "Bypass" };
     juce::ToggleButton cleanModeButton;
-    juce::ToggleButton listenButton;
-    juce::ToggleButton eqOnButton;  // EQ bypass toggle
+    VoxlineImageButton   listenButton { "Listen" };
+    VoxlineImageButton   eqOnButton { "EQ On" };  // EQ bypass toggle
 
     VoxlineLevelMeter outputMeter;
     VoxlineLevelMeter gainReductionMeter;
