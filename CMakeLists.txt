@@ -64,6 +64,7 @@ target_sources(VOXLINE
 
 juce_add_binary_data(VOXLINEAssets
     SOURCES
+        # SVG icons
         Source/UI/Assets/svg/voxline_logo_mark_light.svg
         Source/UI/Assets/svg/voxline_logo_mark_dark.svg
         Source/UI/Assets/svg/settings_light.svg
@@ -78,6 +79,32 @@ juce_add_binary_data(VOXLINEAssets
         Source/UI/Assets/svg/soft_radial_glow_dark.svg
         Source/UI/Assets/svg/moon.svg
         Source/UI/Assets/svg/sun.svg
+        # Button PNGs — theme-aware (dark/light)
+        Source/UI/Assets/buttons/bypass_normal_dark.png
+        Source/UI/Assets/buttons/bypass_normal_light.png
+        Source/UI/Assets/buttons/bypass_active_dark.png
+        Source/UI/Assets/buttons/bypass_active_light.png
+        Source/UI/Assets/buttons/listen_normal_dark.png
+        Source/UI/Assets/buttons/listen_normal_light.png
+        Source/UI/Assets/buttons/listen_active_dark.png
+        Source/UI/Assets/buttons/listen_active_light.png
+        Source/UI/Assets/buttons/on_normal_dark.png
+        Source/UI/Assets/buttons/on_normal_light.png
+        Source/UI/Assets/buttons/on_active_dark.png
+        Source/UI/Assets/buttons/on_active_light.png
+        # Button PNGs — single-theme
+        Source/UI/Assets/buttons/hpf_normal.png
+        Source/UI/Assets/buttons/hpf_active.png
+        Source/UI/Assets/buttons/low_normal.png
+        Source/UI/Assets/buttons/low_active.png
+        Source/UI/Assets/buttons/mud_normal.png
+        Source/UI/Assets/buttons/mud_active.png
+        Source/UI/Assets/buttons/pres_normal.png
+        Source/UI/Assets/buttons/pres_active.png
+        Source/UI/Assets/buttons/air_normal.png
+        Source/UI/Assets/buttons/air_active.png
+        Source/UI/Assets/buttons/lpf_normal.png
+        Source/UI/Assets/buttons/lpf_active.png
 )
 
 juce_generate_juce_header(VOXLINE)
