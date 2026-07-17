@@ -134,6 +134,22 @@ float stereoEnergyInRange(const StereoRender& render,
     return static_cast<float>(energy);
 }
 
+float stereoPeak(const StereoRender& render,
+                 int startSample = 0)
+{
+    float peak {};
+    const auto boundedStart =
+        juce::jlimit(0, static_cast<int>(render.left.size()), startSample);
+    for (auto sample = boundedStart;
+         sample < static_cast<int>(render.left.size());
+         ++sample)
+        peak = juce::jmax(
+            peak,
+            std::abs(render.left[static_cast<size_t>(sample)]),
+            std::abs(render.right[static_cast<size_t>(sample)]));
+    return peak;
+}
+
 float renderWidthSideRms(double renderSampleRate,
                          int renderBlockSize,
                          float tone)
@@ -730,6 +746,105 @@ public:
             expect(responsePeak > 1.0e-5f);
             expect(postReportPeak <= responsePeak * 0.001f,
                    "No Plate energy above -60 dB may remain after tailSeconds()");
+        }
+
+        beginTest("Width tail report includes dark Tone filter settling");
+        {
+            SpaceSettings settings;
+            settings.amount = 1.0f;
+            settings.mode = SpaceMode::width;
+            settings.sizeOrTime = 0.0f;
+            settings.tone = -1.0f;
+            settings.width = 2.0f;
+            settings.ducking = 0.0f;
+
+            VocalSpace space;
+            space.prepare({sampleRate, blockSize, 2});
+            space.setTargetSettings(settings);
+            const auto reportedTail = space.tailSeconds();
+            const auto totalSamples =
+                juce::roundToInt(sampleRate * (reportedTail + 0.05));
+            const auto wet =
+                renderStereoImpulse(sampleRate, blockSize, SpaceMode::width,
+                                    settings, totalSamples);
+            const auto responsePeak = stereoPeak(wet);
+            const auto firstSampleAfterReport =
+                juce::roundToInt(sampleRate * reportedTail) + 1;
+            const auto postReportPeak =
+                stereoPeak(wet, firstSampleAfterReport);
+
+            expect(responsePeak > 1.0e-5f);
+            expect(postReportPeak <= responsePeak * 0.001f,
+                   "Width Tone energy above -60 dB must not outlive tailSeconds()");
+        }
+
+        beginTest("Slap tail report includes dark Tone filter settling");
+        {
+            SpaceSettings settings;
+            settings.amount = 1.0f;
+            settings.mode = SpaceMode::slap;
+            settings.preDelayMs = 20.0f;
+            settings.feedback = 0.0f;
+            settings.tone = -1.0f;
+            settings.width = 0.0f;
+            settings.ducking = 0.0f;
+
+            VocalSpace space;
+            space.prepare({sampleRate, blockSize, 2});
+            space.setTargetSettings(settings);
+            const auto reportedTail = space.tailSeconds();
+            const auto totalSamples =
+                juce::roundToInt(sampleRate * (reportedTail + 0.05));
+            const auto wet =
+                renderStereoImpulse(sampleRate, blockSize, SpaceMode::slap,
+                                    settings, totalSamples);
+            const auto responsePeak = stereoPeak(wet);
+            const auto firstSampleAfterReport =
+                juce::roundToInt(sampleRate * reportedTail) + 1;
+            const auto postReportPeak =
+                stereoPeak(wet, firstSampleAfterReport);
+
+            expect(responsePeak > 1.0e-5f);
+            expect(postReportPeak <= responsePeak * 0.001f,
+                   "Slap Tone energy above -60 dB must not outlive tailSeconds()");
+        }
+
+        beginTest("Tail report covers the remaining mode crossfade");
+        {
+            VocalSpace space;
+            space.prepare({sampleRate, blockSize, 2});
+
+            SpaceSettings settings;
+            settings.amount = 1.0f;
+            settings.mode = SpaceMode::room;
+            settings.preDelayMs = 0.0f;
+            settings.sizeOrTime = 0.0f;
+            settings.decaySeconds = 0.1f;
+            settings.ducking = 0.0f;
+            space.setTargetSettings(settings);
+
+            juce::AudioBuffer<float> audio(2, 1);
+            juce::AudioBuffer<float> sidechain(2, 1);
+            audio.clear();
+            sidechain.clear();
+            space.process(audio, sidechain);
+
+            settings.mode = SpaceMode::width;
+            space.setTargetSettings(settings);
+            audio.clear();
+            space.process(audio, sidechain);
+            expect(space.tailSeconds() >= 0.029,
+                   "Transition start must report the old engine's remaining fade");
+
+            const auto midpointSamples =
+                juce::roundToInt(sampleRate * 0.015);
+            juce::AudioBuffer<float> midpointAudio(2, midpointSamples);
+            juce::AudioBuffer<float> midpointSidechain(2, midpointSamples);
+            midpointAudio.clear();
+            midpointSidechain.clear();
+            space.process(midpointAudio, midpointSidechain);
+            expect(space.tailSeconds() >= 0.014,
+                   "Transition midpoint must report the remaining fade");
         }
 
         beginTest("Mode transition lasts thirty milliseconds");

@@ -75,6 +75,18 @@ float onePoleCoefficient(double sampleRate, float cutoffHz) noexcept
                  * safeCutoff / sampleRate));
 }
 
+double onePoleTailSeconds(double sampleRate, float cutoffHz) noexcept
+{
+    const auto coefficient = onePoleCoefficient(sampleRate, cutoffHz);
+    if (coefficient <= 0.0f || coefficient >= 1.0f)
+        return 0.0;
+
+    const auto samplesToMinus60 =
+        std::ceil(std::log(0.001)
+                  / std::log(static_cast<double>(coefficient)));
+    return samplesToMinus60 / sampleRate;
+}
+
 float toneCutoff(float tone,
                  float darkHz,
                  float brightHz) noexcept
@@ -840,57 +852,97 @@ void VocalSpace::process(
 
 double VocalSpace::tailSeconds() const noexcept
 {
-    switch (targetSettings.mode)
+    const auto modeTail =
+        [this] (SpaceMode mode,
+                const SpaceSettings& settings) noexcept -> double
     {
-        case SpaceMode::room:
+        switch (mode)
         {
-            const auto diffuserSizeScale =
-                0.8f + 0.4f * targetSettings.sizeOrTime;
-            return static_cast<double>(targetSettings.preDelayMs) * 0.001
-                 + 0.75 * static_cast<double>(targetSettings.decaySeconds)
-                 + diffuserTailSeconds(
-                       roomDiffuserLeftMs,
-                       roomDiffuserRightMs,
-                       diffuserSizeScale,
-                       roomDiffuserFeedback);
+            case SpaceMode::room:
+            {
+                const auto diffuserSizeScale =
+                    0.8f + 0.4f * settings.sizeOrTime;
+                return static_cast<double>(settings.preDelayMs) * 0.001
+                     + 0.75 * static_cast<double>(settings.decaySeconds)
+                     + diffuserTailSeconds(
+                           roomDiffuserLeftMs,
+                           roomDiffuserRightMs,
+                           diffuserSizeScale,
+                           roomDiffuserFeedback);
+            }
+            case SpaceMode::plate:
+            {
+                const auto diffuserSizeScale =
+                    0.75f + 0.5f * settings.sizeOrTime;
+                return static_cast<double>(settings.preDelayMs) * 0.001
+                     + static_cast<double>(settings.decaySeconds)
+                     + diffuserTailSeconds(
+                           plateDiffuserLeftMs,
+                           plateDiffuserRightMs,
+                           diffuserSizeScale,
+                           plateDiffuserFeedback,
+                           plateDiffuserModulationMs);
+            }
+            case SpaceMode::hall:
+                return static_cast<double>(settings.preDelayMs) * 0.001
+                     + 1.5 * static_cast<double>(settings.decaySeconds);
+            case SpaceMode::slap:
+            {
+                const auto repeatSeconds =
+                    static_cast<double>(settings.preDelayMs) * 0.001;
+                const auto spreadSeconds =
+                    0.009 * static_cast<double>(settings.width);
+                auto repeatTail = repeatSeconds + spreadSeconds;
+                if (settings.feedback > 0.0f)
+                {
+                    const auto repeats =
+                        std::log(0.001)
+                        / std::log(static_cast<double>(settings.feedback));
+                    repeatTail *= juce::jmax(1.0, repeats);
+                }
+
+                const auto cutoff =
+                    toneCutoff(settings.tone, 900.0f, 14000.0f);
+                return repeatTail
+                     + onePoleTailSeconds(moduleSpec.sampleRate, cutoff);
+            }
+            case SpaceMode::width:
+            {
+                const auto delayTail =
+                    0.005
+                    + 0.030
+                      * static_cast<double>(settings.sizeOrTime);
+                const auto cutoff =
+                    toneCutoff(settings.tone, 900.0f, 18000.0f);
+                return delayTail
+                     + onePoleTailSeconds(moduleSpec.sampleRate, cutoff);
+            }
         }
-        case SpaceMode::plate:
-        {
-            const auto diffuserSizeScale =
-                0.75f + 0.5f * targetSettings.sizeOrTime;
-            return static_cast<double>(targetSettings.preDelayMs) * 0.001
-                 + static_cast<double>(targetSettings.decaySeconds)
-                 + diffuserTailSeconds(
-                       plateDiffuserLeftMs,
-                       plateDiffuserRightMs,
-                       diffuserSizeScale,
-                       plateDiffuserFeedback,
-                       plateDiffuserModulationMs);
-        }
-        case SpaceMode::hall:
-            return static_cast<double>(targetSettings.preDelayMs) * 0.001
-                 + 1.5 * static_cast<double>(targetSettings.decaySeconds);
-        case SpaceMode::slap:
-        {
-            const auto repeatSeconds =
-                static_cast<double>(targetSettings.preDelayMs) * 0.001;
-            const auto spreadSeconds =
-                0.009 * static_cast<double>(targetSettings.width);
-            if (targetSettings.feedback <= 0.0f)
-                return repeatSeconds + spreadSeconds;
-            const auto repeats =
-                std::log(0.001)
-                / std::log(static_cast<double>(
-                      targetSettings.feedback));
-            return (repeatSeconds + spreadSeconds)
-                 * juce::jmax(1.0, repeats);
-        }
-        case SpaceMode::width:
-            return 0.005
-                 + 0.030 * static_cast<double>(
-                               targetSettings.sizeOrTime);
+        return 0.0;
+    };
+
+    auto reportedTail =
+        juce::jmax(
+            modeTail(currentMode, currentSettings),
+            modeTail(targetSettings.mode, targetSettings));
+
+    if (modeFade < 1.0f)
+    {
+        reportedTail =
+            juce::jmax(
+                reportedTail,
+                modeTail(nextMode, currentSettings),
+                static_cast<double>(1.0f - modeFade)
+                    * modeCrossfadeMs * 0.001);
     }
-    return 0.0;
+    else if (targetSettings.mode != currentMode)
+    {
+        reportedTail =
+            juce::jmax(reportedTail,
+                       static_cast<double>(modeCrossfadeMs) * 0.001);
+    }
+
+    return reportedTail;
 }
 
 size_t VocalSpace::modeIndex(SpaceMode mode) noexcept
