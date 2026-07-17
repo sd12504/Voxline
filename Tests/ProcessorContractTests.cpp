@@ -1,10 +1,26 @@
 #include <JuceHeader.h>
 
+#include "../Source/Parameters/ParameterRegistry.h"
 #include "../Source/PluginProcessor.h"
+#include "../Source/State/StateSchema.h"
 #include "TestSupport.h"
+
+#include <vector>
 
 namespace
 {
+std::vector<float> registeredSoundValues(
+    const VoxlineAudioProcessor& processor)
+{
+    std::vector<float> values;
+    for (const auto& spec : Voxline::parameterRegistry())
+        if (spec.role == Voxline::ParameterRole::sound)
+            if (const auto* parameter =
+                    processor.getAPVTS().getParameter(spec.id))
+                values.push_back(parameter->getValue());
+    return values;
+}
+
 class ProcessorContractTests final : public juce::UnitTest
 {
 public:
@@ -16,7 +32,7 @@ public:
         beginTest("processor exposes the full parameter set");
         {
             VoxlineAudioProcessor processor;
-            expectEquals(processor.getParameters().size(), 65);
+            expectEquals(processor.getParameters().size(), 67);
 
             auto* body = processor.getAPVTS().getParameter(VoxlineParameterIDs::body);
             expect(body != nullptr);
@@ -27,19 +43,46 @@ public:
             expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::driveCharacter) != nullptr);
             expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::spaceTime) != nullptr);
             expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::spaceDucking) != nullptr);
-            expectEquals(processor.getNumPrograms(), 9);
-            expectEquals(processor.getProgramName(0), juce::String("Clean"));
-            expect(processor.getTailLengthSeconds() >= 2.5);
+            expectEquals(processor.getNumPrograms(), 1);
+            expectEquals(processor.getCurrentProgram(), 0);
+            expectEquals(
+                processor.getProgramName(0), juce::String("Default"));
+
+            VoxlineTest::setFloatParameter(
+                processor, VoxlineParameterIDs::polish, 37.0f);
+            const auto beforeProgramCalls =
+                registeredSoundValues(processor);
+            processor.setCurrentProgram(8);
+            processor.changeProgramName(0, "Changed");
+            expectEquals(processor.getCurrentProgram(), 0);
+            expect(
+                registeredSoundValues(processor)
+                    == beforeProgramCalls);
+            expectEquals(
+                processor.getProgramName(0), juce::String("Default"));
+            expectWithinAbsoluteError(
+                processor.getTailLengthSeconds(),
+                0.0,
+                1.0e-9);
         }
 
         beginTest("processor state round-trips parameter values");
         {
             VoxlineAudioProcessor sourceProcessor;
-            expectEquals(sourceProcessor.getParameters().size(), 65);
+            expectEquals(sourceProcessor.getParameters().size(), 67);
 
             auto* firstParam = sourceProcessor.getParameters()[0];
             firstParam->setValueNotifyingHost(1.0f);
-            VoxlineTest::setFloatParameter(sourceProcessor, VoxlineParameterIDs::compThreshold, -31.0f);
+            VoxlineTest::setFloatParameter(
+                sourceProcessor,
+                VoxlineParameterIDs::compSensitivity,
+                73.0f);
+            auto* sourceSpaceMode = sourceProcessor.getAPVTS().getParameter(
+                VoxlineParameterIDs::spaceMode);
+            expect(sourceSpaceMode != nullptr);
+            if (sourceSpaceMode != nullptr)
+                sourceSpaceMode->setValueNotifyingHost(
+                    sourceSpaceMode->convertTo0to1(3.0f));
 
             juce::MemoryBlock state;
             sourceProcessor.getStateInformation(state);
@@ -51,9 +94,19 @@ public:
 
             auto* restoredFirstParam = restoredProcessor.getParameters()[0];
             expectWithinAbsoluteError(restoredFirstParam->getValue(), 1.0f, 0.001f);
-            expectWithinAbsoluteError(restoredProcessor.getAPVTS().getRawParameterValue(
-                                          VoxlineParameterIDs::compThreshold)->load(),
-                                      -31.0f, 0.01f);
+            expectWithinAbsoluteError(
+                restoredProcessor.getAPVTS()
+                    .getRawParameterValue(
+                        VoxlineParameterIDs::compSensitivity)
+                    ->load(),
+                73.0f,
+                0.01f);
+            expectWithinAbsoluteError(
+                restoredProcessor.getAPVTS()
+                    .getRawParameterValue(VoxlineParameterIDs::spaceMode)
+                    ->load(),
+                3.0f,
+                0.001f);
         }
 
         beginTest("state schema rejects corrupt and wrong-root data");
@@ -90,7 +143,9 @@ public:
             if (xml != nullptr)
             {
                 expect(xml->hasAttribute("schemaVersion"));
-                expectEquals(xml->getIntAttribute("schemaVersion"), 2);
+                expectEquals(
+                    xml->getIntAttribute("schemaVersion"),
+                    VoxlineState::currentSchemaVersion);
             }
         }
 
