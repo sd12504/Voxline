@@ -2,6 +2,7 @@
 
 #include "../Source/PluginEditor.h"
 #include "../Source/PluginProcessor.h"
+#include "../Source/Parameters/ParameterIDs.h"
 #include "../Source/UI/LayoutLoader.h"
 
 namespace
@@ -75,6 +76,39 @@ public:
 
             editor.setAdvancedOpen(true);
             expectEquals(editor.getHeight(), 940);
+
+            auto findButton = [&editor](const juce::String& text) -> juce::Button*
+            {
+                for (int index = 0; index < editor.getNumChildComponents(); ++index)
+                    if (auto* button = dynamic_cast<juce::Button*>(editor.getChildComponent(index)))
+                        if (button->getButtonText() == text)
+                            return button;
+                return nullptr;
+            };
+            auto setSpaceMode = [&processor](float mode)
+            {
+                auto* parameter = processor.getAPVTS().getParameter(VoxlineParameterIDs::spaceMode);
+                if (parameter != nullptr)
+                    parameter->setValueNotifyingHost(parameter->convertTo0to1(mode));
+            };
+
+            beginTest("SPACE advanced modes expose only mode-relevant controls");
+            auto* spaceTab = findButton("SPACE");
+            auto* monoSafe = findButton("MONO SAFE");
+            expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::spaceMode) != nullptr);
+            expect(spaceTab != nullptr);
+            expect(monoSafe != nullptr);
+            if (spaceTab != nullptr && monoSafe != nullptr)
+            {
+                setSpaceMode(4.0f);
+                spaceTab->triggerClick();
+                expect(monoSafe->isVisible());
+
+                setSpaceMode(3.0f);
+                spaceTab->triggerClick();
+                expect(! monoSafe->isVisible());
+            }
+
             editor.setAdvancedOpen(false);
             expectEquals(editor.getHeight(), 720);
         }
