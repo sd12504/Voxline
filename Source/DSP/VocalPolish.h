@@ -30,6 +30,7 @@ private:
     std::array<FilterState, 2> filters;
     std::atomic<float> targetAmount {0.0f};
     float currentAmount {};
+    float warmAmount {0.5f};
     float amountCoefficient {};
     float detectorEnvelope {};
     float detectorAttackCoefficient {};

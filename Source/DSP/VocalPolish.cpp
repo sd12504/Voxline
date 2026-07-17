@@ -35,6 +35,7 @@ void VocalPolish::reset() noexcept
         filter = {};
 
     currentAmount = 0.0f;
+    warmAmount = 0.5f;
     detectorEnvelope = 0.0f;
     dryPower = 1.0e-6f;
     wetPower = 1.0e-6f;
@@ -61,9 +62,19 @@ void VocalPolish::process(juce::AudioBuffer<float>& buffer) noexcept
 
     for (int sample = 0; sample < sampleCount; ++sample)
     {
+        if (requestedAmount > 1.0e-7f)
+            warmAmount = requestedAmount;
+
         currentAmount =
             requestedAmount
             + amountCoefficient * (currentAmount - requestedAmount);
+
+        if (requestedAmount <= 1.0e-7f
+            && currentAmount <= 1.0e-7f)
+            currentAmount = 0.0f;
+
+        const auto processingAmount =
+            requestedAmount <= 1.0e-7f ? warmAmount : currentAmount;
 
         float linkedDetector = 0.0f;
         for (int channel = 0; channel < channelCount; ++channel)
@@ -79,9 +90,6 @@ void VocalPolish::process(juce::AudioBuffer<float>& buffer) noexcept
             linkedDetector
             + detectorCoefficient * (detectorEnvelope - linkedDetector);
 
-        if (currentAmount <= 1.0e-7f)
-            continue;
-
         float dynamicDb = 0.0f;
         if (detectorEnvelope > 0.20f)
             dynamicDb =
@@ -94,11 +102,11 @@ void VocalPolish::process(juce::AudioBuffer<float>& buffer) noexcept
             juce::jmax(0.0f, linkedDetector - 0.22f);
         const auto transientGain =
             1.0f
-            / (1.0f + 1.2f * currentAmount * transientExcess);
+            / (1.0f + 1.2f * processingAmount * transientExcess);
         const auto dynamicGain =
-            juce::Decibels::decibelsToGain(dynamicDb * currentAmount)
+            juce::Decibels::decibelsToGain(dynamicDb * processingAmount)
             * transientGain;
-        const auto saturationDrive = 1.0f + 2.5f * currentAmount;
+        const auto saturationDrive = 1.0f + 2.5f * processingAmount;
         const auto saturationNormalisation =
             1.0f / std::tanh(saturationDrive);
         float dryInstantPower = 0.0f;
@@ -123,7 +131,7 @@ void VocalPolish::process(juce::AudioBuffer<float>& buffer) noexcept
                 * saturationNormalisation;
             const auto enhanced =
                 warmed
-                + currentAmount
+                + processingAmount
                       * (0.055f * presenceBand + 0.020f * highAir);
             shaped[static_cast<size_t>(channel)] = enhanced;
             dryInstantPower += dry * dry;
@@ -154,10 +162,12 @@ void VocalPolish::process(juce::AudioBuffer<float>& buffer) noexcept
             const auto dry = buffer.getSample(channel, sample);
             const auto compensated =
                 shaped[static_cast<size_t>(channel)] * compensationGain;
-            const auto output =
-                dry + currentAmount * (compensated - dry);
-            buffer.setSample(channel, sample,
-                             juce::jlimit(-1.2f, 1.2f, output));
+            const auto output = currentAmount > 0.0f
+                                    ? dry
+                                          + currentAmount
+                                                * (compensated - dry)
+                                    : dry;
+            buffer.setSample(channel, sample, output);
         }
     }
 }

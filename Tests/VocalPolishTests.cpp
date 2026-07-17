@@ -77,6 +77,43 @@ struct PolishMeasurement
     float outputCrest {};
 };
 
+struct WindowMetrics
+{
+    float rms {};
+    float brightness {};
+};
+
+WindowMetrics measureWindow(const juce::AudioBuffer<float>& buffer,
+                            int startSample,
+                            int sampleCount) noexcept
+{
+    double squares = 0.0;
+    double differenceSquares = 0.0;
+    auto previous = buffer.getSample(0, juce::jmax(0, startSample - 1));
+
+    for (int sample = startSample; sample < startSample + sampleCount;
+         ++sample)
+    {
+        const auto value = buffer.getSample(0, sample);
+        const auto difference = value - previous;
+        squares += static_cast<double>(value) * value;
+        differenceSquares += static_cast<double>(difference) * difference;
+        previous = value;
+    }
+
+    const auto rms =
+        static_cast<float>(std::sqrt(squares / sampleCount));
+    const auto differenceRms =
+        static_cast<float>(std::sqrt(differenceSquares / sampleCount));
+    return {rms, differenceRms / juce::jmax(1.0e-9f, rms)};
+}
+
+float absoluteDeltaDb(float first, float second) noexcept
+{
+    return std::abs(juce::Decibels::gainToDecibels(
+        juce::jmax(1.0e-9f, first) / juce::jmax(1.0e-9f, second)));
+}
+
 PolishMeasurement renderVocalLike(double sampleRate, float amount)
 {
     VocalPolish polish;
@@ -270,6 +307,172 @@ public:
                         expect(std::isfinite(value));
                         expectLessOrEqual(std::abs(value), 1.2f);
                     }
+            }
+        }
+
+        beginTest("Polish does not hide a hard output limiter");
+        {
+            VocalPolish polish;
+            polish.prepare({48000.0, testBlockSize, 1});
+            polish.setTargetSettings({0.01f});
+            juce::AudioBuffer<float> buffer(1, testBlockSize);
+            float maximum = 0.0f;
+
+            for (int iteration = 0; iteration < 500; ++iteration)
+            {
+                for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+                    buffer.setSample(0, sample, 1.5f);
+
+                polish.process(buffer);
+
+                for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+                {
+                    const auto value = buffer.getSample(0, sample);
+                    expect(std::isfinite(value));
+                    maximum = juce::jmax(maximum, value);
+                }
+            }
+
+            expect(maximum > 1.2f,
+                   "A low Amount must preserve an over-range input for the "
+                   "downstream Emergency Soft Clip");
+            expect(maximum < 1.6f);
+        }
+
+        beginTest("zero stays dry while warm state survives 50 to 0 to 50");
+        {
+            constexpr double sampleRate = 48000.0;
+            constexpr int warmupSamples = 48000;
+            constexpr int zeroSamples = 48000;
+            constexpr int restartSamples = 24000;
+            VocalPolish toggled;
+            VocalPolish reference;
+            toggled.prepare({sampleRate, testBlockSize, 1});
+            reference.prepare({sampleRate, testBlockSize, 1});
+            toggled.setTargetSettings({0.5f});
+            reference.setTargetSettings({0.5f});
+            juce::AudioBuffer<float> toggledBlock(1, testBlockSize);
+            juce::AudioBuffer<float> referenceBlock(1, testBlockSize);
+            juce::AudioBuffer<float> dryBlock(1, testBlockSize);
+            juce::AudioBuffer<float> toggledCapture(1, restartSamples);
+            juce::AudioBuffer<float> referenceCapture(1, restartSamples);
+            int64_t timeline = 0;
+
+            const auto processStage =
+                [&](int stageSamples, float inputScale, bool capture,
+                    bool requireExactDry)
+            {
+                auto captured = 0;
+                for (int first = 0; first < stageSamples;
+                     first += testBlockSize)
+                {
+                    const auto count =
+                        juce::jmin(testBlockSize, stageSamples - first);
+                    toggledBlock.setSize(1, count, false, false, true);
+                    fillVocalLikeBlock(toggledBlock, sampleRate, timeline);
+                    toggledBlock.applyGain(inputScale);
+                    dryBlock.makeCopyOf(toggledBlock, true);
+                    referenceBlock.makeCopyOf(toggledBlock, true);
+                    toggled.process(toggledBlock);
+                    reference.process(referenceBlock);
+
+                    if (requireExactDry
+                        && first >= stageSamples - testBlockSize * 2)
+                        for (int sample = 0; sample < count; ++sample)
+                            expectEquals(toggledBlock.getSample(0, sample),
+                                         dryBlock.getSample(0, sample));
+
+                    if (capture)
+                    {
+                        toggledCapture.copyFrom(0, captured, toggledBlock, 0,
+                                                0, count);
+                        referenceCapture.copyFrom(0, captured, referenceBlock,
+                                                  0, 0, count);
+                        captured += count;
+                    }
+
+                    timeline += count;
+                }
+            };
+
+            processStage(warmupSamples, 0.25f, false, false);
+            toggled.setTargetSettings({0.0f});
+            processStage(zeroSamples, 1.0f, false, true);
+            toggled.setTargetSettings({0.5f});
+            processStage(restartSamples, 1.0f, true, false);
+
+            const std::array<int, 4> windowEnds {480, 2400, 4800, 24000};
+            const std::array<float, 4> rmsLimitsDb {2.0f, 1.0f, 0.75f, 0.5f};
+            const std::array<float, 4> colourLimitsDb {
+                1.5f, 1.0f, 0.75f, 0.5f};
+
+            for (size_t index = 0; index < windowEnds.size(); ++index)
+            {
+                const auto end = windowEnds[index];
+                const auto length = juce::jmin(480, end);
+                const auto toggledMetrics =
+                    measureWindow(toggledCapture, end - length, length);
+                const auto referenceMetrics =
+                    measureWindow(referenceCapture, end - length, length);
+                expect(absoluteDeltaDb(toggledMetrics.rms,
+                                       referenceMetrics.rms)
+                       < rmsLimitsDb[index]);
+                expect(absoluteDeltaDb(toggledMetrics.brightness,
+                                       referenceMetrics.brightness)
+                       < colourLimitsDb[index]);
+            }
+        }
+
+        beginTest("silence restart keeps early level and colour continuous");
+        {
+            constexpr double sampleRate = 48000.0;
+            VocalPolish polish;
+            polish.prepare({sampleRate, testBlockSize, 1});
+            polish.setTargetSettings({0.5f});
+            juce::AudioBuffer<float> block(1, testBlockSize);
+            int64_t timeline = 0;
+
+            for (int first = 0; first < 48000; first += testBlockSize)
+            {
+                fillVocalLikeBlock(block, sampleRate, timeline);
+                polish.process(block);
+                timeline += testBlockSize;
+            }
+
+            block.clear();
+            for (int first = 0; first < 48000; first += testBlockSize)
+                polish.process(block);
+
+            juce::AudioBuffer<float> capture(1, 48000);
+            for (int first = 0; first < capture.getNumSamples();
+                 first += testBlockSize)
+            {
+                const auto count =
+                    juce::jmin(testBlockSize,
+                               capture.getNumSamples() - first);
+                block.setSize(1, count, false, false, true);
+                fillVocalLikeBlock(block, sampleRate, timeline);
+                polish.process(block);
+                capture.copyFrom(0, first, block, 0, 0, count);
+                timeline += count;
+            }
+
+            const auto steady = measureWindow(capture, 43200, 4800);
+            const std::array<int, 4> windowEnds {480, 2400, 4800, 24000};
+            const std::array<float, 4> rmsLimitsDb {2.0f, 1.0f, 0.75f, 0.5f};
+            const std::array<float, 4> colourLimitsDb {
+                1.5f, 1.0f, 0.75f, 0.5f};
+
+            for (size_t index = 0; index < windowEnds.size(); ++index)
+            {
+                const auto end = windowEnds[index];
+                const auto length = juce::jmin(480, end);
+                const auto early =
+                    measureWindow(capture, end - length, length);
+                expect(absoluteDeltaDb(early.rms, steady.rms)
+                       < rmsLimitsDb[index]);
+                expect(absoluteDeltaDb(early.brightness, steady.brightness)
+                       < colourLimitsDb[index]);
             }
         }
 
