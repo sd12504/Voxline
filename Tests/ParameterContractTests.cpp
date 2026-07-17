@@ -2,6 +2,7 @@
 
 #include "../Source/Parameters/ParameterIDs.h"
 #include "../Source/Parameters/ParameterLayout.h"
+#include "../Source/PluginProcessor.h"
 
 namespace
 {
@@ -21,9 +22,11 @@ public:
         expectEquals(juce::String(VoxlineParameterIDs::spaceDucking),
                      juce::String("spaceDucking"));
 
-        auto layout = createVoxlineParameterLayout();
+        const auto layout = createVoxlineParameterLayout();
         juce::ignoreUnused(layout);
-        expect(true);
+
+        VoxlineAudioProcessor processor;
+        expectEquals(processor.getParameters().size(), 51);
     }
 };
 

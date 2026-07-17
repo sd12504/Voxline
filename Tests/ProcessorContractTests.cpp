@@ -1,0 +1,139 @@
+#include <JuceHeader.h>
+
+#include "../Source/PluginProcessor.h"
+#include "TestSupport.h"
+
+namespace
+{
+class ProcessorContractTests final : public juce::UnitTest
+{
+public:
+    ProcessorContractTests()
+        : juce::UnitTest("Processor contract", "VOXLINE") {}
+
+    void runTest() override
+    {
+        beginTest("processor exposes the full parameter set");
+        {
+            VoxlineAudioProcessor processor;
+            expectEquals(processor.getParameters().size(), 51);
+
+            auto* body = processor.getAPVTS().getParameter(VoxlineParameterIDs::body);
+            expect(body != nullptr);
+            expectWithinAbsoluteError(body->getNormalisableRange().start, -6.0f, 0.001f);
+            expectWithinAbsoluteError(body->getNormalisableRange().end, 6.0f, 0.001f);
+            expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::compThreshold) != nullptr);
+            expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::deEssFreq) != nullptr);
+            expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::driveCharacter) != nullptr);
+            expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::spaceTime) != nullptr);
+            expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::spaceDucking) != nullptr);
+            expectEquals(processor.getNumPrograms(), 9);
+            expectEquals(processor.getProgramName(0), juce::String("Clean"));
+            expect(processor.getTailLengthSeconds() >= 2.5);
+        }
+
+        beginTest("processor state round-trips parameter values");
+        {
+            VoxlineAudioProcessor sourceProcessor;
+            expectEquals(sourceProcessor.getParameters().size(), 51);
+
+            auto* firstParam = sourceProcessor.getParameters()[0];
+            firstParam->setValueNotifyingHost(1.0f);
+            VoxlineTest::setFloatParameter(sourceProcessor, VoxlineParameterIDs::compThreshold, -31.0f);
+
+            juce::MemoryBlock state;
+            sourceProcessor.getStateInformation(state);
+
+            expect(state.getSize() > 0);
+
+            VoxlineAudioProcessor restoredProcessor;
+            restoredProcessor.setStateInformation(state.getData(), static_cast<int>(state.getSize()));
+
+            auto* restoredFirstParam = restoredProcessor.getParameters()[0];
+            expectWithinAbsoluteError(restoredFirstParam->getValue(), 1.0f, 0.001f);
+            expectWithinAbsoluteError(restoredProcessor.getAPVTS().getRawParameterValue(
+                                          VoxlineParameterIDs::compThreshold)->load(),
+                                      -31.0f, 0.01f);
+        }
+
+        beginTest("state schema rejects corrupt and wrong-root data");
+        {
+            VoxlineAudioProcessor processor;
+            const auto before = processor.getAPVTS().copyState();
+
+            const std::array<std::byte, 4> corrupt {
+                std::byte{0x56}, std::byte{0x4f}, std::byte{0x58}, std::byte{0x00}
+            };
+            processor.setStateInformation(corrupt.data(), static_cast<int>(corrupt.size()));
+            expect(processor.getAPVTS().copyState().isEquivalentTo(before));
+
+            juce::ValueTree wrong("WrongRoot");
+            std::unique_ptr<juce::XmlElement> xml(wrong.createXml());
+            expect(xml != nullptr);
+            if (xml != nullptr)
+            {
+                juce::MemoryBlock bytes;
+                juce::AudioProcessor::copyXmlToBinary(*xml, bytes);
+                processor.setStateInformation(bytes.getData(), static_cast<int>(bytes.getSize()));
+                expect(processor.getAPVTS().copyState().isEquivalentTo(before));
+            }
+        }
+
+        beginTest("new state writes a schema version");
+        {
+            VoxlineAudioProcessor processor;
+            juce::MemoryBlock bytes;
+            processor.getStateInformation(bytes);
+            auto xml = juce::AudioProcessor::getXmlFromBinary(bytes.getData(),
+                static_cast<int>(bytes.getSize()));
+            expect(xml != nullptr);
+            if (xml != nullptr)
+            {
+                expect(xml->hasAttribute("schemaVersion"));
+                expectEquals(xml->getIntAttribute("schemaVersion"), 2);
+            }
+        }
+
+        beginTest("legacy unversioned state still restores");
+        {
+            VoxlineAudioProcessor processor;
+            auto* sourceInputGain = processor.getAPVTS().getParameter(VoxlineParameterIDs::inputGain);
+            sourceInputGain->setValueNotifyingHost(1.0f);
+            auto legacyState = processor.getAPVTS().copyState();
+            legacyState.removeProperty("schemaVersion", nullptr);
+
+            juce::MemoryBlock bytes;
+            if (auto xml = legacyState.createXml())
+                juce::AudioProcessor::copyXmlToBinary(*xml, bytes);
+
+            VoxlineAudioProcessor restoredProcessor;
+            restoredProcessor.setStateInformation(bytes.getData(), static_cast<int>(bytes.getSize()));
+            expectWithinAbsoluteError(restoredProcessor.getAPVTS()
+                                          .getParameter(VoxlineParameterIDs::inputGain)->getValue(),
+                                      1.0f, 0.001f);
+        }
+
+        beginTest("Phase 3 bypass returns the dry signal");
+        {
+            VoxlineAudioProcessor processor;
+            processor.prepareToPlay(48000.0, 512);
+            VoxlineTest::setBoolParameter(processor, VoxlineParameterIDs::bypass, true);
+
+            juce::AudioBuffer<float> buffer(2, 512);
+            VoxlineTest::fillTestSignal(buffer, 48000.0);
+            juce::AudioBuffer<float> dryBuffer;
+            dryBuffer.makeCopyOf(buffer);
+            juce::MidiBuffer midi;
+
+            juce::AudioBuffer<float> warmupBuffer;
+            warmupBuffer.makeCopyOf(buffer);
+            processor.processBlock(warmupBuffer, midi);
+            processor.processBlock(buffer, midi);
+
+            expectWithinAbsoluteError(VoxlineTest::averageAbsoluteDifference(buffer, dryBuffer), 0.0f, 1.0e-6f);
+        }
+    }
+};
+
+ProcessorContractTests processorContractTests;
+}
