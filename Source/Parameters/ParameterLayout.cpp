@@ -24,7 +24,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createVoxlineParameterLayout
     auto params = std::vector<std::unique_ptr<juce::RangedAudioParameter>>{};
     const auto gainRange = juce::NormalisableRange<float>{-24.0f, 24.0f, 0.1f};
     const auto percentRange = juce::NormalisableRange<float>{0.0f, 100.0f, 1.0f};
-    const auto toneGainRange = juce::NormalisableRange<float>{-6.0f, 6.0f, 0.1f};
+    const auto toneGainRange = juce::NormalisableRange<float>{-12.0f, 12.0f, 0.1f};
 
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{VoxlineParameterIDs::inputGain, 1}, "Input Gain", gainRange, 0.0f, makeDbAttributes()));
@@ -54,8 +54,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createVoxlineParameterLayout
         juce::ParameterID{VoxlineParameterIDs::listen, 1}, "Listen", false));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{VoxlineParameterIDs::spaceAmount, 1}, "Space Amount", percentRange, 0.0f, makePercentAttributes()));
-    params.push_back(std::make_unique<juce::AudioParameterInt>(
-        juce::ParameterID{VoxlineParameterIDs::spaceType, 1}, "Space Type", 0, 2, 0));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{VoxlineParameterIDs::spaceType, 1}, "Space Type",
+        juce::StringArray{"Room", "Plate", "Hall", "Slap", "Width"}, 1));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{VoxlineParameterIDs::spaceTime, 1}, "Space Time",
         juce::NormalisableRange<float>{40.0f, 2000.0f, 1.0f, 0.42f}, 1200.0f,
@@ -99,7 +100,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createVoxlineParameterLayout
         juce::ParameterID{VoxlineParameterIDs::mudFreq, 1}, "Mud Freq", juce::NormalisableRange<float>{200.0f, 700.0f, 1.0f}, 350.0f,
         juce::AudioParameterFloatAttributes().withLabel("Hz")));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{VoxlineParameterIDs::mudGain, 1}, "Mud Gain", juce::NormalisableRange<float>{-6.0f, 3.0f, 0.1f}, -2.0f,
+        juce::ParameterID{VoxlineParameterIDs::mudGain, 1}, "Mud Gain", toneGainRange, 0.0f,
         juce::AudioParameterFloatAttributes().withLabel("dB")));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{VoxlineParameterIDs::mudQ, 1}, "Mud Q", juce::NormalisableRange<float>{0.5f, 3.0f, 0.05f}, 1.1f));
@@ -164,6 +165,41 @@ juce::AudioProcessorValueTreeState::ParameterLayout createVoxlineParameterLayout
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{VoxlineParameterIDs::driveCharacter, 1}, "Drive Character",
         juce::StringArray{"Clean", "Warm", "Edge"}, 1));
+
+    // v3 additions stay after all legacy parameters to preserve Host indices.
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{VoxlineParameterIDs::hpfEnabled, 1}, "HPF Enabled", false));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{VoxlineParameterIDs::lowEnabled, 1}, "Low Enabled", true));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{VoxlineParameterIDs::mudEnabled, 1}, "Mud Enabled", false));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{VoxlineParameterIDs::presEnabled, 1}, "Presence Enabled", true));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{VoxlineParameterIDs::airEnabled, 1}, "Air Enabled", true));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{VoxlineParameterIDs::lpfEnabled, 1}, "LPF Enabled", false));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::compSensitivity, 1}, "Comp Sensitivity",
+        percentRange, 0.0f, makePercentAttributes()));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::compMakeup, 1}, "Comp Makeup",
+        juce::NormalisableRange<float>{-12.0f, 12.0f, 0.1f}, 0.0f, makeDbAttributes()));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{VoxlineParameterIDs::compAutoMakeup, 1}, "Comp Auto Makeup", true));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::driveOutputTrim, 1}, "Drive Output Trim",
+        juce::NormalisableRange<float>{-12.0f, 12.0f, 0.1f}, 0.0f, makeDbAttributes()));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{VoxlineParameterIDs::driveLevelMatch, 1}, "Drive Level Match", true));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::spaceSize, 1}, "Space Size",
+        percentRange, 62.0f, makePercentAttributes()));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::spaceFeedback, 1}, "Space Feedback",
+        percentRange, 20.0f, makePercentAttributes()));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{VoxlineParameterIDs::spaceMonoSafety, 1}, "Space Mono Safety", true));
 
     return {params.begin(), params.end()};
 }

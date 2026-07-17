@@ -16,12 +16,12 @@ public:
         beginTest("processor exposes the full parameter set");
         {
             VoxlineAudioProcessor processor;
-            expectEquals(processor.getParameters().size(), 51);
+            expectEquals(processor.getParameters().size(), 65);
 
             auto* body = processor.getAPVTS().getParameter(VoxlineParameterIDs::body);
             expect(body != nullptr);
-            expectWithinAbsoluteError(body->getNormalisableRange().start, -6.0f, 0.001f);
-            expectWithinAbsoluteError(body->getNormalisableRange().end, 6.0f, 0.001f);
+            expectWithinAbsoluteError(body->getNormalisableRange().start, -12.0f, 0.001f);
+            expectWithinAbsoluteError(body->getNormalisableRange().end, 12.0f, 0.001f);
             expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::compThreshold) != nullptr);
             expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::deEssFreq) != nullptr);
             expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::driveCharacter) != nullptr);
@@ -35,7 +35,7 @@ public:
         beginTest("processor state round-trips parameter values");
         {
             VoxlineAudioProcessor sourceProcessor;
-            expectEquals(sourceProcessor.getParameters().size(), 51);
+            expectEquals(sourceProcessor.getParameters().size(), 65);
 
             auto* firstParam = sourceProcessor.getParameters()[0];
             firstParam->setValueNotifyingHost(1.0f);
@@ -119,18 +119,36 @@ public:
             processor.prepareToPlay(48000.0, 512);
             VoxlineTest::setBoolParameter(processor, VoxlineParameterIDs::bypass, true);
 
+            juce::AudioBuffer<float> continuousDry(2, 1024);
+            VoxlineTest::fillTestSignal(continuousDry, 48000.0);
+            juce::AudioBuffer<float> warmupBuffer(2, 512);
             juce::AudioBuffer<float> buffer(2, 512);
-            VoxlineTest::fillTestSignal(buffer, 48000.0);
-            juce::AudioBuffer<float> dryBuffer;
-            dryBuffer.makeCopyOf(buffer);
+            juce::AudioBuffer<float> expectedBuffer(2, 512);
+            const auto latency = processor.getLatencySamples();
+            for (auto channel = 0; channel < 2; ++channel)
+            {
+                warmupBuffer.copyFrom(channel, 0, continuousDry, channel, 0, 512);
+                buffer.copyFrom(channel, 0, continuousDry, channel, 512, 512);
+                for (auto sample = 0; sample < 512; ++sample)
+                {
+                    const auto sourceSample = 512 + sample - latency;
+                    expectedBuffer.setSample(
+                        channel,
+                        sample,
+                        sourceSample >= 0
+                            ? continuousDry.getSample(channel, sourceSample)
+                            : 0.0f);
+                }
+            }
             juce::MidiBuffer midi;
 
-            juce::AudioBuffer<float> warmupBuffer;
-            warmupBuffer.makeCopyOf(buffer);
             processor.processBlock(warmupBuffer, midi);
             processor.processBlock(buffer, midi);
 
-            expectWithinAbsoluteError(VoxlineTest::averageAbsoluteDifference(buffer, dryBuffer), 0.0f, 1.0e-6f);
+            expectWithinAbsoluteError(
+                VoxlineTest::averageAbsoluteDifference(buffer, expectedBuffer),
+                0.0f,
+                1.0e-6f);
         }
     }
 };

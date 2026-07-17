@@ -26,7 +26,7 @@ public:
         juce::ignoreUnused(layout);
 
         VoxlineAudioProcessor processor;
-        expectEquals(processor.getParameters().size(), 51);
+        expectEquals(processor.getParameters().size(), 65);
     }
 };
 

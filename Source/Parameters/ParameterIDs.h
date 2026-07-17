@@ -53,4 +53,20 @@ inline constexpr auto deEssMode = "deEssMode";
 inline constexpr auto driveTone = "driveTone";
 inline constexpr auto driveMix = "driveMix";
 inline constexpr auto driveCharacter = "driveCharacter";
+
+// v3 parameters are deliberately appended after every legacy Host ID.
+inline constexpr auto hpfEnabled = "hpfEnabled";
+inline constexpr auto lowEnabled = "lowEnabled";
+inline constexpr auto mudEnabled = "mudEnabled";
+inline constexpr auto presEnabled = "presEnabled";
+inline constexpr auto airEnabled = "airEnabled";
+inline constexpr auto lpfEnabled = "lpfEnabled";
+inline constexpr auto compSensitivity = "compSensitivity";
+inline constexpr auto compMakeup = "compMakeup";
+inline constexpr auto compAutoMakeup = "compAutoMakeup";
+inline constexpr auto driveOutputTrim = "driveOutputTrim";
+inline constexpr auto driveLevelMatch = "driveLevelMatch";
+inline constexpr auto spaceSize = "spaceSize";
+inline constexpr auto spaceFeedback = "spaceFeedback";
+inline constexpr auto spaceMonoSafety = "spaceMonoSafety";
 } // namespace VoxlineParameterIDs
