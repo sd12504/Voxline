@@ -299,7 +299,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     }
     presetPreviousButton.setButtonText("<");
     presetNextButton.setButtonText(">");
-    presetManageButton.setButtonText("•••");
+    presetManageButton.setButtonText("...");
     savePresetButton.setButtonText("SAVE AS");
     refreshPresetMenu();
 
@@ -614,6 +614,9 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
 
     configureButton(compAutoMakeupButton, "AUTO MAKEUP");
     configureButton(driveLevelMatchButton, "LEVEL MATCH");
+    configureButton(spaceMonoSafetyButton, "MONO SAFE");
+    for (auto* button : { &compAutoMakeupButton, &driveLevelMatchButton, &spaceMonoSafetyButton })
+        button->setLookAndFeel(&getToggleLookAndFeel());
 
     deEssModeCombo.addItemList({"Split", "Wide"}, 1);
     driveCharacterCombo.addItemList({"Clean", "Warm", "Edge"}, 1);
@@ -677,6 +680,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     eqEnabledAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::eqEnabled, eqOnButton);
     compAutoMakeupAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::compAutoMakeup, compAutoMakeupButton);
     driveLevelMatchAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::driveLevelMatch, driveLevelMatchButton);
+    spaceMonoSafetyAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::spaceMonoSafety, spaceMonoSafetyButton);
     eqBandEnabledAttachment = std::make_unique<ButtonAttachment>(apvts, kEqEnabledIDs[selectedEqBand], eqBandEnableButton);
 
     apvts.addParameterListener(VoxlineParameterIDs::polish, this);
@@ -1740,17 +1744,38 @@ void VoxlineAudioProcessorEditor::paintNewInterface(juce::Graphics& g)
         {
             const auto* modeValue = audioProcessor.getAPVTS().getRawParameterValue(VoxlineParameterIDs::spaceMode);
             const auto mode = juce::roundToInt(modeValue != nullptr ? modeValue->load() : 0.0f);
-            labels[0] = mode == 3 ? "TIME" : (mode == 4 ? "SPREAD" : "SIZE");
-            ids[0] = mode == 3 ? VoxlineParameterIDs::spaceSlapTime
-                                : (mode == 4 ? VoxlineParameterIDs::spaceWidth : VoxlineParameterIDs::spaceSize);
-            labels[1] = "PRE-DELAY"; ids[1] = VoxlineParameterIDs::spacePreDelay;
-            labels[2] = "WIDTH"; ids[2] = VoxlineParameterIDs::spaceWidth;
-            labels[3] = "TONE"; ids[3] = VoxlineParameterIDs::spaceTone;
-            labels[4] = mode == 3 ? "FEEDBACK" : "DECAY";
-            ids[4] = mode == 3 ? VoxlineParameterIDs::spaceFeedback : VoxlineParameterIDs::spaceDecay;
-            count = 5;
-            caption("DUCKING", {900, 620, 100, 16});
-            value(parameterText(VoxlineParameterIDs::spaceDucking), {900, 885, 100, 16}, 11.5f);
+            if (mode == 4)
+            {
+                labels[0] = "DELAY"; ids[0] = VoxlineParameterIDs::spacePreDelay;
+                labels[1] = "SPREAD"; ids[1] = VoxlineParameterIDs::spaceWidth;
+                labels[2] = "TONE"; ids[2] = VoxlineParameterIDs::spaceTone;
+                count = 3;
+                caption("MONO SAFETY", {720, 780, 150, 16});
+                value(audioProcessor.getAPVTS().getRawParameterValue(VoxlineParameterIDs::spaceMonoSafety)->load() >= 0.5f
+                          ? "ON" : "OFF", {720, 885, 150, 16}, 11.5f);
+            }
+            else
+            {
+                if (mode == 3)
+                {
+                    labels[0] = "TIME"; ids[0] = VoxlineParameterIDs::spaceSlapTime;
+                    labels[1] = "WIDTH"; ids[1] = VoxlineParameterIDs::spaceWidth;
+                    labels[2] = "TONE"; ids[2] = VoxlineParameterIDs::spaceTone;
+                    labels[3] = "FEEDBACK"; ids[3] = VoxlineParameterIDs::spaceFeedback;
+                    count = 4;
+                }
+                else
+                {
+                    labels[0] = "SIZE"; ids[0] = VoxlineParameterIDs::spaceSize;
+                    labels[1] = "PRE-DELAY"; ids[1] = VoxlineParameterIDs::spacePreDelay;
+                    labels[2] = "WIDTH"; ids[2] = VoxlineParameterIDs::spaceWidth;
+                    labels[3] = "TONE"; ids[3] = VoxlineParameterIDs::spaceTone;
+                    labels[4] = "DECAY"; ids[4] = VoxlineParameterIDs::spaceDecay;
+                    count = 5;
+                }
+                caption("DUCKING", {900, 620, 100, 16});
+                value(parameterText(VoxlineParameterIDs::spaceDucking), {900, 885, 100, 16}, 11.5f);
+            }
             caption("SPACE TYPE", {720, 620, 150, 16});
         }
 
@@ -1760,9 +1785,19 @@ void VoxlineAudioProcessorEditor::paintNewInterface(juce::Graphics& g)
         for (int i = 0; i < count; ++i)
         {
             const int spaceXs[] = {45, 175, 305, 435, 565};
+            const int widthXs[] = {45, 175, 435};
+            const int slapXs[] = {45, 305, 435, 565};
             const auto x = advancedSection == AdvancedSection::comp ? compXs[i]
                          : (advancedSection == AdvancedSection::deEss ? deEssXs[i]
-                         : (advancedSection == AdvancedSection::drive ? driveXs[i] : spaceXs[i]));
+                         : (advancedSection == AdvancedSection::drive ? driveXs[i]
+                         : (advancedSection == AdvancedSection::space
+                            && juce::roundToInt(audioProcessor.getAPVTS()
+                                .getRawParameterValue(VoxlineParameterIDs::spaceMode)->load()) == 4
+                                ? widthXs[i]
+                                : (advancedSection == AdvancedSection::space
+                                   && juce::roundToInt(audioProcessor.getAPVTS()
+                                       .getRawParameterValue(VoxlineParameterIDs::spaceMode)->load()) == 3
+                                   ? slapXs[i] : spaceXs[i]))));
             caption(labels[i], {x, 620, 100, 16});
             value(parameterText(ids[i]), {x, 885, 100, 16}, 11.5f);
         }
@@ -1777,8 +1812,8 @@ void VoxlineAudioProcessorEditor::resized()
     presetPreviousButton.setBounds({212, 20, 38, 36});
     presetNextButton.setBounds({252, 20, 38, 36});
     presetDropdown.setBounds({294, 20, 238, 36});
-    presetManageButton.setBounds({538, 20, 30, 36});
-    savePresetButton.setBounds({576, 20, 90, 36});
+    presetManageButton.setBounds({538, 20, 48, 36});
+    savePresetButton.setBounds({594, 20, 90, 36});
     abButton.setBounds({704, 21, 58, 34});
     bypassButton.setBounds({899, 21, 100, 34});
 
@@ -1847,6 +1882,7 @@ void VoxlineAudioProcessorEditor::resized()
     spaceDecayKnob.setBounds({583, 684, 86, 96});
     spaceTypeCombo.setBounds({720, 688, 150, 42});
     spaceDuckingKnob.setBounds({918, 684, 86, 96});
+    spaceMonoSafetyButton.setBounds({720, 744, 150, 30});
 
     updateAdvancedVisibility();
     return;
@@ -2353,6 +2389,14 @@ void VoxlineAudioProcessorEditor::timerCallback()
     gainReductionMeter.setLevel(gr);
     updateSpectrum();
 
+    const auto monitorMode = proc.getMonitorState().mode();
+    eqBandSoloButton.setToggleState(
+        monitorMode == VoxlineState::MonitorMode::eqBandSolo
+            && proc.getMonitorState().eqBand() == selectedEqBand,
+        juce::dontSendNotification);
+    deEssListenButton.setToggleState(monitorMode == VoxlineState::MonitorMode::deEssListenS,
+                                     juce::dontSendNotification);
+
     // Update PEAK/RMS readout
     const auto outPeakDb = juce::Decibels::gainToDecibels(juce::jmax(outPeak, 0.00001f), -60.0f);
     const auto outRmsDb = juce::Decibels::gainToDecibels(juce::jmax(outRms, 0.00001f), -60.0f);
@@ -2389,7 +2433,11 @@ void VoxlineAudioProcessorEditor::updateSpectrum()
 void VoxlineAudioProcessorEditor::setAdvancedSection(AdvancedSection section)
 {
     if (advancedSection != section)
+    {
         audioProcessor.getMonitorState().clear();
+        eqBandSoloButton.setToggleState(false, juce::dontSendNotification);
+        deEssListenButton.setToggleState(false, juce::dontSendNotification);
+    }
     advancedSection = section;
     updateAdvancedVisibility();
     repaint();
@@ -2442,14 +2490,16 @@ void VoxlineAudioProcessorEditor::updateAdvancedVisibility()
     driveLevelMatchButton.setVisible(drive);
 
     const auto space = advancedOpen && advancedSection == AdvancedSection::space;
-    for (auto* component : { static_cast<juce::Component*>(&spaceTimeKnob),
-                             static_cast<juce::Component*>(&spacePreDelayKnob),
-                             static_cast<juce::Component*>(&spaceWidthKnob),
-                             static_cast<juce::Component*>(&spaceToneKnob),
-                             static_cast<juce::Component*>(&spaceDecayKnob),
-                             static_cast<juce::Component*>(&spaceDuckingKnob),
-                             static_cast<juce::Component*>(&spaceTypeCombo) })
-        component->setVisible(space);
+    const auto* modeParameter = audioProcessor.getAPVTS().getRawParameterValue(VoxlineParameterIDs::spaceMode);
+    const auto spaceMode = juce::roundToInt(modeParameter != nullptr ? modeParameter->load() : 0.0f);
+    spaceTimeKnob.setVisible(space);
+    spacePreDelayKnob.setVisible(space && spaceMode != 3);
+    spaceWidthKnob.setVisible(space && spaceMode != 4);
+    spaceToneKnob.setVisible(space);
+    spaceDecayKnob.setVisible(space && spaceMode != 4);
+    spaceDuckingKnob.setVisible(space && spaceMode != 4);
+    spaceTypeCombo.setVisible(space);
+    spaceMonoSafetyButton.setVisible(space && spaceMode == 4);
 
     // Old V2 placeholders are intentionally removed from the fast interface.
     juce::Component* retiredComponents[] = { &lowCutKnob, &cleanKnob, &deEssKnob,
@@ -2600,25 +2650,83 @@ void VoxlineAudioProcessorEditor::comboBoxChanged(juce::ComboBox* comboBoxThatHa
     {
         if (presetDropdown.getSelectedId() < 100)
             return;
-        applyingSessionChange = true;
-        const auto result = presetSession.select(presetDropdown.getText(),
-            resolveUnsavedAction("Switch preset"));
-        applyingSessionChange = false;
-        showResult(result);
-        syncEQKnobsToSelectedBand();
-        refreshPresetMenu();
-        repaint();
+        requestPresetSelection(presetDropdown.getText());
     }
 }
 
 void VoxlineAudioProcessorEditor::selectRelativePreset(int delta)
 {
+    const auto presentation = presetSession.presentation();
+    if (presentation.names.isEmpty())
+    {
+        showResult(juce::Result::fail("No user presets"));
+        return;
+    }
+
+    auto currentIndex = presentation.names.indexOf(presentation.currentName);
+    if (currentIndex < 0)
+        currentIndex = delta < 0 ? 0 : presentation.names.size() - 1;
+    const auto target = (currentIndex + delta + presentation.names.size()) % presentation.names.size();
+    requestPresetSelection(presentation.names[target]);
+}
+
+void VoxlineAudioProcessorEditor::selectPresetNow(const juce::String& presetName,
+                                                   VoxlineState::UnsavedAction action)
+{
     applyingSessionChange = true;
-    const auto result = presetSession.selectRelative(delta, resolveUnsavedAction("Switch preset"));
+    const auto result = presetSession.select(presetName, action);
     applyingSessionChange = false;
     showResult(result);
     syncEQKnobsToSelectedBand();
     refreshPresetMenu();
+    repaint();
+}
+
+void VoxlineAudioProcessorEditor::requestPresetSelection(const juce::String& presetName)
+{
+    if (! presetSession.isEdited())
+    {
+        selectPresetNow(presetName, VoxlineState::UnsavedAction::discard);
+        return;
+    }
+
+    if (unsavedPresetDialog != nullptr)
+        return;
+
+    unsavedPresetDialog = std::make_unique<juce::AlertWindow>(
+        "Unsaved Preset", "Keep the edits before switching presets?",
+        juce::MessageBoxIconType::WarningIcon, this);
+    unsavedPresetDialog->addButton("Save", 1, juce::KeyPress(juce::KeyPress::returnKey));
+    unsavedPresetDialog->addButton("Discard", 2);
+    unsavedPresetDialog->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+    unsavedPresetDialog->enterModalState(true,
+        juce::ModalCallbackFunction::create(
+            [safe = juce::Component::SafePointer<VoxlineAudioProcessorEditor>(this), presetName](int choice)
+            {
+                if (safe == nullptr || safe->unsavedPresetDialog == nullptr)
+                    return;
+                safe->unsavedPresetDialog->setVisible(false);
+                safe->unsavedPresetDialog.reset();
+                if (choice == 2)
+                    safe->selectPresetNow(presetName, VoxlineState::UnsavedAction::discard);
+                else if (choice == 1)
+                {
+                    if (safe->presetSession.presentation().currentName != "Untitled")
+                        safe->selectPresetNow(presetName, VoxlineState::UnsavedAction::save);
+                    else
+                        safe->showPresetNameDialog(false,
+                            [safe, presetName](bool saved)
+                            {
+                                if (saved && safe != nullptr)
+                                    safe->selectPresetNow(presetName, VoxlineState::UnsavedAction::discard);
+                            });
+                }
+                else
+                {
+                    safe->refreshPresetMenu();
+                    safe->repaint();
+                }
+            }), false);
 }
 
 void VoxlineAudioProcessorEditor::saveUserPreset()
@@ -2626,7 +2734,7 @@ void VoxlineAudioProcessorEditor::saveUserPreset()
     showPresetNameDialog(false);
 }
 
-void VoxlineAudioProcessorEditor::showPresetNameDialog(bool rename)
+void VoxlineAudioProcessorEditor::showPresetNameDialog(bool rename, std::function<void(bool)> completion)
 {
     if (presetNameDialog != nullptr)
         return;
@@ -2635,6 +2743,7 @@ void VoxlineAudioProcessorEditor::showPresetNameDialog(bool rename)
     if (rename && currentName == "Untitled")
         return;
     presetNameDialogRenamesCurrent = rename;
+    presetNameDialogCompletion = std::move(completion);
     presetNameDialog = std::make_unique<juce::AlertWindow>(
         rename ? "Rename User Preset" : "Save User Preset", "Give this sound a name.",
         juce::MessageBoxIconType::NoIcon, this);
@@ -2649,15 +2758,21 @@ void VoxlineAudioProcessorEditor::showPresetNameDialog(bool rename)
                     return;
                 const auto name = safe->presetNameDialog->getTextEditorContents("name").trim();
                 const auto renameCurrent = safe->presetNameDialogRenamesCurrent;
+                auto completion = std::move(safe->presetNameDialogCompletion);
                 safe->presetNameDialog->setVisible(false);
                 safe->presetNameDialog.reset();
                 if (result == 1)
                 {
-                    safe->showResult(renameCurrent ? safe->presetSession.renameCurrent(name)
-                                                   : safe->presetSession.saveAs(name));
+                    const auto saveResult = renameCurrent ? safe->presetSession.renameCurrent(name)
+                                                          : safe->presetSession.saveAs(name);
+                    safe->showResult(saveResult);
                     safe->refreshPresetMenu();
                     safe->repaint();
+                    if (completion)
+                        completion(saveResult.wasOk());
                 }
+                else if (completion)
+                    completion(false);
             }), false);
 }
 
@@ -2691,19 +2806,6 @@ void VoxlineAudioProcessorEditor::refreshPresetMenu()
             presetDropdown.addItem(presentation.names[index], 100 + index);
         presetDropdown.setText(presentation.currentName, juce::dontSendNotification);
     }
-}
-
-VoxlineState::UnsavedAction
-VoxlineAudioProcessorEditor::resolveUnsavedAction(const juce::String& action)
-{
-    if (! presetSession.isEdited())
-        return VoxlineState::UnsavedAction::discard;
-
-    const auto options = juce::MessageBoxOptions::makeOptionsOk(
-        juce::MessageBoxIconType::WarningIcon, "Unsaved Preset",
-        action + " requires saving or discarding the current edits first.", "OK", this);
-    juce::AlertWindow::showAsync(options, [](int) {});
-    return VoxlineState::UnsavedAction::cancel;
 }
 
 void VoxlineAudioProcessorEditor::showResult(const juce::Result& result)
@@ -2771,14 +2873,19 @@ void VoxlineAudioProcessorEditor::syncSpaceModeControls()
     const auto* mode = audioProcessor.getAPVTS().getRawParameterValue(VoxlineParameterIDs::spaceMode);
     const auto value = juce::roundToInt(mode != nullptr ? mode->load() : 0.0f);
     const auto sizeOrTime = value == 3 ? VoxlineParameterIDs::spaceSlapTime
-                         : value == 4 ? VoxlineParameterIDs::spaceWidth
+                         : value == 4 ? VoxlineParameterIDs::spacePreDelay
                                       : VoxlineParameterIDs::spaceSize;
+    const auto preDelayOrSpread = value == 4 ? VoxlineParameterIDs::spaceWidth
+                                             : VoxlineParameterIDs::spacePreDelay;
     const auto decayOrFeedback = value == 3 ? VoxlineParameterIDs::spaceFeedback
                                             : VoxlineParameterIDs::spaceDecay;
     spaceTimeAttachment.reset();
+    spacePreDelayAttachment.reset();
     spaceDecayAttachment.reset();
     spaceTimeAttachment = std::make_unique<SliderAttachment>(audioProcessor.getAPVTS(), sizeOrTime, spaceTimeKnob);
+    spacePreDelayAttachment = std::make_unique<SliderAttachment>(audioProcessor.getAPVTS(), preDelayOrSpread, spacePreDelayKnob);
     spaceDecayAttachment = std::make_unique<SliderAttachment>(audioProcessor.getAPVTS(), decayOrFeedback, spaceDecayKnob);
+    updateAdvancedVisibility();
 }
 
 void VoxlineAudioProcessorEditor::syncEQKnobsToSelectedBand()

@@ -54,11 +54,12 @@ private:
     void timerCallback() override;
 
     void selectRelativePreset(int delta);
+    void requestPresetSelection(const juce::String& presetName);
+    void selectPresetNow(const juce::String& presetName, VoxlineState::UnsavedAction action);
     void saveUserPreset();
-    void showPresetNameDialog(bool rename);
+    void showPresetNameDialog(bool rename, std::function<void(bool)> completion = {});
     void toggleAb();
     void refreshPresetMenu();
-    VoxlineState::UnsavedAction resolveUnsavedAction(const juce::String& action);
     void showResult(const juce::Result& result);
 
     void configureKnob(VoxlineCustomKnob& knob);
@@ -181,6 +182,7 @@ private:
     juce::TextButton eqBandSoloButton;
     juce::TextButton deEssListenButton;
     juce::TextButton outputClipClearButton;
+    juce::ToggleButton spaceMonoSafetyButton;
 
     VoxlineImageButton autoGainButton { "Auto Gain" };
     VoxlineImageButton   bypassButton { "Bypass" };
@@ -233,6 +235,7 @@ private:
     std::unique_ptr<ButtonAttachment> eqEnabledAttachment;
     std::unique_ptr<ButtonAttachment> compAutoMakeupAttachment;
     std::unique_ptr<ButtonAttachment> driveLevelMatchAttachment;
+    std::unique_ptr<ButtonAttachment> spaceMonoSafetyAttachment;
     std::unique_ptr<ButtonAttachment> eqBandEnabledAttachment;
 
     juce::ToggleButton compAutoMakeupButton;
@@ -247,7 +250,9 @@ private:
     int draggingEqBand = -1;
     int hoveredEqBand = -1;
     std::unique_ptr<juce::AlertWindow> presetNameDialog;
+    std::unique_ptr<juce::AlertWindow> unsavedPresetDialog;
     bool presetNameDialogRenamesCurrent {};
+    std::function<void(bool)> presetNameDialogCompletion;
     juce::dsp::FFT spectrumFft;
     juce::dsp::WindowingFunction<float> spectrumWindow;
     std::array<float, 2048> spectrumInput {};
