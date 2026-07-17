@@ -20,6 +20,7 @@ public:
     void select(AbSlot);
     AbSlot activeSlot() const noexcept;
     juce::ValueTree toValueTree() const;
+    bool canRestore(const juce::ValueTree&) const;
     void restore(const juce::ValueTree&);
 
 private:

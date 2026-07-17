@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 
 #include "Parameters/ParameterLayout.h"
+#include "Parameters/ParameterRegistry.h"
 #include "PluginEditor.h"
 #include "State/StateSchema.h"
 
@@ -199,6 +200,53 @@ ParameterSnapshot captureParameters(
 
     return snapshot;
 }
+
+juce::ValueTree parameterTree(const juce::ValueTree& state)
+{
+    const auto nested = state.getChildWithName("PARAMETERS");
+    return nested.isValid() ? nested : state;
+}
+
+juce::ValueTree findParameterNode(const juce::ValueTree& state,
+                                  const char* id)
+{
+    for (const auto& child : parameterTree(state))
+        if (child.getProperty("id").toString() == id)
+            return child;
+    return {};
+}
+
+juce::ValueTree completeParameterState(
+    VoxlineAudioProcessor::APVTS& apvts,
+    const juce::ValueTree& migrated)
+{
+    juce::ValueTree result(apvts.state.getType());
+    const auto source = parameterTree(migrated);
+
+    for (const auto& spec : Voxline::parameterRegistry())
+    {
+        auto* parameter = apvts.getParameter(spec.id);
+        if (parameter == nullptr)
+            continue;
+
+        auto value = parameter->getNormalisableRange().convertFrom0to1(
+            parameter->getDefaultValue());
+        const auto sourceNode = findParameterNode(migrated, spec.id);
+        if (sourceNode.isValid())
+            value = static_cast<float>(sourceNode.getProperty("value"));
+        else if (source.hasProperty(spec.id))
+            value = static_cast<float>(source.getProperty(spec.id));
+        else if (source != migrated && migrated.hasProperty(spec.id))
+            value = static_cast<float>(migrated.getProperty(spec.id));
+
+        juce::ValueTree node("PARAM");
+        node.setProperty("id", spec.id, nullptr);
+        node.setProperty("value", value, nullptr);
+        result.appendChild(node, nullptr);
+    }
+
+    return result;
+}
 } // namespace
 
 VoxlineAudioProcessor::VoxlineAudioProcessor()
@@ -210,7 +258,8 @@ VoxlineAudioProcessor::VoxlineAudioProcessor()
         .withOutput("Output", juce::AudioChannelSet::stereo(), true)
     #endif
       ),
-      apvts(*this, nullptr, "VOXLINEState", createVoxlineParameterLayout())
+      apvts(*this, nullptr, "VOXLINEState", createVoxlineParameterLayout()),
+      abState(apvts)
 {
 }
 
@@ -248,7 +297,8 @@ void VoxlineAudioProcessor::prepareToPlay(double sampleRate,
         false);
     spaceSidechainBuffer.clear();
 
-    const auto parameters = captureParameters(apvts);
+    auto parameters = captureParameters(apvts);
+    applyLegacySpaceAutomation(parameters.space);
     inputGainSmoothed.reset(rate, 0.020);
     outputGainSmoothed.reset(rate, 0.020);
     bypassSmoothed.reset(rate, 0.005);
@@ -339,7 +389,8 @@ void VoxlineAudioProcessor::processBlock(
         return;
     }
 
-    const auto parameters = captureParameters(apvts);
+    auto parameters = captureParameters(apvts);
+    applyLegacySpaceAutomation(parameters.space);
     inputGainSmoothed.setTargetValue(
         juce::Decibels::decibelsToGain(parameters.inputGainDb));
     outputGainSmoothed.setTargetValue(
@@ -365,9 +416,21 @@ void VoxlineAudioProcessor::processBlock(
     }
 
     const auto inputFrame = inputMeter.measureBlock(buffer);
+    const auto monitorMode = monitorState.mode();
+    const auto soloBand = monitorState.eqBand();
+    vocalEq.setSoloBand(
+        monitorMode == VoxlineState::MonitorMode::eqBandSolo
+            && soloBand >= 0
+            ? static_cast<Voxline::Dsp::VocalEqBand>(
+                  juce::jlimit(0, 5, soloBand) + 1)
+            : Voxline::Dsp::VocalEqBand::none);
     vocalEq.process(buffer);
     const auto deEssMetrics =
-        deEsser.process(buffer, Voxline::Dsp::DeEssMonitor::off);
+        deEsser.process(
+            buffer,
+            monitorMode == VoxlineState::MonitorMode::deEssListenS
+                ? Voxline::Dsp::DeEssMonitor::detector
+                : Voxline::Dsp::DeEssMonitor::off);
     const auto compressorMetrics = compressor.process(buffer);
     polish.process(buffer);
     drive.process(buffer);
@@ -506,19 +569,117 @@ void VoxlineAudioProcessor::changeProgramName(
 {
 }
 
+void VoxlineAudioProcessor::applyLegacySpaceAutomation(
+    Voxline::Dsp::SpaceSettings& settings) noexcept
+{
+    if (! legacySpaceBridgeEnabled.load(std::memory_order_acquire))
+        return;
+
+    const auto legacyMode =
+        rawValue(apvts, VoxlineParameterIDs::spaceType);
+    const auto legacyTime =
+        rawValue(apvts, VoxlineParameterIDs::spaceTime);
+    const auto previousMode =
+        lastLegacySpaceType.exchange(
+            legacyMode, std::memory_order_acq_rel);
+    const auto previousTime =
+        lastLegacySpaceTime.exchange(
+            legacyTime, std::memory_order_acq_rel);
+
+    if (! juce::approximatelyEqual(legacyMode, previousMode))
+    {
+        constexpr std::array mappedModes {
+            static_cast<int>(Voxline::Dsp::SpaceMode::room),
+            static_cast<int>(Voxline::Dsp::SpaceMode::slap),
+            static_cast<int>(Voxline::Dsp::SpaceMode::width)};
+        const auto index =
+            juce::jlimit(0, 2, juce::roundToInt(legacyMode));
+        legacySpaceModeOverride.store(
+            mappedModes[static_cast<size_t>(index)],
+            std::memory_order_release);
+        legacySpaceOverrideActive.store(true, std::memory_order_release);
+    }
+
+    if (! juce::approximatelyEqual(legacyTime, previousTime))
+    {
+        legacySlapTimeOverride.store(
+            juce::jlimit(40.0f, 250.0f, legacyTime),
+            std::memory_order_release);
+        legacySpaceOverrideActive.store(true, std::memory_order_release);
+    }
+
+    if (! legacySpaceOverrideActive.load(std::memory_order_acquire))
+        return;
+
+    settings.mode = static_cast<Voxline::Dsp::SpaceMode>(
+        legacySpaceModeOverride.load(std::memory_order_acquire));
+    if (settings.mode == Voxline::Dsp::SpaceMode::slap)
+        settings.preDelayMs =
+            legacySlapTimeOverride.load(std::memory_order_acquire);
+}
+
 void VoxlineAudioProcessor::getStateInformation(
     juce::MemoryBlock& destination)
 {
-    VoxlineState::serialise(apvts.copyState(), destination);
+    abState.captureActiveSlot();
+
+    juce::ValueTree state("VOXLINEState");
+    juce::ValueTree parameters("PARAMETERS");
+    const auto apvtsState = apvts.copyState();
+    for (const auto& child : apvtsState)
+        parameters.appendChild(child.createCopy(), nullptr);
+    state.appendChild(parameters, nullptr);
+    state.appendChild(abState.toValueTree(), nullptr);
+    state.setProperty(
+        "legacySpaceAutomationBridge",
+        legacySpaceBridgeEnabled.load(std::memory_order_acquire),
+        nullptr);
+    VoxlineState::serialise(state, destination);
 }
 
 void VoxlineAudioProcessor::setStateInformation(
     const void* data,
     int sizeInBytes)
 {
-    if (auto state = VoxlineState::deserialise(
-            data, sizeInBytes, apvts.state.getType()))
-        apvts.replaceState(*state);
+    const auto state = VoxlineState::deserialise(
+        data, sizeInBytes, apvts.state.getType());
+    if (! state)
+        return;
+
+    const auto restoredAb = state->getChildWithName("AB_STATE");
+    if (restoredAb.isValid() && ! abState.canRestore(restoredAb))
+        return;
+
+    auto complete = completeParameterState(apvts, *state);
+    apvts.replaceState(complete);
+    if (restoredAb.isValid())
+        abState.restore(restoredAb);
+    else
+        abState.initialiseFromCurrentSound();
+    monitorState.clear();
+
+    legacySpaceBridgeEnabled.store(
+        static_cast<bool>(state->getProperty(
+            "legacySpaceAutomationBridge", false)),
+        std::memory_order_release);
+    legacySpaceOverrideActive.store(false, std::memory_order_release);
+    lastLegacySpaceType.store(
+        rawValue(apvts, VoxlineParameterIDs::spaceType),
+        std::memory_order_release);
+    lastLegacySpaceTime.store(
+        rawValue(apvts, VoxlineParameterIDs::spaceTime),
+        std::memory_order_release);
+    legacySpaceModeOverride.store(
+        juce::jlimit(
+            0, 4,
+            juce::roundToInt(
+                rawValue(apvts, VoxlineParameterIDs::spaceMode))),
+        std::memory_order_release);
+    legacySlapTimeOverride.store(
+        juce::jlimit(
+            40.0f, 250.0f,
+            rawValue(apvts, VoxlineParameterIDs::spaceSlapTime)),
+        std::memory_order_release);
 }
 
 VoxlineAudioProcessor::APVTS&
@@ -531,6 +692,30 @@ const VoxlineAudioProcessor::APVTS&
 VoxlineAudioProcessor::getAPVTS() const noexcept
 {
     return apvts;
+}
+
+VoxlineState::AbStateManager&
+VoxlineAudioProcessor::getAbState() noexcept
+{
+    return abState;
+}
+
+const VoxlineState::AbStateManager&
+VoxlineAudioProcessor::getAbState() const noexcept
+{
+    return abState;
+}
+
+VoxlineState::MonitorState&
+VoxlineAudioProcessor::getMonitorState() noexcept
+{
+    return monitorState;
+}
+
+const VoxlineState::MonitorState&
+VoxlineAudioProcessor::getMonitorState() const noexcept
+{
+    return monitorState;
 }
 
 Voxline::Dsp::MeterFrame

@@ -156,21 +156,28 @@ void VoxlineState::AbStateManager::apply(const juce::ValueTree& state)
 
 void VoxlineState::AbStateManager::restore(const juce::ValueTree& state)
 {
-    const auto restoredA = state.getChildWithName(slotAType);
-    const auto restoredB = state.getChildWithName(slotBType);
-    const auto activeName = state.getProperty("active").toString();
-
-    if (! state.hasType(abStateType)
-        || ! isValidSnapshot(restoredA)
-        || ! isValidSnapshot(restoredB)
-        || (activeName != "A" && activeName != "B"))
+    if (! canRestore(state))
     {
         initialiseFromCurrentSound();
         return;
     }
 
+    const auto restoredA = state.getChildWithName(slotAType);
+    const auto restoredB = state.getChildWithName(slotBType);
+    const auto activeName = state.getProperty("active").toString();
+
     slotA = restoredA.createCopy();
     slotB = restoredB.createCopy();
     active = activeName == "B" ? AbSlot::b : AbSlot::a;
     apply(active == AbSlot::a ? slotA : slotB);
+}
+
+bool VoxlineState::AbStateManager::canRestore(
+    const juce::ValueTree& state) const
+{
+    const auto activeName = state.getProperty("active").toString();
+    return state.hasType(abStateType)
+           && isValidSnapshot(state.getChildWithName(slotAType))
+           && isValidSnapshot(state.getChildWithName(slotBType))
+           && (activeName == "A" || activeName == "B");
 }

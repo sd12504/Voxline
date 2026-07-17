@@ -40,6 +40,12 @@ constexpr std::array retiredIds {
     VoxlineParameterIDs::spaceType,
     VoxlineParameterIDs::spaceTime};
 
+juce::ValueTree parameterState(const juce::ValueTree& state)
+{
+    const auto nested = state.getChildWithName("PARAMETERS");
+    return nested.isValid() ? nested : state;
+}
+
 std::optional<double> parseFiniteNumber(const juce::var& value) noexcept
 {
     if (value.isInt() || value.isInt64() || value.isDouble()
@@ -98,7 +104,7 @@ std::optional<int> readSchemaVersion(const juce::ValueTree& state)
 juce::ValueTree findParameter(const juce::ValueTree& state,
                               const char* id)
 {
-    for (const auto& child : state)
+    for (const auto& child : parameterState(state))
         if (child.getProperty("id").toString() == id)
             return child;
 
@@ -116,7 +122,10 @@ std::optional<float> readParameterValue(const juce::ValueTree& state,
     }
 
     const auto propertyName = juce::Identifier(id);
-    if (state.hasProperty(propertyName))
+    const auto parameters = parameterState(state);
+    if (parameters.hasProperty(propertyName))
+        return parseFiniteFloat(parameters.getProperty(propertyName));
+    if (parameters != state && state.hasProperty(propertyName))
         return parseFiniteFloat(state.getProperty(propertyName));
 
     return std::nullopt;
@@ -130,7 +139,8 @@ void setParameterValue(juce::ValueTree& state, const char* id,
     {
         child = juce::ValueTree("PARAM");
         child.setProperty("id", id, nullptr);
-        state.appendChild(child, nullptr);
+        auto parameters = parameterState(state);
+        parameters.appendChild(child, nullptr);
     }
 
     child.setProperty("value", value, nullptr);
@@ -195,19 +205,25 @@ void migrateLegacySpace(juce::ValueTree& state)
 
 void removeRetiredState(juce::ValueTree& state)
 {
+    auto parameters = parameterState(state);
     for (const auto* id : retiredIds)
     {
         state.removeProperty(juce::Identifier(id), nullptr);
+        parameters.removeProperty(juce::Identifier(id), nullptr);
 
-        for (auto index = state.getNumChildren() - 1; index >= 0; --index)
-            if (state.getChild(index).getProperty("id").toString() == id)
-                state.removeChild(index, nullptr);
+        for (auto index = parameters.getNumChildren() - 1;
+             index >= 0; --index)
+            if (parameters.getChild(index)
+                    .getProperty("id")
+                    .toString() == id)
+                parameters.removeChild(index, nullptr);
     }
 }
 
 bool containsMalformedKnownParameter(const juce::ValueTree& state)
 {
-    for (const auto& child : state)
+    const auto parameters = parameterState(state);
+    for (const auto& child : parameters)
     {
         const auto id = child.getProperty("id").toString();
         if (Voxline::findParameterSpec(id) != nullptr
@@ -216,9 +232,14 @@ bool containsMalformedKnownParameter(const juce::ValueTree& state)
     }
 
     for (const auto& spec : Voxline::parameterRegistry())
-        if (state.hasProperty(spec.id)
+    {
+        if (parameters.hasProperty(spec.id)
+            && ! parseFiniteFloat(parameters.getProperty(spec.id)))
+            return true;
+        if (parameters != state && state.hasProperty(spec.id)
             && ! parseFiniteFloat(state.getProperty(spec.id)))
             return true;
+    }
 
     return false;
 }
