@@ -24,12 +24,21 @@ constexpr std::array<float, 8> hallDelaySeconds {
     0.0371f, 0.0533f, 0.0719f, 0.0899f,
     0.113f, 0.149f, 0.193f, 0.241f
 };
+constexpr std::array<float, 2> roomDiffuserLeftMs {
+    1.7f, 4.3f
+};
+constexpr std::array<float, 2> roomDiffuserRightMs {
+    2.3f, 5.1f
+};
 constexpr std::array<float, 4> plateDiffuserLeftMs {
     3.1f, 4.7f, 7.3f, 11.1f
 };
 constexpr std::array<float, 4> plateDiffuserRightMs {
     3.7f, 5.3f, 8.1f, 12.7f
 };
+constexpr float roomDiffuserFeedback = 0.25f;
+constexpr float plateDiffuserFeedback = 0.5f;
+constexpr float plateDiffuserModulationMs = 0.08f;
 constexpr std::array<float, 8> outputSignsLeft {
     1.0f, 1.0f, -1.0f, -1.0f,
     1.0f, -1.0f, 1.0f, -1.0f
@@ -80,6 +89,31 @@ float processOnePole(float input,
 {
     state = input + coefficient * (state - input);
     return state;
+}
+
+template <size_t stages>
+double diffuserTailSeconds(
+    const std::array<float, stages>& leftDelayMs,
+    const std::array<float, stages>& rightDelayMs,
+    float sizeScale,
+    float feedback,
+    float modulationDepthMs = 0.0f) noexcept
+{
+    double leftPathMs {};
+    double rightPathMs {};
+    for (size_t stage = 0; stage < stages; ++stage)
+    {
+        leftPathMs += static_cast<double>(
+            leftDelayMs[stage] * sizeScale + modulationDepthMs);
+        rightPathMs += static_cast<double>(
+            rightDelayMs[stage] * sizeScale + modulationDepthMs);
+    }
+
+    const auto repeatsToMinus60 =
+        std::log(0.001) / std::log(static_cast<double>(feedback));
+    const auto longestPathMs = juce::jmax(leftPathMs, rightPathMs);
+    return 0.001 * (longestPathMs * repeatsToMinus60
+                    + static_cast<double>(tapCrossfadeMs));
 }
 }
 
@@ -283,11 +317,15 @@ void VocalSpace::Engine::prepare(SpaceMode engineMode,
         tankTaps[static_cast<size_t>(line)].prepare(sampleRate);
     }
 
-    if (mode == SpaceMode::plate)
-        for (auto& diffuser : diffusers)
-            diffuser.prepare(
+    if (mode == SpaceMode::room || mode == SpaceMode::plate)
+    {
+        const auto diffuserCount =
+            mode == SpaceMode::room ? 4 : static_cast<int>(diffusers.size());
+        for (int diffuser = 0; diffuser < diffuserCount; ++diffuser)
+            diffusers[static_cast<size_t>(diffuser)].prepare(
                 sampleRate,
                 juce::roundToInt(millisecondsToSamples(sampleRate, 20.0f)));
+    }
 
     reset();
 }
@@ -303,9 +341,13 @@ void VocalSpace::Engine::reset() noexcept
         tank[static_cast<size_t>(line)].reset();
         tankTaps[static_cast<size_t>(line)].reset();
     }
-    if (mode == SpaceMode::plate)
-        for (auto& diffuser : diffusers)
-            diffuser.reset();
+    if (mode == SpaceMode::room || mode == SpaceMode::plate)
+    {
+        const auto diffuserCount =
+            mode == SpaceMode::room ? 4 : static_cast<int>(diffusers.size());
+        for (int diffuser = 0; diffuser < diffuserCount; ++diffuser)
+            diffusers[static_cast<size_t>(diffuser)].reset();
+    }
     dampingState.fill(0.0f);
     toneState.fill(0.0f);
     for (size_t phase = 0; phase < modulationPhase.size(); ++phase)
@@ -434,8 +476,36 @@ VocalSpace::Engine::processRoom(StereoSample input,
                                 const SpaceSettings& settings) noexcept
 {
     const auto delayed = processPreDelay(input, settings.preDelayMs);
+    auto diffusedLeft = delayed.left;
+    auto diffusedRight = delayed.right;
+    const auto diffuserSizeScale =
+        0.8f + 0.4f * settings.sizeOrTime;
+
+    for (int stage = 0; stage < 2; ++stage)
+    {
+        diffusedLeft =
+            diffusers[static_cast<size_t>(stage)].process(
+                diffusedLeft,
+                millisecondsToSamples(
+                    sampleRate,
+                    roomDiffuserLeftMs[static_cast<size_t>(stage)]
+                    * diffuserSizeScale),
+                0.0f,
+                roomDiffuserFeedback);
+        diffusedRight =
+            diffusers[static_cast<size_t>(stage + 2)].process(
+                diffusedRight,
+                millisecondsToSamples(
+                    sampleRate,
+                    roomDiffuserRightMs[static_cast<size_t>(stage)]
+                    * diffuserSizeScale),
+                0.0f,
+                roomDiffuserFeedback);
+    }
+
+    const StereoSample diffused {diffusedLeft, diffusedRight};
     const auto tankOutput =
-        processFdn(delayed, settings, roomDelaySeconds.data(), 4,
+        processFdn(diffused, settings, roomDelaySeconds.data(), 4,
                    0.75f, 0.0f, 0.26f);
     return {0.12f * delayed.left + 0.88f * tankOutput.left,
             0.12f * delayed.right + 0.88f * tankOutput.right};
@@ -472,9 +542,10 @@ VocalSpace::Engine::processPlate(StereoSample input,
                     sampleRate,
                     plateDiffuserLeftMs[static_cast<size_t>(stage)]
                     * sizeScale),
-                millisecondsToSamples(sampleRate, 0.08f)
+                millisecondsToSamples(sampleRate,
+                                      plateDiffuserModulationMs)
                     * std::sin(leftPhase),
-                0.68f);
+                plateDiffuserFeedback);
         diffusedRight =
             diffusers[static_cast<size_t>(stage + 4)].process(
                 diffusedRight,
@@ -482,9 +553,10 @@ VocalSpace::Engine::processPlate(StereoSample input,
                     sampleRate,
                     plateDiffuserRightMs[static_cast<size_t>(stage)]
                     * sizeScale),
-                millisecondsToSamples(sampleRate, 0.08f)
+                millisecondsToSamples(sampleRate,
+                                      plateDiffuserModulationMs)
                     * std::sin(rightPhase),
-                0.68f);
+                plateDiffuserFeedback);
     }
 
     const StereoSample diffused {diffusedLeft, diffusedRight};
@@ -771,11 +843,30 @@ double VocalSpace::tailSeconds() const noexcept
     switch (targetSettings.mode)
     {
         case SpaceMode::room:
+        {
+            const auto diffuserSizeScale =
+                0.8f + 0.4f * targetSettings.sizeOrTime;
             return static_cast<double>(targetSettings.preDelayMs) * 0.001
-                 + 0.75 * static_cast<double>(targetSettings.decaySeconds);
+                 + 0.75 * static_cast<double>(targetSettings.decaySeconds)
+                 + diffuserTailSeconds(
+                       roomDiffuserLeftMs,
+                       roomDiffuserRightMs,
+                       diffuserSizeScale,
+                       roomDiffuserFeedback);
+        }
         case SpaceMode::plate:
+        {
+            const auto diffuserSizeScale =
+                0.75f + 0.5f * targetSettings.sizeOrTime;
             return static_cast<double>(targetSettings.preDelayMs) * 0.001
-                 + static_cast<double>(targetSettings.decaySeconds);
+                 + static_cast<double>(targetSettings.decaySeconds)
+                 + diffuserTailSeconds(
+                       plateDiffuserLeftMs,
+                       plateDiffuserRightMs,
+                       diffuserSizeScale,
+                       plateDiffuserFeedback,
+                       plateDiffuserModulationMs);
+        }
         case SpaceMode::hall:
             return static_cast<double>(targetSettings.preDelayMs) * 0.001
                  + 1.5 * static_cast<double>(targetSettings.decaySeconds);

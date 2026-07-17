@@ -114,6 +114,26 @@ float stereoDifferenceEnergy(const StereoRender& render,
     return static_cast<float>(energy);
 }
 
+float stereoEnergyInRange(const StereoRender& render,
+                          int startSample,
+                          int endSample)
+{
+    double energy {};
+    const auto boundedStart =
+        juce::jlimit(0, static_cast<int>(render.left.size()), startSample);
+    const auto boundedEnd =
+        juce::jlimit(boundedStart,
+                     static_cast<int>(render.left.size()), endSample);
+    for (auto sample = boundedStart; sample < boundedEnd; ++sample)
+    {
+        const auto left = render.left[static_cast<size_t>(sample)];
+        const auto right = render.right[static_cast<size_t>(sample)];
+        energy += static_cast<double>(left) * left
+                + static_cast<double>(right) * right;
+    }
+    return static_cast<float>(energy);
+}
+
 float renderWidthSideRms(double renderSampleRate,
                          int renderBlockSize,
                          float tone)
@@ -289,6 +309,38 @@ public:
             }
             expect(plateEarlySamples > roomEarlySamples,
                    "Plate must produce more populated early reflections than Room");
+        }
+
+        beginTest("Room has short diffused reflections before its second FDN line");
+        {
+            SpaceSettings settings;
+            settings.amount = 1.0f;
+            settings.mode = SpaceMode::room;
+            settings.preDelayMs = 0.0f;
+            settings.sizeOrTime = 0.62f;
+            settings.decaySeconds = 0.4f;
+            settings.ducking = 0.0f;
+
+            const auto wet =
+                renderStereoImpulse(sampleRate, blockSize, SpaceMode::room,
+                                    settings, 2048);
+            const auto roomSizeScale =
+                0.65f + 0.75f * settings.sizeOrTime;
+            const auto firstFdnArrival =
+                juce::roundToInt(sampleRate * 0.0113 * roomSizeScale);
+            const auto secondFdnArrival =
+                juce::roundToInt(sampleRate * 0.0179 * roomSizeScale);
+            const auto diffusedEnergy =
+                stereoEnergyInRange(wet,
+                                    firstFdnArrival
+                                        + juce::roundToInt(sampleRate * 0.001),
+                                    secondFdnArrival
+                                        - juce::roundToInt(sampleRate * 0.0005));
+
+            expect(diffusedEnergy > 1.0e-7f,
+                   "Room needs short all-pass reflections before the next FDN line arrives");
+            expect(stereoDifferenceEnergy(wet, firstFdnArrival) > 1.0e-5f,
+                   "The short Room diffuser must preserve mono-to-stereo decorrelation");
         }
 
         beginTest("Slap repeat follows Time and feedback decays");
@@ -632,6 +684,52 @@ public:
                            returnedEnergy);
             expect(returnedEnergy < 1.0e-10,
                    "Returning to a mode must start from reset storage");
+        }
+
+        beginTest("Plate tail report contains the complete short-decay diffuser tail");
+        {
+            SpaceSettings settings;
+            settings.amount = 1.0f;
+            settings.mode = SpaceMode::plate;
+            settings.preDelayMs = 0.0f;
+            settings.sizeOrTime = 1.0f;
+            settings.decaySeconds = 0.1f;
+            settings.tone = 1.0f;
+            settings.width = 1.0f;
+            settings.ducking = 0.0f;
+
+            VocalSpace space;
+            space.prepare({sampleRate, blockSize, 2});
+            space.setTargetSettings(settings);
+            const auto reportedTail = space.tailSeconds();
+            const auto totalSamples = juce::roundToInt(
+                sampleRate * (reportedTail + 0.25));
+            const auto wet =
+                renderStereoImpulse(sampleRate, blockSize, SpaceMode::plate,
+                                    settings, totalSamples);
+
+            float responsePeak {};
+            for (size_t sample = 0; sample < wet.left.size(); ++sample)
+                responsePeak =
+                    juce::jmax(responsePeak,
+                               std::abs(wet.left[sample]),
+                               std::abs(wet.right[sample]));
+
+            const auto firstSampleAfterReport =
+                juce::jlimit(0, totalSamples,
+                             juce::roundToInt(sampleRate * reportedTail) + 1);
+            float postReportPeak {};
+            for (int sample = firstSampleAfterReport;
+                 sample < totalSamples; ++sample)
+                postReportPeak =
+                    juce::jmax(
+                        postReportPeak,
+                        std::abs(wet.left[static_cast<size_t>(sample)]),
+                        std::abs(wet.right[static_cast<size_t>(sample)]));
+
+            expect(responsePeak > 1.0e-5f);
+            expect(postReportPeak <= responsePeak * 0.001f,
+                   "No Plate energy above -60 dB may remain after tailSeconds()");
         }
 
         beginTest("Mode transition lasts thirty milliseconds");
