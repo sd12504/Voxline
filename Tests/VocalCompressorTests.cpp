@@ -380,6 +380,206 @@ std::vector<float> renderWithSegmentation(int requestedBlockSize)
     return rendered;
 }
 
+struct RepeatedOffResult
+{
+    bool exactDryAfterTransition {true};
+    float finalReductionDb {};
+};
+
+RepeatedOffResult renderRepeatedOffTarget(int requestedBlockSize,
+                                          bool turnAmountOff)
+{
+    constexpr int transitionSamples =
+        static_cast<int>(testSampleRate * 0.020);
+    constexpr int totalSamples = transitionSamples * 3;
+
+    Voxline::Dsp::VocalCompressor compressor;
+    compressor.prepare({testSampleRate, 2048, 2});
+    auto settings = Voxline::Dsp::CompressorSettings {
+        75.0f, 25.0f, 4.0f, 5.0f, 80.0f,
+        1.0f, 6.0f, true
+    };
+    compressor.setTargetSettings(settings);
+
+    juce::AudioBuffer<float> block(2, requestedBlockSize);
+    for (int warmup = 0; warmup < 200; ++warmup)
+    {
+        block.setSize(2, requestedBlockSize, false, false, true);
+        block.clear();
+        for (int sample = 0; sample < block.getNumSamples(); ++sample)
+            for (int channel = 0; channel < block.getNumChannels(); ++channel)
+                block.setSample(channel, sample, referenceRms);
+        compressor.process(block);
+    }
+
+    if (turnAmountOff)
+        settings.amount = 0.0f;
+    else
+        settings.mix = 0.0f;
+
+    auto exactDry = true;
+    Voxline::Dsp::CompressorMetrics metrics;
+    for (int position = 0; position < totalSamples;)
+    {
+        const auto samplesThisBlock =
+            juce::jmin(requestedBlockSize, totalSamples - position);
+        block.setSize(2, samplesThisBlock, false, false, true);
+        for (int sample = 0; sample < samplesThisBlock; ++sample)
+            for (int channel = 0; channel < block.getNumChannels(); ++channel)
+                block.setSample(channel, sample, referenceRms);
+
+        // A processor may mirror APVTS values into DSP settings every block.
+        compressor.setTargetSettings(settings);
+        metrics = compressor.process(block);
+
+        for (int sample = 0; sample < samplesThisBlock; ++sample)
+            if (position + sample >= transitionSamples)
+                for (int channel = 0;
+                     channel < block.getNumChannels(); ++channel)
+                    exactDry = exactDry
+                        && block.getSample(channel, sample) == referenceRms;
+
+        position += samplesThisBlock;
+    }
+
+    return {exactDry, metrics.gainReductionDb};
+}
+
+struct RetargetResult
+{
+    float boundaryDelta {};
+    float finalOutput {};
+    float expectedOutput {};
+};
+
+RetargetResult renderMidTransitionRetarget(int requestedBlockSize)
+{
+    constexpr int firstLegSamples = 240;
+    constexpr int settleSamples =
+        static_cast<int>(testSampleRate * 0.020) + 128;
+
+    Voxline::Dsp::VocalCompressor compressor;
+    compressor.prepare({testSampleRate, 2048, 2});
+    auto settings = Voxline::Dsp::CompressorSettings {
+        75.0f, 0.0f, 4.0f, 1.0f, 2000.0f,
+        1.0f, 0.0f, false
+    };
+    compressor.setTargetSettings(settings);
+
+    juce::AudioBuffer<float> block(2, requestedBlockSize);
+    float fullyWet {};
+    for (int warmup = 0; warmup < 400; ++warmup)
+    {
+        block.setSize(2, requestedBlockSize, false, false, true);
+        for (int sample = 0; sample < block.getNumSamples(); ++sample)
+            for (int channel = 0; channel < block.getNumChannels(); ++channel)
+                block.setSample(channel, sample, referenceRms);
+        compressor.process(block);
+        fullyWet = block.getSample(0, block.getNumSamples() - 1);
+    }
+
+    settings.mix = 0.0f;
+    compressor.setTargetSettings(settings);
+    juce::AudioBuffer<float> firstLeg(2, firstLegSamples);
+    for (int sample = 0; sample < firstLegSamples; ++sample)
+        for (int channel = 0; channel < firstLeg.getNumChannels(); ++channel)
+            firstLeg.setSample(channel, sample, referenceRms);
+    compressor.process(firstLeg);
+    const auto beforeRetarget =
+        firstLeg.getSample(0, firstLeg.getNumSamples() - 1);
+
+    settings.mix = 0.5f;
+    float firstAfterRetarget {};
+    float finalOutput {};
+    for (int position = 0; position < settleSamples;)
+    {
+        const auto samplesThisBlock =
+            juce::jmin(requestedBlockSize, settleSamples - position);
+        block.setSize(2, samplesThisBlock, false, false, true);
+        for (int sample = 0; sample < samplesThisBlock; ++sample)
+            for (int channel = 0; channel < block.getNumChannels(); ++channel)
+                block.setSample(channel, sample, referenceRms);
+
+        compressor.setTargetSettings(settings);
+        compressor.process(block);
+        if (position == 0)
+            firstAfterRetarget = block.getSample(0, 0);
+        finalOutput = block.getSample(0, samplesThisBlock - 1);
+        position += samplesThisBlock;
+    }
+
+    return {
+        std::abs(firstAfterRetarget - beforeRetarget),
+        finalOutput,
+        referenceRms + 0.5f * (fullyWet - referenceRms)
+    };
+}
+
+struct RatioReleaseResult
+{
+    float startingReductionDb {};
+    float reductionAt100MsDb {};
+    float finalReductionDb {};
+    float maximumIncreaseDb {};
+    float maximumSampleDelta {};
+};
+
+RatioReleaseResult renderRatioToUnity(double sampleRate)
+{
+    Voxline::Dsp::VocalCompressor compressor;
+    compressor.prepare({sampleRate, 512, 2});
+    auto settings = Voxline::Dsp::CompressorSettings {
+        75.0f, 0.0f, 3.0f, 5.0f, 80.0f,
+        1.0f, 0.0f, false
+    };
+    compressor.setTargetSettings(settings);
+
+    juce::AudioBuffer<float> sampleBuffer(2, 1);
+    Voxline::Dsp::CompressorMetrics metrics;
+    for (int sample = 0; sample < static_cast<int>(sampleRate); ++sample)
+    {
+        sampleBuffer.setSample(0, 0, referenceRms);
+        sampleBuffer.setSample(1, 0, referenceRms);
+        metrics = compressor.process(sampleBuffer);
+    }
+
+    const auto startingReduction = metrics.gainReductionDb;
+    auto previousReduction = startingReduction;
+    auto previousOutput = sampleBuffer.getSample(0, 0);
+    auto maximumIncrease = 0.0f;
+    auto maximumSampleDelta = 0.0f;
+    auto reductionAt100Ms = startingReduction;
+    const auto totalSamples = static_cast<int>(sampleRate * 0.5);
+    const auto sampleAt100Ms = static_cast<int>(sampleRate * 0.1);
+
+    settings.ratio = 1.0f;
+    compressor.setTargetSettings(settings);
+    for (int sample = 0; sample < totalSamples; ++sample)
+    {
+        sampleBuffer.setSample(0, 0, referenceRms);
+        sampleBuffer.setSample(1, 0, referenceRms);
+        metrics = compressor.process(sampleBuffer);
+        const auto output = sampleBuffer.getSample(0, 0);
+        maximumIncrease = juce::jmax(
+            maximumIncrease,
+            metrics.gainReductionDb - previousReduction);
+        maximumSampleDelta = juce::jmax(
+            maximumSampleDelta, std::abs(output - previousOutput));
+        previousReduction = metrics.gainReductionDb;
+        previousOutput = output;
+        if (sample == sampleAt100Ms)
+            reductionAt100Ms = metrics.gainReductionDb;
+    }
+
+    return {
+        startingReduction,
+        reductionAt100Ms,
+        metrics.gainReductionDb,
+        maximumIncrease,
+        maximumSampleDelta
+    };
+}
+
 class VocalCompressorTests final : public juce::UnitTest
 {
 public:
@@ -645,6 +845,58 @@ public:
                            + " makeup=" + juce::String(settings.makeupDb));
                 previous = output;
             }
+        }
+
+        beginTest("repeated identical off targets finish the exact-dry fade");
+        {
+            for (const auto blockSize : std::array {64, 512, 2048})
+                for (const auto amountOff : {false, true})
+                {
+                    const auto result =
+                        renderRepeatedOffTarget(blockSize, amountOff);
+                    expect(result.exactDryAfterTransition,
+                           "block=" + juce::String(blockSize)
+                               + (amountOff ? " amount" : " mix"));
+                    expectEquals(result.finalReductionDb, 0.0f);
+                }
+        }
+
+        beginTest("mid-transition retarget is continuous and reaches latest");
+        {
+            for (const auto blockSize : std::array {64, 512, 2048})
+            {
+                const auto result =
+                    renderMidTransitionRetarget(blockSize);
+                expect(result.boundaryDelta < 0.01f,
+                       "block=" + juce::String(blockSize)
+                           + " delta="
+                           + juce::String(result.boundaryDelta));
+                expectWithinAbsoluteError(
+                    result.finalOutput, result.expectedOutput, 2.0e-4f,
+                    "block=" + juce::String(blockSize)
+                        + " expected="
+                        + juce::String(result.expectedOutput)
+                        + " actual="
+                        + juce::String(result.finalOutput));
+            }
+        }
+
+        beginTest("ratio automation to unity releases continuously to zero");
+        {
+            const auto at48k = renderRatioToUnity(48000.0);
+            const auto at96k = renderRatioToUnity(96000.0);
+            for (const auto& result : {at48k, at96k})
+            {
+                expect(result.reductionAt100MsDb
+                       < result.startingReductionDb * 0.7f);
+                expect(result.finalReductionDb < 0.05f);
+                expect(result.maximumIncreaseDb < 1.0e-4f);
+                expect(result.maximumSampleDelta < 0.01f);
+            }
+            expectWithinAbsoluteError(
+                at48k.reductionAt100MsDb,
+                at96k.reductionAt100MsDb,
+                0.1f);
         }
     }
 };

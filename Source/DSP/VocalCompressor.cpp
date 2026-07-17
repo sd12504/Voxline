@@ -5,6 +5,7 @@ namespace
 constexpr float referenceLevelDbfs = -12.0f;
 constexpr float kneeWidthDb = 3.0f;
 constexpr float maximumAutoMakeupDb = 10.0f;
+constexpr float referenceCompressionSlope = 1.0f - 1.0f / 3.0f;
 }
 
 void Voxline::Dsp::VocalCompressor::prepare(const ModuleSpec& spec)
@@ -158,7 +159,8 @@ float Voxline::Dsp::VocalCompressor::calculateReduction(
     const auto compressionSlope = 1.0f - 1.0f / currentRatio;
     const auto sensitivityOffsetDb = currentSensitivity * 0.12f;
     const auto thresholdDb = referenceLevelDbfs
-        - sensitivityOffsetDb - targetReduction / compressionSlope;
+        - sensitivityOffsetDb
+        - targetReduction / referenceCompressionSlope;
     const auto overThresholdDb = detectorDb - thresholdDb;
     const auto halfKneeDb = kneeWidthDb * 0.5f;
 
@@ -175,10 +177,11 @@ float Voxline::Dsp::VocalCompressor::calculateReduction(
 void Voxline::Dsp::VocalCompressor::beginWetTransition(
     float target) noexcept
 {
-    targetWetMix = juce::jlimit(0.0f, 1.0f, target);
+    const auto newTarget = juce::jlimit(0.0f, 1.0f, target);
 
     if (! hasProcessed)
     {
+        targetWetMix = newTarget;
         currentWetMix = targetWetMix;
         wetMixStep = 0.0f;
         wetTransitionRemaining = 0;
@@ -192,6 +195,11 @@ void Voxline::Dsp::VocalCompressor::beginWetTransition(
         return;
     }
 
+    if (std::abs(newTarget - targetWetMix)
+        <= std::numeric_limits<float>::epsilon())
+        return;
+
+    targetWetMix = newTarget;
     const auto transitionSamples = juce::jmax(
         1, juce::roundToInt(sampleRate * 0.020));
     wetTransitionRemaining = transitionSamples;
