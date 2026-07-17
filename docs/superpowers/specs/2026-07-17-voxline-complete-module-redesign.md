@@ -109,6 +109,7 @@
 - PRESENCE：人聲前進感與清晰度。
 - AIR：頂端空氣感。
 - 三顆旋鈕直接共用 Advanced 的 LOW、PRES、AIR 參數，不建立第二套幽靈增益。
+- BODY／PRESENCE／AIR 的增益範圍為 −12.0 至 +12.0 dB，步進 0.1 dB，預設 0.0 dB。
 
 ### Advanced
 
@@ -130,6 +131,8 @@
 - 適用頻段的 Q 旋鈕。
 - 精確數值輸入。
 - Reset Band。
+
+LOW、MUD、PRES、AIR 的 GAIN 範圍統一為 −12.0 至 +12.0 dB，步進 0.1 dB，預設 0.0 dB。EQ 圖的垂直刻度固定顯示 −12、−6、0、+6、+12 dB。
 
 全頁提供 EQ On／Off 與 Reset All。
 
