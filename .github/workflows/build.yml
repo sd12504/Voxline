@@ -129,8 +129,8 @@ jobs:
           echo "VST3: $(lipo -archs "$vst3")"
           echo "AU:   $(lipo -archs "$au")"
           for arch in ${{ matrix.verify_architectures }}; do
-            lipo -verify_arch "$arch" "$vst3"
-            lipo -verify_arch "$arch" "$au"
+            lipo "$vst3" -verify_arch "$arch"
+            lipo "$au" -verify_arch "$arch"
           done
 
       - name: Stage plug-ins
