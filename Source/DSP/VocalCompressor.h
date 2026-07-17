@@ -32,6 +32,9 @@ public:
 private:
     static float targetReductionForAmount(float amount) noexcept;
     float calculateReduction(float detectorDb) const noexcept;
+    void beginWetTransition(float targetWetMix) noexcept;
+    void advanceWetTransition() noexcept;
+    void clearWetState() noexcept;
     void updateCoefficients() noexcept;
 
     CompressorSettings settings;
@@ -41,7 +44,12 @@ private:
     float detectorPower {};
     float gainReductionDb {};
     float averageReductionDb {};
-    float currentMix {1.0f};
+    float currentWetMix {1.0f};
+    float targetWetMix {1.0f};
+    float wetMixStep {};
+    float currentAmount {};
+    float currentSensitivity {};
+    float currentRatio {3.0f};
     float currentMakeupDb {};
 
     float detectorCoefficient {};
@@ -49,6 +57,7 @@ private:
     float releaseCoefficient {};
     float averageCoefficient {};
     float controlCoefficient {};
+    int wetTransitionRemaining {};
     bool hasProcessed {};
 };
 }

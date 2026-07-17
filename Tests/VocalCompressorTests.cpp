@@ -230,6 +230,156 @@ LevelResult measureAutoMakeup()
     };
 }
 
+float renderOutputRms(Voxline::Dsp::CompressorSettings settings,
+                      float inputScale = 1.0f)
+{
+    Voxline::Dsp::VocalCompressor compressor;
+    compressor.prepare({testSampleRate, testBlockSize, 2});
+    compressor.setTargetSettings(settings);
+
+    juce::AudioBuffer<float> buffer(2, testBlockSize);
+    int64_t position = 0;
+    for (int block = 0; block < 400; ++block)
+    {
+        fillVocalLike(buffer, testSampleRate, position,
+                      inputScale, inputScale);
+        compressor.process(buffer);
+        position += testBlockSize;
+    }
+
+    return buffer.getRMSLevel(0, 0, buffer.getNumSamples());
+}
+
+struct OffTransitionResult
+{
+    float firstSample {};
+    float previousSample {};
+    bool exactDryAfterTransition {true};
+    float finalReductionDb {};
+};
+
+OffTransitionResult renderOffTransition(bool turnAmountOff)
+{
+    Voxline::Dsp::VocalCompressor compressor;
+    compressor.prepare({testSampleRate, 2048, 2});
+    auto settings = Voxline::Dsp::CompressorSettings {
+        75.0f, 25.0f, 4.0f, 5.0f, 80.0f,
+        1.0f, 6.0f, true
+    };
+    compressor.setTargetSettings(settings);
+
+    juce::AudioBuffer<float> warmup(2, testBlockSize);
+    warmup.clear();
+    for (int sample = 0; sample < warmup.getNumSamples(); ++sample)
+        for (int channel = 0; channel < warmup.getNumChannels(); ++channel)
+            warmup.setSample(channel, sample, referenceRms);
+
+    for (int block = 0; block < 400; ++block)
+    {
+        for (int sample = 0; sample < warmup.getNumSamples(); ++sample)
+            for (int channel = 0;
+                 channel < warmup.getNumChannels(); ++channel)
+                warmup.setSample(channel, sample, referenceRms);
+        compressor.process(warmup);
+    }
+
+    const auto previous = warmup.getSample(
+        0, warmup.getNumSamples() - 1);
+    if (turnAmountOff)
+        settings.amount = 0.0f;
+    else
+        settings.mix = 0.0f;
+    compressor.setTargetSettings(settings);
+
+    // The wet gate has a fixed, sample-counted 20 ms transition.
+    constexpr int transitionSamples =
+        static_cast<int>(testSampleRate * 0.020);
+    juce::AudioBuffer<float> transition(2, transitionSamples + 128);
+    for (int sample = 0; sample < transition.getNumSamples(); ++sample)
+        for (int channel = 0;
+             channel < transition.getNumChannels(); ++channel)
+            transition.setSample(channel, sample, referenceRms);
+
+    const auto metrics = compressor.process(transition);
+    auto exactDry = true;
+    for (int sample = transitionSamples;
+         sample < transition.getNumSamples(); ++sample)
+        for (int channel = 0;
+             channel < transition.getNumChannels(); ++channel)
+            exactDry = exactDry
+                && transition.getSample(channel, sample) == referenceRms;
+
+    return {
+        transition.getSample(0, 0),
+        previous,
+        exactDry,
+        metrics.gainReductionDb
+    };
+}
+
+std::vector<float> renderWithSegmentation(int requestedBlockSize)
+{
+    constexpr int totalSamples = 14000;
+    constexpr std::array<int, 4> eventSamples {
+        3000, 6500, 9000, 11500
+    };
+
+    Voxline::Dsp::VocalCompressor compressor;
+    compressor.prepare({testSampleRate, 2048, 2});
+    auto settings = Voxline::Dsp::CompressorSettings {
+        25.0f, 0.0f, 2.0f, 10.0f, 100.0f,
+        1.0f, 0.0f, false
+    };
+    compressor.setTargetSettings(settings);
+
+    std::vector<float> rendered(static_cast<size_t>(totalSamples));
+    auto position = 0;
+    while (position < totalSamples)
+    {
+        if (position == eventSamples[0])
+        {
+            settings.amount = 100.0f;
+            settings.sensitivity = 75.0f;
+            settings.ratio = 6.0f;
+            compressor.setTargetSettings(settings);
+        }
+        else if (position == eventSamples[1])
+        {
+            settings.mix = 0.2f;
+            settings.makeupDb = 4.0f;
+            compressor.setTargetSettings(settings);
+        }
+        else if (position == eventSamples[2])
+        {
+            settings.mix = 0.0f;
+            compressor.setTargetSettings(settings);
+        }
+        else if (position == eventSamples[3])
+        {
+            settings.amount = 50.0f;
+            settings.mix = 1.0f;
+            compressor.setTargetSettings(settings);
+        }
+
+        auto samplesThisBlock = juce::jmin(
+            requestedBlockSize, totalSamples - position);
+        for (const auto event : eventSamples)
+            if (event > position)
+                samplesThisBlock = juce::jmin(
+                    samplesThisBlock, event - position);
+
+        juce::AudioBuffer<float> block(2, samplesThisBlock);
+        fillVocalLike(block, testSampleRate, position);
+        compressor.process(block);
+        for (int sample = 0; sample < samplesThisBlock; ++sample)
+            rendered[static_cast<size_t>(position + sample)] =
+                block.getSample(0, sample);
+        position += samplesThisBlock;
+    }
+
+    return rendered;
+}
+
 class VocalCompressorTests final : public juce::UnitTest
 {
 public:
@@ -242,7 +392,10 @@ public:
         {
             Voxline::Dsp::VocalCompressor compressor;
             compressor.prepare({testSampleRate, testBlockSize, 2});
-            compressor.setTargetSettings({});
+            compressor.setTargetSettings({
+                0.0f, 100.0f, 20.0f, 0.1f, 2000.0f,
+                1.0f, 8.0f, true
+            });
 
             juce::AudioBuffer<float> actual(2, testBlockSize);
             fillVocalLike(actual, testSampleRate, 0);
@@ -272,6 +425,23 @@ public:
             expect(buffersAreExactlyEqual(actual, expected));
         }
 
+        beginTest("mix off crossfades then becomes exact dry");
+        {
+            const auto result = renderOffTransition(false);
+            expect(std::abs(result.firstSample - result.previousSample)
+                   < 0.02f);
+            expect(result.exactDryAfterTransition);
+        }
+
+        beginTest("amount off crossfades then clears all wet state");
+        {
+            const auto result = renderOffTransition(true);
+            expect(std::abs(result.firstSample - result.previousSample)
+                   < 0.02f);
+            expect(result.exactDryAfterTransition);
+            expectEquals(result.finalReductionDb, 0.0f);
+        }
+
         beginTest("amount maps to calibrated steady target reduction");
         {
             struct Target
@@ -293,8 +463,14 @@ public:
                     target.amount, 0.0f, 3.0f, 5.0f, 80.0f,
                     1.0f, 0.0f, false
                 });
-                expect(metrics.gainReductionDb >= target.minimumDb);
-                expect(metrics.gainReductionDb <= target.maximumDb);
+                const auto context = "Amount "
+                    + juce::String(target.amount)
+                    + " actual GR "
+                    + juce::String(metrics.gainReductionDb);
+                expect(metrics.gainReductionDb >= target.minimumDb,
+                       context);
+                expect(metrics.gainReductionDb <= target.maximumDb,
+                       context);
             }
         }
 
@@ -320,6 +496,60 @@ public:
         {
             const auto gains = measureLinkedStereoGain();
             expectWithinAbsoluteError(gains.leftDb, gains.rightDb, 0.05f);
+        }
+
+        beginTest("sensitivity increases steady gain reduction");
+        {
+            const auto lowSensitivity = renderToSteadyState({
+                50.0f, 0.0f, 3.0f, 5.0f, 80.0f,
+                1.0f, 0.0f, false
+            });
+            const auto highSensitivity = renderToSteadyState({
+                50.0f, 100.0f, 3.0f, 5.0f, 80.0f,
+                1.0f, 0.0f, false
+            });
+            expect(highSensitivity.gainReductionDb
+                   > lowSensitivity.gainReductionDb + 6.0f);
+        }
+
+        beginTest("ratio controls the above-reference compression slope");
+        {
+            const auto lowRatioAtReference = renderToSteadyState({
+                50.0f, 0.0f, 2.0f, 5.0f, 80.0f,
+                1.0f, 0.0f, false
+            }).gainReductionDb;
+            const auto lowRatioLoud = renderToSteadyState({
+                50.0f, 0.0f, 2.0f, 5.0f, 80.0f,
+                1.0f, 0.0f, false
+            }, 2.0f, 2.0f).gainReductionDb;
+            const auto highRatioAtReference = renderToSteadyState({
+                50.0f, 0.0f, 8.0f, 5.0f, 80.0f,
+                1.0f, 0.0f, false
+            }).gainReductionDb;
+            const auto highRatioLoud = renderToSteadyState({
+                50.0f, 0.0f, 8.0f, 5.0f, 80.0f,
+                1.0f, 0.0f, false
+            }, 2.0f, 2.0f).gainReductionDb;
+
+            expect(highRatioLoud - highRatioAtReference
+                   > lowRatioLoud - lowRatioAtReference + 1.0f);
+        }
+
+        beginTest("manual makeup applies the requested wet gain");
+        {
+            auto settings = Voxline::Dsp::CompressorSettings {
+                50.0f, 0.0f, 3.0f, 5.0f, 80.0f,
+                1.0f, 0.0f, false
+            };
+            const auto unityMakeup = renderOutputRms(settings);
+            settings.makeupDb = 3.0f;
+            const auto raisedMakeup = renderOutputRms(settings);
+            expectWithinAbsoluteError(
+                juce::Decibels::gainToDecibels(
+                    raisedMakeup / unityMakeup),
+                3.0f, 0.1f,
+                "unity=" + juce::String(unityMakeup)
+                    + " raised=" + juce::String(raisedMakeup));
         }
 
         beginTest("auto makeup restores long-term level without clipping");
@@ -348,6 +578,73 @@ public:
             buffer.clear();
             expectEquals(
                 compressor.process(buffer).gainReductionDb, 0.0f);
+        }
+
+        beginTest("processing is invariant to runtime block segmentation");
+        {
+            const auto at64 = renderWithSegmentation(64);
+            const auto at512 = renderWithSegmentation(512);
+            const auto at2048 = renderWithSegmentation(2048);
+
+            for (size_t sample = 0; sample < at64.size(); ++sample)
+            {
+                expectWithinAbsoluteError(
+                    at64[sample], at512[sample], 1.0e-6f);
+                expectWithinAbsoluteError(
+                    at64[sample], at2048[sample], 1.0e-6f);
+            }
+        }
+
+        beginTest("dense automation remains finite and continuous");
+        {
+            Voxline::Dsp::VocalCompressor compressor;
+            compressor.prepare({testSampleRate, 64, 2});
+            auto settings = Voxline::Dsp::CompressorSettings {
+                75.0f, 0.0f, 3.0f, 5.0f, 80.0f,
+                1.0f, 0.0f, true
+            };
+            compressor.setTargetSettings(settings);
+
+            juce::AudioBuffer<float> sampleBuffer(2, 1);
+            auto previous = referenceRms;
+            for (int sample = 0; sample < 12000; ++sample)
+            {
+                if (sample > 0 && sample % 401 == 0)
+                {
+                    const auto phase = (sample / 401) % 3;
+                    if (phase == 0)
+                        settings = {
+                            100.0f, 100.0f, 20.0f, 0.1f, 5.0f,
+                            1.0f, 6.0f, true
+                        };
+                    else if (phase == 1)
+                        settings = {
+                            25.0f, 0.0f, 1.2f, 200.0f, 2000.0f,
+                            0.2f, -6.0f, false
+                        };
+                    else
+                        settings = {
+                            0.0f, 100.0f, 20.0f, 0.1f, 5.0f,
+                            1.0f, 12.0f, true
+                        };
+                    compressor.setTargetSettings(settings);
+                }
+
+                sampleBuffer.setSample(0, 0, referenceRms);
+                sampleBuffer.setSample(1, 0, referenceRms);
+                const auto metrics = compressor.process(sampleBuffer);
+                const auto output = sampleBuffer.getSample(0, 0);
+                expect(std::isfinite(output));
+                expect(std::isfinite(metrics.gainReductionDb));
+                expect(std::abs(output - previous) < 0.02f,
+                       "sample=" + juce::String(sample)
+                           + " previous=" + juce::String(previous)
+                           + " output=" + juce::String(output)
+                           + " amount=" + juce::String(settings.amount)
+                           + " mix=" + juce::String(settings.mix)
+                           + " makeup=" + juce::String(settings.makeupDb));
+                previous = output;
+            }
         }
     }
 };

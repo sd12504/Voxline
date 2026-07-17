@@ -20,9 +20,17 @@ void Voxline::Dsp::VocalCompressor::reset() noexcept
     detectorPower = 0.0f;
     gainReductionDb = 0.0f;
     averageReductionDb = 0.0f;
-    currentMix = juce::jlimit(0.0f, 1.0f, settings.mix);
-    currentMakeupDb = juce::jlimit(-12.0f, 12.0f,
-                                   settings.makeupDb);
+    targetWetMix = settings.amount > 0.0f
+        ? juce::jlimit(0.0f, 1.0f, settings.mix) : 0.0f;
+    currentWetMix = targetWetMix;
+    wetMixStep = 0.0f;
+    wetTransitionRemaining = 0;
+    currentAmount = settings.amount;
+    currentSensitivity = settings.sensitivity;
+    currentRatio = settings.ratio;
+    currentMakeupDb = targetWetMix > 0.0f
+        ? juce::jlimit(-12.0f, 12.0f, settings.makeupDb)
+        : 0.0f;
     hasProcessed = false;
 }
 
@@ -42,11 +50,8 @@ void Voxline::Dsp::VocalCompressor::setTargetSettings(
     settings.autoMakeup = target.autoMakeup;
     updateCoefficients();
 
-    if (! hasProcessed)
-    {
-        currentMix = settings.mix;
-        currentMakeupDb = settings.makeupDb;
-    }
+    beginWetTransition(
+        settings.amount > 0.0f ? settings.mix : 0.0f);
 }
 
 Voxline::Dsp::CompressorMetrics
@@ -72,6 +77,21 @@ Voxline::Dsp::VocalCompressor::process(
 
         detectorPower = linkedPower
             + detectorCoefficient * (detectorPower - linkedPower);
+        advanceWetTransition();
+        currentAmount = settings.amount
+            + controlCoefficient * (currentAmount - settings.amount);
+        currentSensitivity = settings.sensitivity
+            + controlCoefficient
+                * (currentSensitivity - settings.sensitivity);
+        currentRatio = settings.ratio
+            + controlCoefficient * (currentRatio - settings.ratio);
+
+        if (currentWetMix <= 0.0f && targetWetMix <= 0.0f)
+        {
+            clearWetState();
+            continue;
+        }
+
         const auto detectorDb = 10.0f * std::log10(
             juce::jmax(detectorPower, 1.0e-12f));
         const auto targetReduction = calculateReduction(detectorDb);
@@ -95,11 +115,6 @@ Voxline::Dsp::VocalCompressor::process(
         currentMakeupDb = targetMakeupDb
             + controlCoefficient
                 * (currentMakeupDb - targetMakeupDb);
-        currentMix = settings.mix
-            + controlCoefficient * (currentMix - settings.mix);
-
-        if (currentMix <= 0.0f)
-            continue;
 
         const auto compressedGain =
             juce::Decibels::decibelsToGain(
@@ -109,7 +124,7 @@ Voxline::Dsp::VocalCompressor::process(
             const auto dry = buffer.getSample(channel, sample);
             const auto wet = dry * compressedGain;
             buffer.setSample(channel, sample,
-                             dry + currentMix * (wet - dry));
+                             dry + currentWetMix * (wet - dry));
         }
     }
 
@@ -136,12 +151,12 @@ float Voxline::Dsp::VocalCompressor::calculateReduction(
     float detectorDb) const noexcept
 {
     const auto targetReduction =
-        targetReductionForAmount(settings.amount);
-    if (targetReduction <= 0.0f || settings.ratio <= 1.0f)
+        targetReductionForAmount(currentAmount);
+    if (targetReduction <= 0.0f || currentRatio <= 1.0f)
         return 0.0f;
 
-    const auto compressionSlope = 1.0f - 1.0f / settings.ratio;
-    const auto sensitivityOffsetDb = settings.sensitivity * 0.12f;
+    const auto compressionSlope = 1.0f - 1.0f / currentRatio;
+    const auto sensitivityOffsetDb = currentSensitivity * 0.12f;
     const auto thresholdDb = referenceLevelDbfs
         - sensitivityOffsetDb - targetReduction / compressionSlope;
     const auto overThresholdDb = detectorDb - thresholdDb;
@@ -155,6 +170,57 @@ float Voxline::Dsp::VocalCompressor::calculateReduction(
     const auto kneePosition = overThresholdDb + halfKneeDb;
     return compressionSlope * kneePosition * kneePosition
         / (2.0f * kneeWidthDb);
+}
+
+void Voxline::Dsp::VocalCompressor::beginWetTransition(
+    float target) noexcept
+{
+    targetWetMix = juce::jlimit(0.0f, 1.0f, target);
+
+    if (! hasProcessed)
+    {
+        currentWetMix = targetWetMix;
+        wetMixStep = 0.0f;
+        wetTransitionRemaining = 0;
+        currentAmount = settings.amount;
+        currentSensitivity = settings.sensitivity;
+        currentRatio = settings.ratio;
+        if (currentWetMix <= 0.0f)
+            clearWetState();
+        else
+            currentMakeupDb = settings.makeupDb;
+        return;
+    }
+
+    const auto transitionSamples = juce::jmax(
+        1, juce::roundToInt(sampleRate * 0.020));
+    wetTransitionRemaining = transitionSamples;
+    wetMixStep = (targetWetMix - currentWetMix)
+        / static_cast<float>(transitionSamples);
+}
+
+void Voxline::Dsp::VocalCompressor::advanceWetTransition() noexcept
+{
+    if (wetTransitionRemaining <= 0)
+        return;
+
+    currentWetMix += wetMixStep;
+    --wetTransitionRemaining;
+
+    if (wetTransitionRemaining == 0)
+    {
+        currentWetMix = targetWetMix;
+        wetMixStep = 0.0f;
+        if (currentWetMix <= 0.0f)
+            clearWetState();
+    }
+}
+
+void Voxline::Dsp::VocalCompressor::clearWetState() noexcept
+{
+    gainReductionDb = 0.0f;
+    averageReductionDb = 0.0f;
+    currentMakeupDb = 0.0f;
 }
 
 void Voxline::Dsp::VocalCompressor::updateCoefficients() noexcept
