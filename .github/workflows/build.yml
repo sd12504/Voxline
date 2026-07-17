@@ -170,3 +170,20 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: VOXLINE-${{ env.VOXLINE_VERSION }}-${{ matrix.suffix }}.dmg
+
+  release-docs:
+    name: Add documentation to release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows-x64, macos]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify PDF manual
+        run: test -f 'docs/VOXLINE-2.0-使用說明書.pdf'
+
+      - name: Add PDF manual to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: docs/VOXLINE-2.0-使用說明書.pdf

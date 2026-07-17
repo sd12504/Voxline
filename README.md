@@ -1,8 +1,20 @@
-# VOXLINE 1.0
+# VOXLINE 2.0
 
 **VOXLINE** is a cross-platform vocal channel strip plugin for fast demo vocals and creator-friendly vocal processing.
 
 Commercial release candidate of a dark-mode vocal channel strip for macOS and Windows.
+
+## Documentation
+
+- [繁體中文圖文使用說明](docs/USER_MANUAL_ZH-TW.md)
+- [下載 VOXLINE 2.0 PDF 使用說明書](docs/VOXLINE-2.0-使用說明書.pdf)
+
+The PDF source can be rebuilt on macOS with:
+
+```bash
+python3 -m pip install -r scripts/requirements-manual.txt
+python3 scripts/build_user_manual_pdf.py
+```
 
 ## Product Goal
 
