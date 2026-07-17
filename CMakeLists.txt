@@ -43,29 +43,19 @@ juce_add_plugin(VOXLINE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
 )
 
+file(GLOB_RECURSE VOXLINE_SHARED_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/*.h"
+)
+
+file(GLOB_RECURSE VOXLINE_TEST_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/Tests/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Tests/*.h"
+)
+
 target_sources(VOXLINE
     PRIVATE
-        Source/PluginEditor.cpp
-        Source/PluginEditor.h
-        Source/PluginProcessor.cpp
-        Source/PluginProcessor.h
-        Source/UI/Assets.cpp
-        Source/UI/Assets.h
-        Source/UI/CustomKnob.cpp
-        Source/UI/CustomKnob.h
-        Source/UI/HeroKnob.cpp
-        Source/UI/HeroKnob.h
-        Source/UI/ImageButton.cpp
-        Source/UI/ImageButton.h
-        Source/UI/Layout.h
-        Source/UI/LayoutLoader.cpp
-        Source/UI/LayoutLoader.h
-        Source/UI/SpriteKnob.cpp
-        Source/UI/SpriteKnob.h
-        Source/UI/Theme.cpp
-        Source/UI/Theme.h
-        Source/UI/VoxlineMeter.cpp
-        Source/UI/VoxlineMeter.h
+        ${VOXLINE_SHARED_SOURCES}
 )
 
 juce_add_binary_data(VOXLINEAssets
@@ -174,28 +164,8 @@ if(BUILD_TESTING)
 
     target_sources(VOXLINEPhase1Tests
         PRIVATE
-            Source/PluginEditor.cpp
-            Source/PluginEditor.h
-            Source/PluginProcessor.cpp
-            Source/PluginProcessor.h
-            Source/UI/Assets.cpp
-            Source/UI/Assets.h
-            Source/UI/CustomKnob.cpp
-            Source/UI/CustomKnob.h
-            Source/UI/HeroKnob.cpp
-            Source/UI/HeroKnob.h
-            Source/UI/ImageButton.cpp
-            Source/UI/ImageButton.h
-            Source/UI/Layout.h
-            Source/UI/LayoutLoader.cpp
-            Source/UI/LayoutLoader.h
-            Source/UI/SpriteKnob.cpp
-            Source/UI/SpriteKnob.h
-            Source/UI/Theme.cpp
-            Source/UI/Theme.h
-            Source/UI/VoxlineMeter.cpp
-            Source/UI/VoxlineMeter.h
-            Tests/Phase1Tests.cpp
+            ${VOXLINE_SHARED_SOURCES}
+            ${VOXLINE_TEST_SOURCES}
     )
 
     juce_generate_juce_header(VOXLINEPhase1Tests)
