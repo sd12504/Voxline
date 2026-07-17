@@ -39,8 +39,8 @@ constexpr std::array registry {
     retired(VoxlineParameterIDs::cleanMode),
     retired(VoxlineParameterIDs::listen),
     sound(VoxlineParameterIDs::spaceAmount),
-    sound(VoxlineParameterIDs::spaceType),
-    sound(VoxlineParameterIDs::spaceTime),
+    retired(VoxlineParameterIDs::spaceType),
+    retired(VoxlineParameterIDs::spaceTime),
     sound(VoxlineParameterIDs::spacePreDelay),
     sound(VoxlineParameterIDs::spaceWidth),
     sound(VoxlineParameterIDs::spaceTone),
@@ -89,7 +89,9 @@ constexpr std::array registry {
     sound(VoxlineParameterIDs::driveLevelMatch),
     sound(VoxlineParameterIDs::spaceSize),
     sound(VoxlineParameterIDs::spaceFeedback),
-    sound(VoxlineParameterIDs::spaceMonoSafety)
+    sound(VoxlineParameterIDs::spaceMonoSafety),
+    sound(VoxlineParameterIDs::spaceMode),
+    sound(VoxlineParameterIDs::spaceSlapTime)
 };
 } // namespace
 

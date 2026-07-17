@@ -69,4 +69,6 @@ inline constexpr auto driveLevelMatch = "driveLevelMatch";
 inline constexpr auto spaceSize = "spaceSize";
 inline constexpr auto spaceFeedback = "spaceFeedback";
 inline constexpr auto spaceMonoSafety = "spaceMonoSafety";
+inline constexpr auto spaceMode = "spaceMode";
+inline constexpr auto spaceSlapTime = "spaceSlapTime";
 } // namespace VoxlineParameterIDs

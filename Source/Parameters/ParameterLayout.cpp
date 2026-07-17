@@ -54,9 +54,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createVoxlineParameterLayout
         juce::ParameterID{VoxlineParameterIDs::listen, 1}, "Listen", false));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{VoxlineParameterIDs::spaceAmount, 1}, "Space Amount", percentRange, 0.0f, makePercentAttributes()));
-    params.push_back(std::make_unique<juce::AudioParameterChoice>(
-        juce::ParameterID{VoxlineParameterIDs::spaceType, 1}, "Space Type",
-        juce::StringArray{"Room", "Plate", "Hall", "Slap", "Width"}, 1));
+    params.push_back(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID{VoxlineParameterIDs::spaceType, 1}, "Space Type", 0, 2, 0));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{VoxlineParameterIDs::spaceTime, 1}, "Space Time",
         juce::NormalisableRange<float>{40.0f, 2000.0f, 1.0f, 0.42f}, 1200.0f,
@@ -200,6 +199,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createVoxlineParameterLayout
         percentRange, 20.0f, makePercentAttributes()));
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID{VoxlineParameterIDs::spaceMonoSafety, 1}, "Space Mono Safety", true));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{VoxlineParameterIDs::spaceMode, 1}, "Space Mode",
+        juce::StringArray{"Room", "Plate", "Hall", "Slap", "Width"}, 1));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{VoxlineParameterIDs::spaceSlapTime, 1}, "Space Slap Time",
+        juce::NormalisableRange<float>{40.0f, 250.0f, 1.0f}, 120.0f,
+        juce::AudioParameterFloatAttributes().withLabel("ms")));
 
     return {params.begin(), params.end()};
 }
