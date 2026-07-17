@@ -785,6 +785,8 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
     paintNewInterface(g);
     return;
 
+#if 0 // Retired V2 paint path. Kept temporarily for layout-reference archaeology.
+
     const auto& t = VoxlineTheme::get(currentThemeIndex);
     auto bounds = [this](const juce::String& key, juce::Rectangle<int> fallback) {
         const auto r = layout.getBounds(key);
@@ -1315,6 +1317,7 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         drawSpaceKnob(VoxlineLayout::spaceLpfLabelBounds, "LPF",
                       VoxlineLayout::spaceLpfValueBounds, "8.0 kHz");
     }
+#endif
 }
 
 void VoxlineAudioProcessorEditor::paintNewInterface(juce::Graphics& g)
@@ -1887,6 +1890,8 @@ void VoxlineAudioProcessorEditor::resized()
     updateAdvancedVisibility();
     return;
 
+#if 0 // Retired V2 resize path. The active layout above is the only shipped UI.
+
     auto bounds = [this](const juce::String& key, juce::Rectangle<int> fallback)
     {
         const auto r = layout.getBounds(key);
@@ -1964,6 +1969,7 @@ void VoxlineAudioProcessorEditor::resized()
     preDelayLabel.setBounds(VoxlineLayout::spacePreDelayLabelBounds);
     spaceHpfLabel.setBounds(VoxlineLayout::spaceHpfLabelBounds);
     spaceLpfLabel.setBounds(VoxlineLayout::spaceLpfLabelBounds);
+#endif
 }
 
 juce::Rectangle<float> VoxlineAudioProcessorEditor::getEqGraphBounds() const
