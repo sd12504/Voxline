@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  VOXLINE_VERSION: 1.0.0
+  VOXLINE_VERSION: 2.0.0
 
 jobs:
   windows-x64:

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(VOXLINE VERSION 1.0.0 LANGUAGES C CXX)
+project(VOXLINE VERSION 2.0.0 LANGUAGES C CXX)
 
 include(FetchContent)
 include(CTest)

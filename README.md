@@ -121,7 +121,7 @@ AU:    build/VOXLINE_artefacts/Release/AU/VOXLINE.component
 
 ```bash
 # Build first, then:
-cd build && cpack -G DragNDrop    # creates VOXLINE-1.0.0-Darwin.dmg
+cd build && cpack -G DragNDrop    # creates VOXLINE-2.0.0-Darwin.dmg
 ```
 
 Or manually:
@@ -131,7 +131,7 @@ mkdir -p pkg_root/VST3 pkg_root/Components
 cp -R build/VOXLINE_artefacts/Release/VST3/VOXLINE.vst3 pkg_root/VST3/
 cp -R build/VOXLINE_artefacts/Release/AU/VOXLINE.component pkg_root/Components/
 pkgbuild --root pkg_root --install-location "/Library/Audio/Plug-Ins" \
-  --identifier com.onetake.voxline --version 1.0.0 VOXLINE.pkg
+  --identifier com.onetake.voxline --version 2.0.0 VOXLINE.pkg
 hdiutil create -volname "VOXLINE" -srcfolder VOXLINE.pkg -ov -format UDZO VOXLINE_macOS.dmg
 ```
 
@@ -162,7 +162,7 @@ VST3:  build\VOXLINE_artefacts\Release\VST3\VOXLINE.vst3
 
 ```powershell
 # Build first, then:
-cd build; cpack -G ZIP    # creates VOXLINE-1.0.0-Windows.zip
+cd build; cpack -G ZIP    # creates VOXLINE-2.0.0-Windows.zip
 ```
 
 Suggested Windows VST3 install location:
@@ -175,12 +175,12 @@ C:\Program Files\Common Files\VST3\
 
 GitHub Actions builds and tests four release artifacts on every push and pull request:
 
-- `VOXLINE-1.0.0-Windows-x64-VST3.zip`
-- `VOXLINE-1.0.0-macOS-Apple-Silicon.dmg`
-- `VOXLINE-1.0.0-macOS-Intel.dmg`
-- `VOXLINE-1.0.0-macOS-Universal.dmg`
+- `VOXLINE-2.0.0-Windows-x64-VST3.zip`
+- `VOXLINE-2.0.0-macOS-Apple-Silicon.dmg`
+- `VOXLINE-2.0.0-macOS-Intel.dmg`
+- `VOXLINE-2.0.0-macOS-Universal.dmg`
 
-Pushing a tag such as `v1.0.0` also attaches those files to the corresponding GitHub Release.
+Pushing a tag such as `v2.0.0` also attaches those files to the corresponding GitHub Release.
 
 ## Testing
 

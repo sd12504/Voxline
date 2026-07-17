@@ -1,6 +1,6 @@
 # VOXLINE — Complete Vocal Processing Plugin
 
-**版本** 1.0.0 | **開發者** ONETAKE / SADTONY | **架構** JUCE / C++20
+**版本** 2.0.0 | **開發者** ONETAKE / SADTONY | **架構** JUCE / C++20
 
 ---
 
@@ -57,7 +57,7 @@ AU 放到：
 
 ### Windows
 
-解壓縮 `VOXLINE-1.0.0-Windows-x64-VST3.zip`，把 `VOXLINE.vst3` 放到：
+解壓縮 `VOXLINE-2.0.0-Windows-x64-VST3.zip`，把 `VOXLINE.vst3` 放到：
 ```
 C:\Program Files\Common Files\VST3\
 ```
