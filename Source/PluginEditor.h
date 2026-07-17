@@ -8,6 +8,7 @@
 #include "UI/LayoutLoader.h"
 #include "UI/Theme.h"
 #include "UI/VoxlineMeter.h"
+#include "State/PresetSessionController.h"
 
 class VoxlineAudioProcessor;
 
@@ -32,9 +33,6 @@ public:
     void mouseDoubleClick(const juce::MouseEvent&) override;
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
-    // A/B compare
-    struct ParameterSnapshot { juce::ValueTree state; };
-
     void setAdvancedOpen(bool shouldOpen);
     int currentThemeIndex { 1 };
     int selectedEqBand { 0 };  // 0=HPF 1=LOW 2=MUD 3=PRES 4=AIR 5=LPF
@@ -55,13 +53,12 @@ private:
     void sliderValueChanged(juce::Slider* slider) override;
     void timerCallback() override;
 
-    void applyPreset(const juce::String& name);
     void selectRelativePreset(int delta);
     void saveUserPreset();
-    void loadUserPreset();
-    void captureSnapshot(ParameterSnapshot& snap);
-    void applySnapshot(const ParameterSnapshot& snap);
     void toggleAb();
+    void refreshPresetMenu();
+    VoxlineState::UnsavedAction resolveUnsavedAction(const juce::String& action);
+    void showResult(const juce::Result& result);
 
     void configureKnob(VoxlineCustomKnob& knob);
     void configureButton(juce::ToggleButton& button, const juce::String& text);
@@ -72,6 +69,7 @@ private:
     void applyTheme(const VoxlineTheme& theme);
     void loadIconDrawables();
     void syncEQKnobsToSelectedBand();
+    void syncSpaceModeControls();
     void repaintEQCurve();
     void paintNewInterface(juce::Graphics& g);
     void updateAdvancedVisibility();
@@ -119,7 +117,6 @@ private:
     juce::TextButton abButton;
     juce::TextButton presetPreviousButton;
     juce::TextButton presetNextButton;
-    juce::TextButton favouriteButton;
     juce::TextButton savePresetButton;
     // Monitor buttons
     juce::TextButton monitorAbBtn;
@@ -154,11 +151,13 @@ private:
 
     // Real Advanced controls. The main-row knobs remain amount macros.
     VoxlineCustomKnob compMixKnob { "Mix", juce::Colour(0xff8D70E8) };
+    VoxlineCustomKnob compMakeupKnob { "Makeup", juce::Colour(0xff8D70E8) };
     VoxlineCustomKnob deEssFreqKnob { "Frequency", juce::Colour(0xff8D70E8) };
     VoxlineCustomKnob deEssThresholdKnob { "Threshold", juce::Colour(0xffD8A548) };
     VoxlineCustomKnob deEssRangeKnob { "Range", juce::Colour(0xff8D70E8) };
     VoxlineCustomKnob driveToneKnob { "Tone", juce::Colour(0xffD86A35) };
     VoxlineCustomKnob driveMixKnob { "Mix", juce::Colour(0xffD86A35) };
+    VoxlineCustomKnob driveOutputTrimKnob { "Output", juce::Colour(0xffD86A35) };
     VoxlineCustomKnob spaceTimeKnob { "Time", juce::Colour(0xffD86A35) };
     VoxlineCustomKnob spacePreDelayKnob { "Pre-delay", juce::Colour(0xffD86A35) };
     VoxlineCustomKnob spaceWidthKnob { "Width", juce::Colour(0xffD86A35) };
@@ -176,6 +175,10 @@ private:
     juce::TextButton advancedSpaceButton;
     juce::TextButton eqResetButton;
     juce::TextButton eqRangeButton;
+    juce::TextButton eqBandEnableButton;
+    juce::TextButton eqBandSoloButton;
+    juce::TextButton deEssListenButton;
+    juce::TextButton outputClipClearButton;
 
     VoxlineImageButton autoGainButton { "Auto Gain" };
     VoxlineImageButton   bypassButton { "Bypass" };
@@ -207,11 +210,13 @@ private:
     std::unique_ptr<SliderAttachment> compAttackAttachment;
     std::unique_ptr<SliderAttachment> compReleaseAttachment;
     std::unique_ptr<SliderAttachment> compMixAttachment;
+    std::unique_ptr<SliderAttachment> compMakeupAttachment;
     std::unique_ptr<SliderAttachment> deEssFreqAttachment;
     std::unique_ptr<SliderAttachment> deEssThresholdAttachment;
     std::unique_ptr<SliderAttachment> deEssRangeAttachment;
     std::unique_ptr<SliderAttachment> driveToneAttachment;
     std::unique_ptr<SliderAttachment> driveMixAttachment;
+    std::unique_ptr<SliderAttachment> driveOutputTrimAttachment;
     std::unique_ptr<SliderAttachment> spaceTimeAttachment;
     std::unique_ptr<SliderAttachment> spacePreDelayAttachment;
     std::unique_ptr<SliderAttachment> spaceWidthAttachment;
@@ -222,23 +227,23 @@ private:
     std::unique_ptr<ComboBoxAttachment> deEssModeAttachment;
     std::unique_ptr<ComboBoxAttachment> driveCharacterAttachment;
 
-    std::unique_ptr<ButtonAttachment> autoGainAttachment;
     std::unique_ptr<ButtonAttachment> bypassAttachment;
-    std::unique_ptr<ButtonAttachment> cleanModeAttachment;
-    std::unique_ptr<ButtonAttachment> listenAttachment;
     std::unique_ptr<ButtonAttachment> eqEnabledAttachment;
+    std::unique_ptr<ButtonAttachment> compAutoMakeupAttachment;
+    std::unique_ptr<ButtonAttachment> driveLevelMatchAttachment;
+    std::unique_ptr<ButtonAttachment> eqBandEnabledAttachment;
 
-    // A/B compare
-    ParameterSnapshot snapshotA, snapshotB;
-    bool isSlotAActive = true;
-    bool applyingSnapshot = false;
-    bool presetIsFavourite = false;
-    bool eqShows24dB = true;
+    juce::ToggleButton compAutoMakeupButton;
+    juce::ToggleButton driveLevelMatchButton;
+
+    VoxlineState::UserPresetLibrary userPresetLibrary;
+    VoxlineState::PresetSessionController presetSession;
+    bool applyingSessionChange = false;
+    bool eqShows24dB = false;
     bool advancedOpen = true;
     AdvancedSection advancedSection = AdvancedSection::eq;
     int draggingEqBand = -1;
     int hoveredEqBand = -1;
-    std::unique_ptr<juce::FileChooser> presetFileChooser;
     juce::dsp::FFT spectrumFft;
     juce::dsp::WindowingFunction<float> spectrumWindow;
     std::array<float, 2048> spectrumInput {};
