@@ -1,9 +1,31 @@
 build/
 build-*/
+build_x86/
+build_universal/
+_CPack_Packages/
 .DS_Store
 *.user
 *.xcuserstate
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
 *.vs/
-build_x86/
+
+# Packaging artifacts
+*.dmg
+*.pkg
+*.zip
+release/
+
+# Local visual QA and imported source dumps
+qa/
+123/
+
+# Screenshots in build roots
+voxline-editor-screenshot*.png
+voxline-header-*.png
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo

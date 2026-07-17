@@ -417,7 +417,7 @@ Verify Windows + macOS plugin builds and prepare local install instructions.
 - [x] Test in JUCE AudioPluginHost
 - [ ] Test in Logic Pro if available
 - [ ] Test in Reaper if available
-- [ ] Run AU validation if available
+- [x] Run AU validation if available
 
 ## Windows Tasks
 
@@ -429,14 +429,24 @@ Verify Windows + macOS plugin builds and prepare local install instructions.
 
 ## General Tests
 
-- [ ] Open / close plugin repeatedly
+- [x] Open / close plugin repeatedly
 - [ ] Test multiple instances
-- [ ] Test bypass
-- [ ] Test preset switching
-- [ ] Test 44.1 / 48 / 96 kHz
-- [ ] Test buffer sizes 64 / 128 / 256 / 512
+- [x] Test bypass
+- [x] Test preset switching
+- [x] Test 44.1 / 48 / 96 kHz
+- [x] Test buffer sizes 64 / 128 / 256 / 512
 - [ ] Confirm no major crashes
 - [ ] Update README with final build/test instructions
+
+## 2026-07 Advanced UI Polish
+
+- [x] Increase the Advanced drawer height to prevent clipped controls
+- [x] Give COMP Threshold / Ratio / Attack / Release / Mix clear spacing
+- [x] Add De-ess reduction feedback
+- [x] Remove duplicated ComboBox text in De-ess and Drive
+- [x] Show bipolar -6 / 0 / +6 scales for Body, Presence, and Air
+- [x] Expose the real Vocal EQ on/off control in Advanced
+- [x] Render and inspect the collapsed and expanded layouts
 
 ## Suggested Commit
 

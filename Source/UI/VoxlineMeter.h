@@ -16,11 +16,13 @@ public:
     void paint(juce::Graphics& g) override;
 
     void setLevel(float v);
+    void setMinimumLevel(float v);
 
 private:
     float level = 0.0f;
     float smoothed = 0.0f;
     float peakHold = 0.0f;
+    float minimumLevel = 0.0f;
     static constexpr float cornerSize = 4.0f;
     static constexpr int barThickness = 16;
 };

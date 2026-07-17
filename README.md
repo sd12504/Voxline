@@ -1,8 +1,20 @@
-# VOXLINE
+# VOXLINE 2.0
 
 **VOXLINE** is a cross-platform vocal channel strip plugin for fast demo vocals and creator-friendly vocal processing.
 
-The project is being rebuilt cleanly from the ground up.
+Commercial release candidate of a dark-mode vocal channel strip for macOS and Windows.
+
+## Documentation
+
+- [繁體中文圖文使用說明](docs/USER_MANUAL_ZH-TW.md)
+- [下載 VOXLINE 2.0 PDF 使用說明書](docs/VOXLINE-2.0-使用說明書.pdf)
+
+The PDF source can be rebuilt on macOS with:
+
+```bash
+python3 -m pip install -r scripts/requirements-manual.txt
+python3 scripts/build_user_manual_pdf.py
+```
 
 ## Product Goal
 
@@ -35,9 +47,9 @@ Version control: Git
 - AUTO GAIN
 - POLISH
 - BODY
-- CLARITY
+- PRESENCE
 - AIR
-- SMOOTH
+- DE-ESS
 - COMP
 - DRIVE
 - OUT
@@ -90,11 +102,49 @@ cmake -B build -G Xcode
 cmake --build build --config Release
 ```
 
+For an Intel-only binary (x86_64, macOS 11+):
+
+```bash
+cmake -B build-intel -G Xcode -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+cmake --build build-intel --config Release
+```
+
+For a universal binary (Apple Silicon + Intel):
+
+```bash
+cmake -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+cmake --build build --config Release
+```
+
+Confirm the binary before distribution:
+
+```bash
+lipo -archs build/VOXLINE_artefacts/Release/VST3/VOXLINE.vst3/Contents/MacOS/VOXLINE
+```
+
 Expected formats:
 
 ```txt
-VOXLINE.vst3
-VOXLINE.component
+VST3:  build/VOXLINE_artefacts/Release/VST3/VOXLINE.vst3
+AU:    build/VOXLINE_artefacts/Release/AU/VOXLINE.component
+```
+
+### macOS Release Packaging
+
+```bash
+# Build first, then:
+cd build && cpack -G DragNDrop    # creates VOXLINE-2.0.0-Darwin.dmg
+```
+
+Or manually:
+
+```bash
+mkdir -p pkg_root/VST3 pkg_root/Components
+cp -R build/VOXLINE_artefacts/Release/VST3/VOXLINE.vst3 pkg_root/VST3/
+cp -R build/VOXLINE_artefacts/Release/AU/VOXLINE.component pkg_root/Components/
+pkgbuild --root pkg_root --install-location "/Library/Audio/Plug-Ins" \
+  --identifier com.onetake.voxline --version 2.0.0 VOXLINE.pkg
+hdiutil create -volname "VOXLINE" -srcfolder VOXLINE.pkg -ov -format UDZO VOXLINE_macOS.dmg
 ```
 
 Suggested macOS install locations:
@@ -109,14 +159,22 @@ AU:   ~/Library/Audio/Plug-Ins/Components/
 Generate a Visual Studio project:
 
 ```powershell
-cmake -B build -G "Visual Studio 17 2022" -A x64
+cmake -B build -A x64
 cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure
 ```
 
 Expected format:
 
 ```txt
-VOXLINE.vst3
+VST3:  build\VOXLINE_artefacts\Release\VST3\VOXLINE.vst3
+```
+
+### Windows Release Packaging
+
+```powershell
+# Build first, then:
+cd build; cpack -G ZIP    # creates VOXLINE-2.0.0-Windows.zip
 ```
 
 Suggested Windows VST3 install location:
@@ -124,6 +182,17 @@ Suggested Windows VST3 install location:
 ```txt
 C:\Program Files\Common Files\VST3\
 ```
+
+## Automated Release Builds
+
+GitHub Actions builds and tests four release artifacts on every push and pull request:
+
+- `VOXLINE-2.0.0-Windows-x64-VST3.zip`
+- `VOXLINE-2.0.0-macOS-Apple-Silicon.dmg`
+- `VOXLINE-2.0.0-macOS-Intel.dmg`
+- `VOXLINE-2.0.0-macOS-Universal.dmg`
+
+Pushing a tag such as `v2.0.0` also attaches those files to the corresponding GitHub Release.
 
 ## Testing
 
@@ -166,12 +235,12 @@ General test checklist:
 ```txt
 Input
 → Smoothed Input Gain
-→ Body EQ (bell 200Hz, -4/+5dB)
-→ Clarity EQ (peak 3.5kHz, -3/+6dB)
-→ Air EQ (high shelf 7kHz, -3/+7dB)
-→ Smooth (high shelf cut 6kHz, 0/-6dB)
-→ Compressor (one-knob, -12/-32dB thr, 1.2:1-5:1)
-→ Drive (tanh saturation, 0-12dB)
+→ Clean-mode rumble filter
+→ Vocal EQ (HPF / Low / Mud / Presence / Air / LPF)
+→ Split-band de-esser
+→ Compressor (macro + advanced threshold/ratio/timing/mix)
+→ Drive (macro + advanced tone/mix/character)
+→ Space (ambience / slap / stereo wide)
 → Auto Gain compensation
 → Smoothed Output Gain
 → Soft clip protection
@@ -185,31 +254,34 @@ Listen mode outputs the difference signal (processed - dry) × 2 for auditioning
 
 ## Current Status
 
-All 8 phases complete:
+V2 release candidate:
 
 ```txt
 Phase 0: Clean JUCE project                    ✅
-Phase 1: APVTS parameters                      ✅
+Phase 1: APVTS parameters (51 params)          ✅
 Phase 2: Functional debug UI                   ✅
 Phase 3: Minimal vocal DSP                     ✅
-Phase 4: Fixed Figma layout (1100×760)         ✅
+Phase 4: Simplified V2 layout (1080×720/900)   ✅
 Phase 5: Custom knob system                    ✅
-Phase 6: Light/Dark theme system               ✅
+Phase 6: Premium dark-only interface           ✅
 Phase 7: Meters, presets, visual polish        ✅
-Phase 8: Cross-platform verification           ✅ (macOS)
+Phase 8: Cross-platform verification           ✅ (macOS + Windows CI)
 ```
 
 Current verification:
 
 ```txt
-- Release VST3 + AU build passes (3.7MB)
+- Release VST3 + AU build passes
 - auval validates AU component
-- All 12 APVTS parameters automatable
+- All 51 APVTS parameters automatable
+- Expandable Advanced EQ / Comp / De-ess / Drive / Space controls
+- Real-time EQ spectrum display and coefficient-accurate response curve
+- Editable EQ frequency, gain, Q and slope values
 - Real input/output meters (peak + RMS)
 - Gain reduction meter
-- 9 artist presets (Clean + 8 signatures)
-- A/B parameter snapshot comparison
-- Dark/Light theme toggle
+- 9 DAW-visible factory presets plus user preset save/load
+- Full-state A/B parameter snapshot comparison
+- Dark-only commercial interface
 - Bypass with smooth crossfade
 ```
 
