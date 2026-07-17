@@ -748,6 +748,38 @@ public:
                    "No Plate energy above -60 dB may remain after tailSeconds()");
         }
 
+        beginTest("Hall tail report includes the longest modulated FDN line");
+        {
+            SpaceSettings settings;
+            settings.amount = 1.0f;
+            settings.mode = SpaceMode::hall;
+            settings.preDelayMs = 0.0f;
+            settings.sizeOrTime = 1.0f;
+            settings.decaySeconds = 0.1f;
+            settings.tone = 1.0f;
+            settings.width = 1.0f;
+            settings.ducking = 0.0f;
+
+            VocalSpace space;
+            space.prepare({sampleRate, blockSize, 2});
+            space.setTargetSettings(settings);
+            const auto reportedTail = space.tailSeconds();
+            const auto totalSamples =
+                juce::roundToInt(sampleRate * (reportedTail + 0.25));
+            const auto wet =
+                renderStereoImpulse(sampleRate, blockSize, SpaceMode::hall,
+                                    settings, totalSamples);
+            const auto responsePeak = stereoPeak(wet);
+            const auto firstSampleAfterReport =
+                juce::roundToInt(sampleRate * reportedTail) + 1;
+            const auto postReportPeak =
+                stereoPeak(wet, firstSampleAfterReport);
+
+            expect(responsePeak > 1.0e-5f);
+            expect(postReportPeak <= responsePeak * 0.001f,
+                   "Hall FDN energy above -60 dB must not outlive tailSeconds()");
+        }
+
         beginTest("Width tail report includes dark Tone filter settling");
         {
             SpaceSettings settings;
@@ -807,6 +839,46 @@ public:
             expect(responsePeak > 1.0e-5f);
             expect(postReportPeak <= responsePeak * 0.001f,
                    "Slap Tone energy above -60 dB must not outlive tailSeconds()");
+        }
+
+        beginTest("Slap feedback tail report includes the unity first repeat");
+        {
+            SpaceSettings settings;
+            settings.amount = 1.0f;
+            settings.mode = SpaceMode::slap;
+            settings.preDelayMs = 80.0f;
+            settings.feedback = 0.5f;
+            settings.tone = 1.0f;
+            settings.width = 0.0f;
+            settings.ducking = 0.0f;
+
+            VocalSpace space;
+            space.prepare({sampleRate, blockSize, 2});
+            space.setTargetSettings(settings);
+            const auto reportedTail = space.tailSeconds();
+            const auto repeatsToMinus60 =
+                std::log(0.001) / std::log(
+                    static_cast<double>(settings.feedback));
+            const auto minimumRepeatTail =
+                0.001 * static_cast<double>(settings.preDelayMs)
+                * (1.0 + repeatsToMinus60);
+            expect(reportedTail >= minimumRepeatTail,
+                   "The unity first Slap repeat requires one interval beyond the feedback exponent");
+
+            const auto totalSamples =
+                juce::roundToInt(sampleRate * (reportedTail + 0.15));
+            const auto wet =
+                renderStereoImpulse(sampleRate, blockSize, SpaceMode::slap,
+                                    settings, totalSamples);
+            const auto responsePeak = stereoPeak(wet);
+            const auto firstSampleAfterReport =
+                juce::roundToInt(sampleRate * reportedTail) + 1;
+            const auto postReportPeak =
+                stereoPeak(wet, firstSampleAfterReport);
+
+            expect(responsePeak > 1.0e-5f);
+            expect(postReportPeak <= responsePeak * 0.001f,
+                   "Feedback Slap energy above -60 dB must not outlive tailSeconds()");
         }
 
         beginTest("Tail report covers the remaining mode crossfade");

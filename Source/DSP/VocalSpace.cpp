@@ -13,6 +13,7 @@ constexpr float modeCrossfadeMs = 30.0f;
 constexpr float duckAttackMs = 5.0f;
 constexpr float duckReleaseMs = 180.0f;
 constexpr float maximumPreDelayMs = 250.0f;
+constexpr float hallModulationDepthMs = 0.42f;
 
 constexpr std::array<float, 4> roomDelaySeconds {
     0.0113f, 0.0179f, 0.0297f, 0.0371f
@@ -586,7 +587,7 @@ VocalSpace::Engine::processHall(StereoSample input,
     const auto delayed = processPreDelay(input, settings.preDelayMs);
     const auto tankOutput =
         processFdn(delayed, settings, hallDelaySeconds.data(), 8,
-                   1.5f, 0.42f, 0.18f);
+                   1.5f, hallModulationDepthMs, 0.18f);
     return {0.06f * delayed.left + 0.94f * tankOutput.left,
             0.06f * delayed.right + 0.94f * tankOutput.right};
 }
@@ -884,8 +885,19 @@ double VocalSpace::tailSeconds() const noexcept
                            plateDiffuserModulationMs);
             }
             case SpaceMode::hall:
+            {
+                const auto sizeScale =
+                    0.65 + 0.75
+                           * static_cast<double>(settings.sizeOrTime);
+                const auto longestLineSeconds =
+                    static_cast<double>(hallDelaySeconds.back())
+                        * sizeScale
+                    + static_cast<double>(hallModulationDepthMs) * 0.001;
                 return static_cast<double>(settings.preDelayMs) * 0.001
-                     + 1.5 * static_cast<double>(settings.decaySeconds);
+                     + longestLineSeconds
+                     + 1.5 * static_cast<double>(settings.decaySeconds)
+                     + static_cast<double>(tapCrossfadeMs) * 0.001;
+            }
             case SpaceMode::slap:
             {
                 const auto repeatSeconds =
@@ -898,13 +910,14 @@ double VocalSpace::tailSeconds() const noexcept
                     const auto repeats =
                         std::log(0.001)
                         / std::log(static_cast<double>(settings.feedback));
-                    repeatTail *= juce::jmax(1.0, repeats);
+                    repeatTail *= 1.0 + repeats;
                 }
 
                 const auto cutoff =
                     toneCutoff(settings.tone, 900.0f, 14000.0f);
                 return repeatTail
-                     + onePoleTailSeconds(moduleSpec.sampleRate, cutoff);
+                     + onePoleTailSeconds(moduleSpec.sampleRate, cutoff)
+                     + static_cast<double>(tapCrossfadeMs) * 0.001;
             }
             case SpaceMode::width:
             {
