@@ -2,6 +2,7 @@
 
 #include "DspTypes.h"
 
+#include <array>
 #include <memory>
 #include <vector>
 
@@ -43,8 +44,7 @@ private:
 
     ModuleSpec moduleSpec;
     DriveSettings targetSettings;
-    DriveCharacter previousCharacter {DriveCharacter::warm};
-    DriveCharacter currentCharacter {DriveCharacter::warm};
+    DriveCharacter characterTarget {DriveCharacter::warm};
 
     std::unique_ptr<juce::dsp::Oversampling<float>> oversampling;
     juce::AudioBuffer<float> delayedDry;
@@ -61,13 +61,15 @@ private:
     float targetMatchGain {1.0f};
     float currentLevelMatchWeight {1.0f};
     float currentWetEnable {};
-    float characterFade {1.0f};
+    std::array<float, 3> characterWeights {0.0f, 1.0f, 0.0f};
+    std::array<float, 3> characterWeightSteps {};
 
     float parameterCoefficient {};
     float baseParameterCoefficient {};
     float matchCoefficient {};
     float toneCoefficient {};
     int dryWritePosition {};
+    int characterFadeSamplesRemaining {};
     int latency {};
     bool prepared {};
 };

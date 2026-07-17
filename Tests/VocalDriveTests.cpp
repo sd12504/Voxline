@@ -280,6 +280,59 @@ std::vector<float> renderDynamicLevelMatch(int runtimeBlockSize)
     return output;
 }
 
+std::vector<float> renderRapidCharacterAutomation(int runtimeBlockSize)
+{
+    constexpr int totalSamples = 8192;
+    constexpr int edgeEventSample = 4096;
+    constexpr int cleanEventSample = 4352;
+
+    Voxline::Dsp::VocalDrive drive;
+    drive.prepare({sampleRate, 2048, 1});
+    drive.setTargetSettings({1.0f, Voxline::Dsp::DriveCharacter::warm,
+                             0.0f, 1.0f, 0.0f, false});
+    drive.reset();
+
+    std::vector<float> output(static_cast<size_t>(totalSamples));
+    juce::AudioBuffer<float> block(1, runtimeBlockSize);
+    auto offset = 0;
+
+    while (offset < totalSamples)
+    {
+        if (offset == edgeEventSample)
+            drive.setTargetSettings({
+                1.0f, Voxline::Dsp::DriveCharacter::edge,
+                0.0f, 1.0f, 0.0f, false
+            });
+        else if (offset == cleanEventSample)
+            drive.setTargetSettings({
+                1.0f, Voxline::Dsp::DriveCharacter::clean,
+                0.0f, 1.0f, 0.0f, false
+            });
+
+        auto samplesThisBlock = juce::jmin(runtimeBlockSize,
+                                           totalSamples - offset);
+        if (offset < edgeEventSample)
+            samplesThisBlock = juce::jmin(samplesThisBlock,
+                                          edgeEventSample - offset);
+        else if (offset < cleanEventSample)
+            samplesThisBlock = juce::jmin(samplesThisBlock,
+                                          cleanEventSample - offset);
+
+        block.setSize(1, samplesThisBlock, false, false, true);
+        for (int sample = 0; sample < samplesThisBlock; ++sample)
+            block.setSample(0, sample, 0.15f);
+
+        drive.process(block);
+        for (int sample = 0; sample < samplesThisBlock; ++sample)
+            output[static_cast<size_t>(offset + sample)] =
+                block.getSample(0, sample);
+
+        offset += samplesThisBlock;
+    }
+
+    return output;
+}
+
 class VocalDriveTests final : public juce::UnitTest
 {
 public:
@@ -616,6 +669,49 @@ public:
             const auto blocks64 = renderDynamicLevelMatch(64);
             const auto blocks512 = renderDynamicLevelMatch(512);
             const auto blocks2048 = renderDynamicLevelMatch(2048);
+            float maximumDifference {};
+
+            for (size_t sample = 0; sample < blocks64.size(); ++sample)
+            {
+                maximumDifference = juce::jmax(
+                    maximumDifference,
+                    std::abs(blocks64[sample] - blocks512[sample]),
+                    std::abs(blocks64[sample] - blocks2048[sample]));
+            }
+
+            expect(maximumDifference <= 1.0e-5f,
+                   "maximum difference="
+                       + juce::String(maximumDifference, 8));
+        }
+
+        beginTest("Rapid Character retarget remains continuous mid-fade");
+        {
+            const auto output = renderRapidCharacterAutomation(2048);
+            constexpr int cleanEventSample = 4352;
+            constexpr int inspectionRadius = 64;
+            float maximumDelta {};
+
+            for (int sample = cleanEventSample - inspectionRadius;
+                 sample <= cleanEventSample + inspectionRadius;
+                 ++sample)
+            {
+                expect(std::isfinite(output[static_cast<size_t>(sample)]));
+                maximumDelta = juce::jmax(
+                    maximumDelta,
+                    std::abs(output[static_cast<size_t>(sample)]
+                             - output[static_cast<size_t>(sample - 1)]));
+            }
+
+            expect(maximumDelta <= 0.01f,
+                   "mid-fade retarget delta="
+                       + juce::String(maximumDelta, 8));
+        }
+
+        beginTest("Rapid Character automation is invariant to block partitioning");
+        {
+            const auto blocks64 = renderRapidCharacterAutomation(64);
+            const auto blocks512 = renderRapidCharacterAutomation(512);
+            const auto blocks2048 = renderRapidCharacterAutomation(2048);
             float maximumDifference {};
 
             for (size_t sample = 0; sample < blocks64.size(); ++sample)

@@ -16,6 +16,21 @@ float sanitise(float value, float fallback = 0.0f) noexcept
 {
     return std::isfinite(value) ? value : fallback;
 }
+
+size_t characterIndex(DriveCharacter character) noexcept
+{
+    switch (character)
+    {
+        case DriveCharacter::clean:
+            return 0;
+        case DriveCharacter::warm:
+            return 1;
+        case DriveCharacter::edge:
+            return 2;
+    }
+
+    return 1;
+}
 }
 
 void VocalDrive::prepare(const ModuleSpec& spec)
@@ -81,9 +96,11 @@ void VocalDrive::reset() noexcept
     targetMatchGain = 1.0f;
     currentLevelMatchWeight = targetSettings.levelMatch ? 1.0f : 0.0f;
     currentWetEnable = targetSettings.amount > 0.0f ? 1.0f : 0.0f;
-    previousCharacter = targetSettings.character;
-    currentCharacter = targetSettings.character;
-    characterFade = 1.0f;
+    characterTarget = targetSettings.character;
+    characterWeights.fill(0.0f);
+    characterWeights[characterIndex(characterTarget)] = 1.0f;
+    characterWeightSteps.fill(0.0f);
+    characterFadeSamplesRemaining = 0;
     dryWritePosition = 0;
 }
 
@@ -95,13 +112,6 @@ void VocalDrive::setTargetSettings(const DriveSettings& settings) noexcept
     safe.mix = juce::jlimit(0.0f, 1.0f, sanitise(safe.mix, 0.7f));
     safe.outputTrimDb =
         juce::jlimit(-24.0f, 12.0f, sanitise(safe.outputTrimDb));
-
-    if (safe.character != currentCharacter)
-    {
-        previousCharacter = currentCharacter;
-        currentCharacter = safe.character;
-        characterFade = 0.0f;
-    }
 
     targetSettings = safe;
 }
@@ -145,13 +155,27 @@ void VocalDrive::process(juce::AudioBuffer<float>& audio) noexcept
     juce::dsp::AudioBlock<float> audioBlock(audio);
     const juce::dsp::AudioBlock<const float> inputBlock(audioBlock);
     auto oversampled = oversampling->processSamplesUp(inputBlock);
-    const auto fadeStep = static_cast<float>(
-        1.0 / juce::jmax(
-            1.0,
-            moduleSpec.sampleRate
+
+    if (targetSettings.character != characterTarget)
+    {
+        characterTarget = targetSettings.character;
+        characterFadeSamplesRemaining = juce::jmax(
+            1,
+            juce::roundToInt(
+                moduleSpec.sampleRate
                 * static_cast<double>(1u << oversamplingStages)
                 * characterCrossfadeMs
                 * 0.001));
+
+        const auto targetIndex = characterIndex(characterTarget);
+        for (size_t index = 0; index < characterWeights.size(); ++index)
+        {
+            const auto targetWeight = index == targetIndex ? 1.0f : 0.0f;
+            characterWeightSteps[index] =
+                (targetWeight - characterWeights[index])
+                / static_cast<float>(characterFadeSamplesRemaining);
+        }
+    }
 
     for (size_t sample = 0; sample < oversampled.getNumSamples(); ++sample)
     {
@@ -159,18 +183,19 @@ void VocalDrive::process(juce::AudioBuffer<float>& audio) noexcept
             advance(currentAmount, targetSettings.amount, parameterCoefficient);
         currentTone =
             advance(currentTone, targetSettings.tone, parameterCoefficient);
-        characterFade = juce::jmin(1.0f, characterFade + fadeStep);
 
         for (int channel = 0; channel < channels; ++channel)
         {
             auto* samplesForChannel =
                 oversampled.getChannelPointer(static_cast<size_t>(channel));
             const auto input = samplesForChannel[sample];
-            const auto previous =
-                transfer(input, currentAmount, previousCharacter);
-            const auto next =
-                transfer(input, currentAmount, currentCharacter);
-            auto driven = previous + characterFade * (next - previous);
+            auto driven =
+                characterWeights[0]
+                    * transfer(input, currentAmount, DriveCharacter::clean)
+                + characterWeights[1]
+                    * transfer(input, currentAmount, DriveCharacter::warm)
+                + characterWeights[2]
+                    * transfer(input, currentAmount, DriveCharacter::edge);
 
             auto& low = toneState[static_cast<size_t>(channel)];
             low = (1.0f - toneCoefficient) * driven
@@ -183,8 +208,18 @@ void VocalDrive::process(juce::AudioBuffer<float>& audio) noexcept
             samplesForChannel[sample] = driven;
         }
 
-        if (characterFade >= 1.0f)
-            previousCharacter = currentCharacter;
+        if (characterFadeSamplesRemaining > 0)
+        {
+            for (size_t index = 0; index < characterWeights.size(); ++index)
+                characterWeights[index] += characterWeightSteps[index];
+
+            if (--characterFadeSamplesRemaining == 0)
+            {
+                characterWeights.fill(0.0f);
+                characterWeights[characterIndex(characterTarget)] = 1.0f;
+                characterWeightSteps.fill(0.0f);
+            }
+        }
     }
 
     oversampling->processSamplesDown(audioBlock);
