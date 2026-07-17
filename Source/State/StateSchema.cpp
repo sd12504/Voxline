@@ -6,8 +6,10 @@ void VoxlineState::serialise(const juce::ValueTree& state,
     auto versioned = state.createCopy();
     versioned.setProperty("schemaVersion", currentSchemaVersion, nullptr);
 
-    if (auto xml = versioned.createXml())
-        juce::AudioProcessor::copyXmlToBinary(*xml, destination);
+    const auto current = migrateToCurrent(versioned);
+    if (current)
+        if (auto xml = current->createXml())
+            juce::AudioProcessor::copyXmlToBinary(*xml, destination);
 }
 
 std::optional<juce::ValueTree> VoxlineState::deserialise(
@@ -24,5 +26,5 @@ std::optional<juce::ValueTree> VoxlineState::deserialise(
     if (! state.isValid())
         return std::nullopt;
 
-    return state;
+    return migrateToCurrent(state);
 }

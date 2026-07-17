@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VOXLINEState schemaVersion="2">
+  <PARAM id="body" value="-3"/>
+  <PARAM id="lowGain" value="6"/>
+  <PARAM id="clarity" value="2.5"/>
+  <PARAM id="presGain" value="-2"/>
+  <PARAM id="air" value="5"/>
+  <PARAM id="airGain" value="-1"/>
+  <PARAM id="spaceType" value="0"/>
+  <PARAM id="spaceTime" value="1200"/>
+</VOXLINEState>

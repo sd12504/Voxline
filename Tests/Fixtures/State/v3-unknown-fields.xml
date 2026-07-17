@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VOXLINEState schemaVersion="3" futureRootField="preserved">
+  <PARAM id="body" value="10.75"/>
+  <PARAM id="spaceMode" value="2"/>
+  <PARAM id="spaceSlapTime" value="145"/>
+  <PARAM id="spaceType" value="1"/>
+  <PARAM id="spaceTime" value="220"/>
+  <PARAM id="futureSoundControl" value="0.37"/>
+</VOXLINEState>
