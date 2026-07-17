@@ -1,6 +1,7 @@
 #include <JuceHeader.h>
 
 #include "../Source/Parameters/ParameterIDs.h"
+#include "../Source/Parameters/ParameterRegistry.h"
 #include "../Source/State/StateMigration.h"
 #include "../Source/State/StateSchema.h"
 
@@ -374,6 +375,76 @@ public:
                         static_cast<int>(wrongBytes.getSize()),
                         juce::Identifier("VOXLINEState"))
                         .has_value());
+        }
+
+        beginTest("every registered numeric value rejects non-finite input");
+        {
+            const std::array invalidValues {
+                juce::String("NaN"),
+                juce::String("-Inf"),
+                juce::String("1e300")};
+
+            for (const auto& spec : Voxline::parameterRegistry())
+            {
+                for (const auto& invalidValue : invalidValues)
+                {
+                    juce::ValueTree malformed("VOXLINEState");
+                    malformed.setProperty("schemaVersion", 3, nullptr);
+                    juce::ValueTree parameter("PARAM");
+                    parameter.setProperty("id", spec.id, nullptr);
+                    parameter.setProperty("value", invalidValue, nullptr);
+                    malformed.appendChild(parameter, nullptr);
+
+                    expect(! VoxlineState::migrateToCurrent(malformed)
+                                .has_value(),
+                           juce::String(spec.id) + " child " + invalidValue);
+                }
+
+                juce::ValueTree malformedProperty("VOXLINEState");
+                malformedProperty.setProperty("schemaVersion", 3, nullptr);
+                malformedProperty.setProperty(spec.id, "1e300", nullptr);
+                expect(! VoxlineState::migrateToCurrent(malformedProperty)
+                            .has_value(),
+                       juce::String(spec.id) + " root property");
+            }
+
+            juce::ValueTree unknown("VOXLINEState");
+            unknown.setProperty("schemaVersion", 3, nullptr);
+            unknown.setProperty("futureRootValue", "NaN", nullptr);
+            juce::ValueTree unknownParameter("PARAM");
+            unknownParameter.setProperty("id", "futureParameter", nullptr);
+            unknownParameter.setProperty("value", "1e300", nullptr);
+            unknown.appendChild(unknownParameter, nullptr);
+            const auto migratedUnknown =
+                VoxlineState::migrateToCurrent(unknown);
+            expect(migratedUnknown.has_value());
+            if (migratedUnknown)
+            {
+                expectEquals(
+                    migratedUnknown->getProperty("futureRootValue").toString(),
+                    juce::String("NaN"));
+                expectEquals(
+                    findParameter(*migratedUnknown, "futureParameter")
+                        .getProperty("value")
+                        .toString(),
+                    juce::String("1e300"));
+            }
+        }
+
+        beginTest("schema version rejects values outside the integer range");
+        {
+            for (const auto& invalidVersion :
+                 {juce::String("2147483648"),
+                  juce::String("-2147483649"),
+                  juce::String("1e300")})
+            {
+                juce::ValueTree malformed("VOXLINEState");
+                malformed.setProperty(
+                    "schemaVersion", invalidVersion, nullptr);
+                expect(! VoxlineState::migrateToCurrent(malformed)
+                            .has_value(),
+                       invalidVersion);
+            }
         }
 
         beginTest("serialisation always writes schema version three");

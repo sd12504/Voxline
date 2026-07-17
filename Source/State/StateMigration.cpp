@@ -1,11 +1,13 @@
 #include "StateMigration.h"
 
 #include "../Parameters/ParameterIDs.h"
+#include "../Parameters/ParameterRegistry.h"
 
 #include <array>
 #include <cerrno>
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 
 namespace
 {
@@ -64,6 +66,17 @@ std::optional<double> parseFiniteNumber(const juce::var& value) noexcept
     return numeric;
 }
 
+std::optional<float> parseFiniteFloat(const juce::var& value) noexcept
+{
+    const auto numeric = parseFiniteNumber(value);
+    if (! numeric)
+        return std::nullopt;
+
+    const auto narrowed = static_cast<float>(*numeric);
+    return std::isfinite(narrowed) ? std::optional<float>(narrowed)
+                                   : std::nullopt;
+}
+
 std::optional<int> readSchemaVersion(const juce::ValueTree& state)
 {
     if (! state.hasProperty("schemaVersion"))
@@ -74,7 +87,9 @@ std::optional<int> readSchemaVersion(const juce::ValueTree& state)
         return std::nullopt;
 
     const auto numeric = parseFiniteNumber(value);
-    if (! numeric || std::floor(*numeric) != *numeric)
+    if (! numeric || std::floor(*numeric) != *numeric
+        || *numeric < static_cast<double>(std::numeric_limits<int>::min())
+        || *numeric > static_cast<double>(std::numeric_limits<int>::max()))
         return std::nullopt;
 
     return static_cast<int>(*numeric);
@@ -97,19 +112,12 @@ std::optional<float> readParameterValue(const juce::ValueTree& state,
     if (child.isValid())
     {
         const auto value = child.getProperty("value");
-        if (const auto numeric = parseFiniteNumber(value))
-            return static_cast<float>(*numeric);
-        return std::nullopt;
+        return parseFiniteFloat(value);
     }
 
     const auto propertyName = juce::Identifier(id);
     if (state.hasProperty(propertyName))
-    {
-        const auto value = state.getProperty(propertyName);
-        if (const auto numeric = parseFiniteNumber(value))
-            return static_cast<float>(*numeric);
-        return std::nullopt;
-    }
+        return parseFiniteFloat(state.getProperty(propertyName));
 
     return std::nullopt;
 }
@@ -202,28 +210,15 @@ bool containsMalformedKnownParameter(const juce::ValueTree& state)
     for (const auto& child : state)
     {
         const auto id = child.getProperty("id").toString();
-        if (id.isEmpty())
-            continue;
-
-        const auto isMigratedEq =
-            id == VoxlineParameterIDs::body
-            || id == VoxlineParameterIDs::clarity
-            || id == VoxlineParameterIDs::air
-            || id == VoxlineParameterIDs::lowGain
-            || id == VoxlineParameterIDs::presGain
-            || id == VoxlineParameterIDs::airGain
-            || id == VoxlineParameterIDs::spaceType
-            || id == VoxlineParameterIDs::spaceTime
-            || id == VoxlineParameterIDs::spaceMode
-            || id == VoxlineParameterIDs::spaceSlapTime;
-
-        if (isMigratedEq)
-        {
-            const auto value = child.getProperty("value");
-            if (! parseFiniteNumber(value))
-                return true;
-        }
+        if (Voxline::findParameterSpec(id) != nullptr
+            && ! parseFiniteFloat(child.getProperty("value")))
+            return true;
     }
+
+    for (const auto& spec : Voxline::parameterRegistry())
+        if (state.hasProperty(spec.id)
+            && ! parseFiniteFloat(state.getProperty(spec.id)))
+            return true;
 
     return false;
 }
