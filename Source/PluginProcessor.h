@@ -128,6 +128,8 @@ private:
         outputGainSmoothed;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear>
         bypassSmoothed;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear>
+        spaceTailAmountSmoothed;
 
     juce::AudioBuffer<float> bypassDryBuffer;
     juce::AudioBuffer<float> spaceSidechainBuffer;
@@ -140,8 +142,8 @@ private:
     AtomicMeterFrame outputMeterSnapshot;
     std::atomic<float> compressorReductionDb {0.0f};
     std::atomic<bool> outputSafetyActive {false};
+    std::atomic<double> reportedTailSeconds {0.0};
 
     std::array<std::atomic<float>, analyzerFftSize> analyzerSamples {};
     std::atomic<int> analyzerWritePosition {0};
-    int currentProgram {};
 };

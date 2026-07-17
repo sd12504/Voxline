@@ -177,10 +177,10 @@ ParameterSnapshot captureParameters(
     snapshot.space.amount =
         unitFromPercent(rawValue(state, VoxlineParameterIDs::spaceAmount));
     snapshot.space.mode =
-        spaceModeFromIndex(rawValue(state, VoxlineParameterIDs::spaceType));
+        spaceModeFromIndex(rawValue(state, VoxlineParameterIDs::spaceMode));
     snapshot.space.preDelayMs =
         snapshot.space.mode == Voxline::Dsp::SpaceMode::slap
-            ? rawValue(state, VoxlineParameterIDs::spaceTime)
+            ? rawValue(state, VoxlineParameterIDs::spaceSlapTime)
             : rawValue(state, VoxlineParameterIDs::spacePreDelay);
     snapshot.space.sizeOrTime =
         unitFromPercent(rawValue(state, VoxlineParameterIDs::spaceSize));
@@ -252,11 +252,13 @@ void VoxlineAudioProcessor::prepareToPlay(double sampleRate,
     inputGainSmoothed.reset(rate, 0.020);
     outputGainSmoothed.reset(rate, 0.020);
     bypassSmoothed.reset(rate, 0.005);
+    spaceTailAmountSmoothed.reset(rate, 0.010);
     inputGainSmoothed.setCurrentAndTargetValue(
         juce::Decibels::decibelsToGain(parameters.inputGainDb));
     outputGainSmoothed.setCurrentAndTargetValue(
         juce::Decibels::decibelsToGain(parameters.outputGainDb));
     bypassSmoothed.setCurrentAndTargetValue(parameters.bypass ? 1.0f : 0.0f);
+    spaceTailAmountSmoothed.setCurrentAndTargetValue(parameters.space.amount);
 
     vocalEq.setTargetSettings(parameters.eq);
     deEsser.setTargetSettings(parameters.deEss);
@@ -270,6 +272,11 @@ void VoxlineAudioProcessor::prepareToPlay(double sampleRate,
     outputMeterSnapshot.store(empty);
     compressorReductionDb.store(0.0f, std::memory_order_relaxed);
     outputSafetyActive.store(false, std::memory_order_relaxed);
+    reportedTailSeconds.store(
+        !parameters.bypass && parameters.space.amount > 0.0f
+            ? space.tailSeconds()
+            : 0.0,
+        std::memory_order_relaxed);
     inputPeak.store(0.0f, std::memory_order_relaxed);
     inputRms.store(0.0f, std::memory_order_relaxed);
     outputPeak.store(0.0f, std::memory_order_relaxed);
@@ -338,6 +345,7 @@ void VoxlineAudioProcessor::processBlock(
     outputGainSmoothed.setTargetValue(
         juce::Decibels::decibelsToGain(parameters.outputGainDb));
     bypassSmoothed.setTargetValue(parameters.bypass ? 1.0f : 0.0f);
+    spaceTailAmountSmoothed.setTargetValue(parameters.space.amount);
     vocalEq.setTargetSettings(parameters.eq);
     deEsser.setTargetSettings(parameters.deEss);
     compressor.setTargetSettings(parameters.compressor);
@@ -379,12 +387,19 @@ void VoxlineAudioProcessor::processBlock(
     }
 
     outputSafety.process(buffer);
-    outputSafetyActive.store(
-        outputSafety.wasActive(), std::memory_order_release);
+    const auto safetyProcessed = outputSafety.wasActive();
 
+    auto maximumWetContribution = 0.0f;
+    auto maximumSpaceTailAmount = 0.0f;
     for (auto sample = 0; sample < samples; ++sample)
     {
         const auto bypass = bypassSmoothed.getNextValue();
+        const auto wetContribution = 1.0f - bypass;
+        maximumWetContribution =
+            juce::jmax(maximumWetContribution, wetContribution);
+        maximumSpaceTailAmount =
+            juce::jmax(maximumSpaceTailAmount,
+                       spaceTailAmountSmoothed.getNextValue());
         for (auto channel = 0; channel < outputChannels; ++channel)
         {
             const auto processed = buffer.getSample(channel, sample);
@@ -393,6 +408,15 @@ void VoxlineAudioProcessor::processBlock(
                 channel, sample, processed + bypass * (dry - processed));
         }
     }
+    outputSafetyActive.store(
+        safetyProcessed && maximumWetContribution > 1.0e-5f,
+        std::memory_order_release);
+    reportedTailSeconds.store(
+        maximumWetContribution > 1.0e-5f
+                && maximumSpaceTailAmount > 1.0e-5f
+            ? space.tailSeconds()
+            : 0.0,
+        std::memory_order_release);
 
     const auto outputFrame = outputMeter.measureBlock(buffer);
     publishMeters(inputFrame, outputFrame);
@@ -454,73 +478,26 @@ bool VoxlineAudioProcessor::isMidiEffect() const
 
 double VoxlineAudioProcessor::getTailLengthSeconds() const
 {
-    return juce::jmax(3.0, space.tailSeconds());
+    return reportedTailSeconds.load(std::memory_order_acquire);
 }
 
 int VoxlineAudioProcessor::getNumPrograms()
 {
-    return 9;
+    return 1;
 }
 
 int VoxlineAudioProcessor::getCurrentProgram()
 {
-    return currentProgram;
+    return 0;
 }
 
-void VoxlineAudioProcessor::setCurrentProgram(int index)
+void VoxlineAudioProcessor::setCurrentProgram(int)
 {
-    currentProgram = juce::jlimit(0, getNumPrograms() - 1, index);
-    struct PresetDef
-    {
-        float input;
-        float polish;
-        float body;
-        float presence;
-        float air;
-        float deEss;
-        float compressor;
-        float drive;
-        float output;
-        float space;
-        int spaceType;
-    };
-    static constexpr PresetDef presets[] = {
-        {0.0f, 22, 0.0f, 0.0f, 0.0f, 10, 18, 0, 0.0f, 0, 0},
-        {-1.0f, 58, 2.0f, 0.8f, -0.8f, 20, 52, 34, -1.5f, 12, 3},
-        {-1.5f, 78, 1.2f, 3.0f, 0.5f, 24, 76, 46, -2.0f, 8, 0},
-        {-1.0f, 68, -2.0f, 1.8f, 4.0f, 66, 48, 10, -1.5f, 20, 2},
-        {-2.0f, 86, -1.0f, 4.5f, 2.5f, 22, 84, 56, -3.0f, 10, 2},
-        {-1.5f, 72, 3.5f, 0.3f, -1.8f, 28, 70, 48, -2.5f, 6, 3},
-        {-2.0f, 88, -2.5f, 4.0f, 5.0f, 38, 78, 32, -3.0f, 25, 0},
-        {-1.0f, 60, 1.0f, -0.8f, -1.5f, 70, 46, 18, -1.5f, 18, 1},
-        {-1.5f, 70, 2.5f, 1.0f, -0.5f, 38, 66, 58, -2.5f, 12, 1}};
-    const auto& preset = presets[static_cast<size_t>(currentProgram)];
-    const auto setPlain = [this](const char* id, float value)
-    {
-        if (auto* parameter = apvts.getParameter(id))
-            parameter->setValueNotifyingHost(
-                parameter->convertTo0to1(value));
-    };
-    setPlain(VoxlineParameterIDs::inputGain, preset.input);
-    setPlain(VoxlineParameterIDs::polish, preset.polish);
-    setPlain(VoxlineParameterIDs::body, preset.body);
-    setPlain(VoxlineParameterIDs::clarity, preset.presence);
-    setPlain(VoxlineParameterIDs::air, preset.air);
-    setPlain(VoxlineParameterIDs::smooth, preset.deEss);
-    setPlain(VoxlineParameterIDs::comp, preset.compressor);
-    setPlain(VoxlineParameterIDs::drive, preset.drive);
-    setPlain(VoxlineParameterIDs::outputGain, preset.output);
-    setPlain(VoxlineParameterIDs::spaceAmount, preset.space);
-    setPlain(VoxlineParameterIDs::spaceType,
-             static_cast<float>(preset.spaceType));
 }
 
-const juce::String VoxlineAudioProcessor::getProgramName(int index)
+const juce::String VoxlineAudioProcessor::getProgramName(int)
 {
-    static const juce::StringArray names {
-        "Clean", "Basement Take", "Dirty Lead", "Cold Plug", "Rage Cut",
-        "Muddy Trap", "Cyber Vox", "Noir Vocal", "Tape Rap"};
-    return names[juce::jlimit(0, names.size() - 1, index)];
+    return "Default";
 }
 
 void VoxlineAudioProcessor::changeProgramName(
