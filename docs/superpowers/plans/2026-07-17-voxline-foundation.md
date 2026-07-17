@@ -43,13 +43,52 @@
 ### Task 1: Make source discovery parallel-safe
 
 **Files:**
+- Create: `Tests/SourceDiscoveryTests.cpp`
 - Modify: `CMakeLists.txt`
 
 **Interfaces:**
 - Consumes: `Source/**/*.cpp`, `Source/**/*.h`, `Tests/**/*.cpp`, `Tests/**/*.h`
 - Produces: `VOXLINE_SHARED_SOURCES`, `VOXLINE_TEST_SOURCES`
 
-- [ ] **Step 1: Replace duplicated explicit source lists with configured recursive collections**
+- [ ] **Step 1: Add a test file that the old explicit source list cannot discover**
+
+`Tests/SourceDiscoveryTests.cpp`：
+
+```cpp
+#include <JuceHeader.h>
+
+namespace
+{
+class SourceDiscoveryTests final : public juce::UnitTest
+{
+public:
+    SourceDiscoveryTests()
+        : juce::UnitTest("Source discovery", "VOXLINE") {}
+
+    void runTest() override
+    {
+        beginTest("recursive test source is compiled");
+        expect(true);
+    }
+};
+
+SourceDiscoveryTests sourceDiscoveryTests;
+}
+```
+
+- [ ] **Step 2: Verify the old build does not discover the new test**
+
+Run:
+
+```bash
+cmake --build build --config Release --target VOXLINEPhase1Tests --parallel
+! build/VOXLINEPhase1Tests_artefacts/Release/VOXLINEPhase1Tests 2>&1 \
+  | grep -q "Source discovery"
+```
+
+Expected: the shell expression succeeds because the current explicit CMake source list does not compile `SourceDiscoveryTests.cpp`.
+
+- [ ] **Step 3: Replace duplicated explicit source lists with configured recursive collections**
 
 在 `juce_add_plugin()` 後加入：
 
@@ -81,22 +120,24 @@ target_sources(VOXLINEPhase1Tests
 )
 ```
 
-- [ ] **Step 2: Reconfigure and build the unchanged baseline**
+- [ ] **Step 4: Reconfigure and verify the new test is discovered**
 
 Run:
 
 ```bash
 cmake -S . -B build
 cmake --build build --config Release --target VOXLINEPhase1Tests --parallel
+build/VOXLINEPhase1Tests_artefacts/Release/VOXLINEPhase1Tests 2>&1 \
+  | grep -q "Source discovery"
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-Expected: CMake configure succeeds, `VOXLINEPhase1Tests` builds, 1/1 CTest passes.
+Expected: the executable output contains `Source discovery`, CMake configure succeeds, and 1/1 CTest passes.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add CMakeLists.txt
+git add CMakeLists.txt Tests/SourceDiscoveryTests.cpp
 git commit -m "build: make VOXLINE source discovery modular"
 ```
 
@@ -108,6 +149,7 @@ git commit -m "build: make VOXLINE source discovery modular"
 - Create: `Source/Parameters/ParameterIDs.h`
 - Create: `Source/Parameters/ParameterLayout.h`
 - Create: `Source/Parameters/ParameterLayout.cpp`
+- Create: `Tests/ParameterContractTests.cpp`
 - Modify: `Source/PluginProcessor.h`
 - Modify: `Source/PluginProcessor.cpp`
 
@@ -117,26 +159,51 @@ git commit -m "build: make VOXLINE source discovery modular"
   - `namespace VoxlineParameterIDs`
   - `juce::AudioProcessorValueTreeState::ParameterLayout createVoxlineParameterLayout()`
 
-- [ ] **Step 1: Add a compile-time parameter contract test**
+- [ ] **Step 1: Add a failing test against the new free-function interface**
 
-在暫時保留的 `Tests/Phase1Tests.cpp` 中，於第一個測試加入：
+`Tests/ParameterContractTests.cpp`：
 
 ```cpp
-expectEquals(juce::String(VoxlineParameterIDs::inputGain), juce::String("inputGain"));
-expectEquals(juce::String(VoxlineParameterIDs::polish), juce::String("polish"));
-expectEquals(juce::String(VoxlineParameterIDs::spaceDucking), juce::String("spaceDucking"));
+#include <JuceHeader.h>
+#include "../Source/Parameters/ParameterIDs.h"
+#include "../Source/Parameters/ParameterLayout.h"
+
+namespace
+{
+class ParameterContractTests final : public juce::UnitTest
+{
+public:
+    ParameterContractTests()
+        : juce::UnitTest("Parameter contract", "VOXLINE") {}
+
+    void runTest() override
+    {
+        beginTest("stable IDs and extracted layout remain available");
+        expectEquals(juce::String(VoxlineParameterIDs::inputGain),
+                     juce::String("inputGain"));
+        expectEquals(juce::String(VoxlineParameterIDs::polish),
+                     juce::String("polish"));
+        expectEquals(juce::String(VoxlineParameterIDs::spaceDucking),
+                     juce::String("spaceDucking"));
+
+        auto layout = createVoxlineParameterLayout();
+        expectEquals(static_cast<int>(std::distance(layout.begin(), layout.end())), 51);
+    }
+};
+
+ParameterContractTests parameterContractTests;
+}
 ```
 
-- [ ] **Step 2: Run the test before extraction**
+- [ ] **Step 2: Run the test before extraction and confirm the new headers are missing**
 
 Run:
 
 ```bash
 cmake --build build --config Release --target VOXLINEPhase1Tests --parallel
-ctest --test-dir build -C Release --output-on-failure
 ```
 
-Expected: PASS. This freezes the public ID spelling before files move.
+Expected: build FAILS because `Source/Parameters/ParameterIDs.h` and `ParameterLayout.h` do not exist.
 
 - [ ] **Step 3: Move parameter IDs into `ParameterIDs.h`**
 
@@ -262,7 +329,8 @@ Expected: 1/1 passes; test still reports 51 parameters, Body range −6…+6 dB,
 - [ ] **Step 7: Commit**
 
 ```bash
-git add Source/Parameters Source/PluginProcessor.h Source/PluginProcessor.cpp Tests/Phase1Tests.cpp
+git add Source/Parameters Source/PluginProcessor.h Source/PluginProcessor.cpp \
+  Tests/ParameterContractTests.cpp
 git commit -m "refactor: extract VOXLINE parameter contract"
 ```
 
