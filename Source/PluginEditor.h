@@ -55,6 +55,7 @@ private:
 
     void selectRelativePreset(int delta);
     void saveUserPreset();
+    void showPresetNameDialog(bool rename);
     void toggleAb();
     void refreshPresetMenu();
     VoxlineState::UnsavedAction resolveUnsavedAction(const juce::String& action);
@@ -117,6 +118,7 @@ private:
     juce::TextButton abButton;
     juce::TextButton presetPreviousButton;
     juce::TextButton presetNextButton;
+    juce::TextButton presetManageButton;
     juce::TextButton savePresetButton;
     // Monitor buttons
     juce::TextButton monitorAbBtn;
@@ -240,10 +242,12 @@ private:
     VoxlineState::PresetSessionController presetSession;
     bool applyingSessionChange = false;
     bool eqShows24dB = false;
-    bool advancedOpen = true;
+    bool advancedOpen = false;
     AdvancedSection advancedSection = AdvancedSection::eq;
     int draggingEqBand = -1;
     int hoveredEqBand = -1;
+    std::unique_ptr<juce::AlertWindow> presetNameDialog;
+    bool presetNameDialogRenamesCurrent {};
     juce::dsp::FFT spectrumFft;
     juce::dsp::WindowingFunction<float> spectrumWindow;
     std::array<float, 2048> spectrumInput {};

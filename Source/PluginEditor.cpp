@@ -291,7 +291,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     presetDropdown.addListener(this);
     addAndMakeVisible(presetDropdown);
 
-    for (auto* button : { &presetPreviousButton, &presetNextButton, &savePresetButton })
+    for (auto* button : { &presetPreviousButton, &presetNextButton, &presetManageButton, &savePresetButton })
     {
         addAndMakeVisible(*button);
         button->addListener(this);
@@ -299,6 +299,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     }
     presetPreviousButton.setButtonText("<");
     presetNextButton.setButtonText(">");
+    presetManageButton.setButtonText("•••");
     savePresetButton.setButtonText("SAVE AS");
     refreshPresetMenu();
 
@@ -719,6 +720,9 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
 
 VoxlineAudioProcessorEditor::~VoxlineAudioProcessorEditor()
 {
+    if (presetNameDialog != nullptr)
+        presetNameDialog->exitModalState(0);
+    presetNameDialog.reset();
     audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::polish, this);
     audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::inputGain, this);
     audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::body, this);
@@ -757,7 +761,7 @@ VoxlineAudioProcessorEditor::~VoxlineAudioProcessorEditor()
     driveCharacterCombo.setLookAndFeel(nullptr);
     cleanModeButton.setLookAndFeel(nullptr);
     presetSession.onClose();
-    for (auto* button : { &abButton, &presetPreviousButton, &presetNextButton,
+    for (auto* button : { &abButton, &presetPreviousButton, &presetNextButton, &presetManageButton,
                           &savePresetButton, &advancedButton, &advancedEqButton,
                           &advancedCompButton, &advancedDeEssButton, &advancedDriveButton,
                           &advancedSpaceButton, &eqResetButton, &eqRangeButton,
@@ -1749,7 +1753,8 @@ void VoxlineAudioProcessorEditor::resized()
 {
     presetPreviousButton.setBounds({212, 20, 38, 36});
     presetNextButton.setBounds({252, 20, 38, 36});
-    presetDropdown.setBounds({294, 20, 274, 36});
+    presetDropdown.setBounds({294, 20, 238, 36});
+    presetManageButton.setBounds({538, 20, 30, 36});
     savePresetButton.setBounds({576, 20, 90, 36});
     abButton.setBounds({704, 21, 58, 34});
     bypassButton.setBounds({899, 21, 100, 34});
@@ -2193,7 +2198,7 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme)
     const auto inactiveBg = dark ? juce::Colour(0xff171818) : juce::Colour(0xfffaf7f2);
     abButton.setColour(juce::TextButton::buttonColourId, inactiveBg);
     abButton.setColour(juce::TextButton::textColourOffId, theme.textPrimary);
-    for (auto* button : { &presetPreviousButton, &presetNextButton,
+    for (auto* button : { &presetPreviousButton, &presetNextButton, &presetManageButton,
                           &savePresetButton, &eqResetButton, &eqRangeButton })
     {
         button->setColour(juce::TextButton::buttonColourId, inactiveBg);
@@ -2453,6 +2458,40 @@ void VoxlineAudioProcessorEditor::buttonClicked(juce::Button* button)
 {
     if (button == &presetPreviousButton) { selectRelativePreset(-1); return; }
     if (button == &presetNextButton) { selectRelativePreset(1); return; }
+    if (button == &presetManageButton)
+    {
+        const auto current = presetSession.presentation().currentName;
+        if (current == "Untitled")
+            return;
+        juce::PopupMenu menu;
+        menu.addItem(1, "Rename…");
+        menu.addItem(2, "Delete…");
+        menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&presetManageButton),
+            [safe = juce::Component::SafePointer<VoxlineAudioProcessorEditor>(this), current](int result)
+            {
+                if (safe == nullptr)
+                    return;
+                if (result == 1)
+                    safe->showPresetNameDialog(true);
+                else if (result == 2)
+                {
+                    const auto options = juce::MessageBoxOptions::makeOptionsYesNo(
+                        juce::MessageBoxIconType::WarningIcon, "Delete User Preset",
+                        "Delete \"" + current + "\"?", "Delete", "Cancel", nullptr);
+                    juce::AlertWindow::showAsync(options,
+                        [safe, current](int choice)
+                        {
+                            if (safe != nullptr && choice == 1)
+                            {
+                                safe->showResult(safe->presetSession.remove(current));
+                                safe->refreshPresetMenu();
+                                safe->repaint();
+                            }
+                        });
+                }
+            });
+        return;
+    }
     if (button == &savePresetButton) { saveUserPreset(); return; }
     if (button == &advancedButton)
     {
@@ -2561,10 +2600,42 @@ void VoxlineAudioProcessorEditor::selectRelativePreset(int delta)
 
 void VoxlineAudioProcessorEditor::saveUserPreset()
 {
-    const auto name = presetSession.presentation().currentName == "Untitled"
-        ? "My Vocal" : presetSession.presentation().currentName;
-    showResult(presetSession.saveAs(name));
-    refreshPresetMenu();
+    showPresetNameDialog(false);
+}
+
+void VoxlineAudioProcessorEditor::showPresetNameDialog(bool rename)
+{
+    if (presetNameDialog != nullptr)
+        return;
+
+    const auto currentName = presetSession.presentation().currentName;
+    if (rename && currentName == "Untitled")
+        return;
+    presetNameDialogRenamesCurrent = rename;
+    presetNameDialog = std::make_unique<juce::AlertWindow>(
+        rename ? "Rename User Preset" : "Save User Preset", "Give this sound a name.",
+        juce::MessageBoxIconType::NoIcon, this);
+    presetNameDialog->addTextEditor("name", currentName == "Untitled" ? "" : currentName, "Name:");
+    presetNameDialog->addButton("Save", 1, juce::KeyPress(juce::KeyPress::returnKey));
+    presetNameDialog->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+    presetNameDialog->enterModalState(true,
+        juce::ModalCallbackFunction::create(
+            [safe = juce::Component::SafePointer<VoxlineAudioProcessorEditor>(this)](int result)
+            {
+                if (safe == nullptr || safe->presetNameDialog == nullptr)
+                    return;
+                const auto name = safe->presetNameDialog->getTextEditorContents("name").trim();
+                const auto renameCurrent = safe->presetNameDialogRenamesCurrent;
+                safe->presetNameDialog->setVisible(false);
+                safe->presetNameDialog.reset();
+                if (result == 1)
+                {
+                    safe->showResult(renameCurrent ? safe->presetSession.renameCurrent(name)
+                                                   : safe->presetSession.saveAs(name));
+                    safe->refreshPresetMenu();
+                    safe->repaint();
+                }
+            }), false);
 }
 
 void VoxlineAudioProcessorEditor::toggleAb()

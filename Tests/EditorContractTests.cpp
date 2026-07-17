@@ -27,7 +27,7 @@ public:
             VoxlineAudioProcessorEditor editor(processor);
 
             expectEquals(editor.getWidth(), layout.getEditorWidth());
-            expectEquals(editor.getHeight(), 940);
+            expectEquals(editor.getHeight(), 720);
 
             int sliderCount = 0;
             int buttonCount = 0;
