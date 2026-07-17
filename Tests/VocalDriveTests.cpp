@@ -10,6 +10,10 @@
 #include <new>
 #include <vector>
 
+#if defined(_MSC_VER)
+ #include <malloc.h>
+#endif
+
 namespace VocalDriveAllocationProbe
 {
 std::atomic<bool> enabled {false};
@@ -56,9 +60,14 @@ void* operator new(std::size_t size, std::align_val_t alignment)
     if (VocalDriveAllocationProbe::enabled.load(std::memory_order_relaxed))
         VocalDriveAllocationProbe::calls.fetch_add(1, std::memory_order_relaxed);
 
+   #if defined(_MSC_VER)
+    if (auto* memory = _aligned_malloc(size, static_cast<std::size_t>(alignment)))
+        return memory;
+   #else
     void* memory {};
     if (posix_memalign(&memory, static_cast<std::size_t>(alignment), size) == 0)
         return memory;
+   #endif
     throw std::bad_alloc();
 }
 
@@ -69,7 +78,11 @@ void* operator new[](std::size_t size, std::align_val_t alignment)
 
 void operator delete(void* memory, std::align_val_t) noexcept
 {
+   #if defined(_MSC_VER)
+    _aligned_free(memory);
+   #else
     std::free(memory);
+   #endif
 }
 
 void operator delete[](void* memory, std::align_val_t) noexcept
@@ -79,7 +92,11 @@ void operator delete[](void* memory, std::align_val_t) noexcept
 
 void operator delete(void* memory, std::size_t, std::align_val_t) noexcept
 {
+   #if defined(_MSC_VER)
+    _aligned_free(memory);
+   #else
     std::free(memory);
+   #endif
 }
 
 void operator delete[](void* memory, std::size_t, std::align_val_t) noexcept
