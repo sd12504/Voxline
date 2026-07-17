@@ -108,6 +108,59 @@ public:
                                       -31.0f, 0.01f);
         }
 
+        beginTest("state schema rejects corrupt and wrong-root data");
+
+        {
+            VoxlineAudioProcessor processor;
+            const auto before = processor.getAPVTS().copyState();
+
+            const std::array<std::byte, 4> corrupt {
+                std::byte{0x56}, std::byte{0x4f}, std::byte{0x58}, std::byte{0x00}
+            };
+            processor.setStateInformation(corrupt.data(), static_cast<int>(corrupt.size()));
+            expect(processor.getAPVTS().copyState().isEquivalentTo(before));
+
+            juce::ValueTree wrong("WrongRoot");
+            std::unique_ptr<juce::XmlElement> xml(wrong.createXml());
+            juce::MemoryBlock bytes;
+            juce::AudioProcessor::copyXmlToBinary(*xml, bytes);
+            processor.setStateInformation(bytes.getData(), static_cast<int>(bytes.getSize()));
+            expect(processor.getAPVTS().copyState().isEquivalentTo(before));
+        }
+
+        beginTest("new state writes a schema version");
+
+        {
+            VoxlineAudioProcessor processor;
+            juce::MemoryBlock bytes;
+            processor.getStateInformation(bytes);
+            auto xml = juce::AudioProcessor::getXmlFromBinary(bytes.getData(),
+                static_cast<int>(bytes.getSize()));
+            expect(xml != nullptr);
+            expect(xml->hasAttribute("schemaVersion"));
+            expectEquals(xml->getIntAttribute("schemaVersion"), 2);
+        }
+
+        beginTest("legacy unversioned state still restores");
+
+        {
+            VoxlineAudioProcessor processor;
+            auto* sourceInputGain = processor.getAPVTS().getParameter(VoxlineParameterIDs::inputGain);
+            sourceInputGain->setValueNotifyingHost(1.0f);
+            auto legacyState = processor.getAPVTS().copyState();
+            legacyState.removeProperty("schemaVersion", nullptr);
+
+            juce::MemoryBlock bytes;
+            if (auto xml = legacyState.createXml())
+                juce::AudioProcessor::copyXmlToBinary(*xml, bytes);
+
+            VoxlineAudioProcessor restoredProcessor;
+            restoredProcessor.setStateInformation(bytes.getData(), static_cast<int>(bytes.getSize()));
+            expectWithinAbsoluteError(restoredProcessor.getAPVTS()
+                                          .getParameter(VoxlineParameterIDs::inputGain)->getValue(),
+                                      1.0f, 0.001f);
+        }
+
         beginTest("editor uses the JSON layout and keeps real controls");
 
         {

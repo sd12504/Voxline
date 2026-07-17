@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "State/StateSchema.h"
 #include "Parameters/ParameterLayout.h"
 
 // VOXLINE DSP signal flow
@@ -600,21 +601,13 @@ void VoxlineAudioProcessor::changeProgramName(int, const juce::String&)
 
 void VoxlineAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
-    if (auto state = apvts.copyState().createXml())
-        copyXmlToBinary(*state, destData);
+    VoxlineState::serialise(apvts.copyState(), destData);
 }
 
 void VoxlineAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
-    const auto xmlState = getXmlFromBinary(data, sizeInBytes);
-
-    if (xmlState == nullptr)
-        return;
-
-    if (! xmlState->hasTagName(apvts.state.getType()))
-        return;
-
-    apvts.replaceState(juce::ValueTree::fromXml(*xmlState));
+    if (auto state = VoxlineState::deserialise(data, sizeInBytes, apvts.state.getType()))
+        apvts.replaceState(*state);
 }
 
 VoxlineAudioProcessor::APVTS& VoxlineAudioProcessor::getAPVTS() noexcept
