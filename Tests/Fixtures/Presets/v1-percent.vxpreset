@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VOXLINEUserPreset formatVersion="1">
+  <PARAM id="body" value="0"/>
+  <PARAM id="clarity" value="50"/>
+  <PARAM id="air" value="100"/>
+  <PARAM id="lowGain" value="1.5"/>
+  <PARAM id="spaceType" value="0"/>
+</VOXLINEUserPreset>

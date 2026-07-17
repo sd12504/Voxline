@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VOXLINEUserPreset formatVersion="3" futureRootField="preserved">
+  <PARAM id="body" value="4.0"/>
+  <PARAM id="futureControl" value="0.75"/>
+  <FUTURE_UI expanded="true"/>
+</VOXLINEUserPreset>
