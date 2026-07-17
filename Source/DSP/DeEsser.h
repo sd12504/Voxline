@@ -12,6 +12,12 @@ enum class DeEssMode
     wide
 };
 
+enum class DeEssMonitor
+{
+    off,
+    detector
+};
+
 struct DeEsserSettings
 {
     float amount {};
@@ -33,10 +39,37 @@ public:
     void prepare(const ModuleSpec&);
     void reset() noexcept;
     void setTargetSettings(const DeEsserSettings&) noexcept;
-    DeEssMetrics process(juce::AudioBuffer<float>&) noexcept;
+    DeEssMetrics process(
+        juce::AudioBuffer<float>&,
+        DeEssMonitor monitor = DeEssMonitor::off) noexcept;
 
 private:
-    void updateCoefficients() noexcept;
+    struct BiquadCoefficients
+    {
+        float b0 {};
+        float b1 {};
+        float b2 {};
+        float a1 {};
+        float a2 {};
+    };
+
+    struct BiquadState
+    {
+        float x1 {};
+        float x2 {};
+        float y1 {};
+        float y2 {};
+    };
+
+    BiquadCoefficients makeDetectorCoefficients(float focusHz) const noexcept;
+    float processDetectorSample(float input,
+                                BiquadState& state) const noexcept;
+    void beginAmountTransition(float target) noexcept;
+    void beginFocusTransition(float targetHz) noexcept;
+    void beginModeTransition(DeEssMode target) noexcept;
+    void advanceControls() noexcept;
+    void enterIdle() noexcept;
+    void updateEnvelopeCoefficients() noexcept;
 
     DeEsserSettings settings;
     double sampleRate {44100.0};
@@ -44,13 +77,33 @@ private:
 
     std::array<float, 2> lowpassState {};
     std::array<float, 2> highpassSamples {};
+    std::array<float, 2> detectorSamples {};
+    std::array<BiquadState, 2> detectorStates {};
     float detectorEnvelope {};
     float reductionEnvelopeDb {};
 
+    BiquadCoefficients detectorCoefficients;
+    BiquadCoefficients detectorTargetCoefficients;
+    BiquadCoefficients detectorCoefficientStep;
     float focusCoefficient {};
+    float targetFocusCoefficient {};
+    float focusCoefficientStep {};
+    int focusTransitionRemaining {};
+
+    float currentAmount {};
+    float targetAmount {};
+    float amountStep {};
+    int amountTransitionRemaining {};
+
+    float currentModeMix {};
+    float targetModeMix {};
+    float modeMixStep {};
+    int modeTransitionRemaining {};
+
     float detectorAttackCoefficient {};
     float detectorReleaseCoefficient {};
     float reductionAttackCoefficient {};
     float reductionReleaseCoefficient {};
+    bool idle {true};
 };
 }
