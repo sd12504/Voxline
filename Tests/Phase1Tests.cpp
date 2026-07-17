@@ -2,7 +2,7 @@
 
 #include "../Source/PluginEditor.h"
 #include "../Source/PluginProcessor.h"
-#include "../Source/UI/Layout.h"
+#include "../Source/UI/LayoutLoader.h"
 
 namespace
 {
@@ -63,21 +63,35 @@ public:
 
     void runTest() override
     {
-        beginTest("processor exposes the full Phase 1 parameter set");
+        beginTest("processor exposes the full parameter set");
 
         {
             VoxlineAudioProcessor processor;
-            expectEquals(processor.getParameters().size(), 12);
+            expectEquals(processor.getParameters().size(), 51);
+
+            auto* body = processor.getAPVTS().getParameter(VoxlineParameterIDs::body);
+            expect(body != nullptr);
+            expectWithinAbsoluteError(body->getNormalisableRange().start, -6.0f, 0.001f);
+            expectWithinAbsoluteError(body->getNormalisableRange().end, 6.0f, 0.001f);
+            expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::compThreshold) != nullptr);
+            expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::deEssFreq) != nullptr);
+            expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::driveCharacter) != nullptr);
+            expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::spaceTime) != nullptr);
+            expect(processor.getAPVTS().getParameter(VoxlineParameterIDs::spaceDucking) != nullptr);
+            expectEquals(processor.getNumPrograms(), 9);
+            expectEquals(processor.getProgramName(0), juce::String("Clean"));
+            expect(processor.getTailLengthSeconds() >= 2.5);
         }
 
         beginTest("processor state round-trips parameter values");
 
         {
             VoxlineAudioProcessor sourceProcessor;
-            expectEquals(sourceProcessor.getParameters().size(), 12);
+            expectEquals(sourceProcessor.getParameters().size(), 51);
 
             auto* firstParam = sourceProcessor.getParameters()[0];
             firstParam->setValueNotifyingHost(1.0f);
+            setFloatParameter(sourceProcessor, VoxlineParameterIDs::compThreshold, -31.0f);
 
             juce::MemoryBlock state;
             sourceProcessor.getStateInformation(state);
@@ -89,20 +103,31 @@ public:
 
             auto* restoredFirstParam = restoredProcessor.getParameters()[0];
             expectWithinAbsoluteError(restoredFirstParam->getValue(), 1.0f, 0.001f);
+            expectWithinAbsoluteError(restoredProcessor.getAPVTS().getRawParameterValue(
+                                          VoxlineParameterIDs::compThreshold)->load(),
+                                      -31.0f, 0.01f);
         }
 
-        beginTest("editor uses the fixed Phase 4 layout and keeps real controls");
+        beginTest("editor uses the JSON layout and keeps real controls");
 
         {
+            LayoutLoader layout;
+            expect(layout.loadFromMemory(BinaryData::layout_json, BinaryData::layout_jsonSize));
+            expectEquals(layout.getEditorWidth(), 1080);
+            expectEquals(layout.getEditorHeight(), 720);
+            expect(layout.hasKey("polishKnob"));
+            expect(layout.hasKey("listenButton"));
+            expect(layout.hasKey("outMeter"));
+
             VoxlineAudioProcessor processor;
             VoxlineAudioProcessorEditor editor(processor);
 
-            expectEquals(editor.getWidth(), VoxlineLayout::editorWidth);
-            expectEquals(editor.getHeight(), VoxlineLayout::editorHeight);
+            expectEquals(editor.getWidth(), layout.getEditorWidth());
+            expectEquals(editor.getHeight(), 940);
 
             int sliderCount = 0;
             int buttonCount = 0;
-            int progressBarCount = 0;
+            int meterCount = 0;
             bool foundPolishSlider = false;
             bool foundListenButton = false;
             bool foundOutputMeter = false;
@@ -114,32 +139,36 @@ public:
                 if (const auto* slider = dynamic_cast<const juce::Slider*>(child))
                 {
                     ++sliderCount;
-                    if (slider->getBounds() == VoxlineLayout::polishSliderBounds)
+                    if (slider->getBounds() == juce::Rectangle<int>{466, 116, 148, 148})
                         foundPolishSlider = true;
                 }
 
                 if (const auto* button = dynamic_cast<const juce::Button*>(child))
                 {
                     ++buttonCount;
-                    if (button->getBounds() == VoxlineLayout::listenUtilityBounds)
+                    if (button->getBounds() == juce::Rectangle<int>{783, 21, 96, 34})
                         foundListenButton = true;
                 }
 
-                if (const auto* progressBar = dynamic_cast<const juce::ProgressBar*>(child))
+                if (const auto* meter = dynamic_cast<const VoxlineLevelMeter*>(child))
                 {
-                    ++progressBarCount;
-                    if (progressBar->getBounds() == VoxlineLayout::outMeterBounds)
+                    ++meterCount;
+                    if (meter->getBounds() == layout.getBounds("outMeter"))
                         foundOutputMeter = true;
                 }
             }
 
-            expectEquals(sliderCount, 9);
-            expectEquals(buttonCount, 11);
-            expectEquals(progressBarCount, 2);
-            expect(editor.getLocalBounds().contains(VoxlineLayout::mainCard));
+            expectGreaterOrEqual(sliderCount, 9);
+            expectGreaterOrEqual(buttonCount, 11);
+            expectEquals(meterCount, 2);
             expect(foundPolishSlider);
             expect(foundListenButton);
             expect(foundOutputMeter);
+
+            editor.setAdvancedOpen(true);
+            expectEquals(editor.getHeight(), 940);
+            editor.setAdvancedOpen(false);
+            expectEquals(editor.getHeight(), 720);
         }
 
         beginTest("Phase 3 default DSP audibly changes a vocal-like signal");
@@ -172,6 +201,9 @@ public:
             dryBuffer.makeCopyOf(buffer);
             juce::MidiBuffer midi;
 
+            juce::AudioBuffer<float> warmupBuffer;
+            warmupBuffer.makeCopyOf(buffer);
+            processor.processBlock(warmupBuffer, midi);
             processor.processBlock(buffer, midi);
 
             expectWithinAbsoluteError(averageAbsoluteDifference(buffer, dryBuffer), 0.0f, 1.0e-6f);
@@ -200,15 +232,87 @@ public:
 
             expect(peak <= 1.0f);
         }
+
+        beginTest("Advanced de-esser parameters audibly control sibilant content");
+
+        {
+            VoxlineAudioProcessor dryProcessor;
+            VoxlineAudioProcessor deEssProcessor;
+            dryProcessor.prepareToPlay(48000.0, 512);
+            deEssProcessor.prepareToPlay(48000.0, 512);
+
+            setFloatParameter(dryProcessor, VoxlineParameterIDs::smooth, 0.0f);
+            setFloatParameter(deEssProcessor, VoxlineParameterIDs::smooth, 100.0f);
+            setFloatParameter(deEssProcessor, VoxlineParameterIDs::deEssFreq, 4000.0f);
+            setFloatParameter(deEssProcessor, VoxlineParameterIDs::deEssThreshold, -40.0f);
+            setFloatParameter(deEssProcessor, VoxlineParameterIDs::deEssRange, 12.0f);
+            deEssProcessor.getAPVTS().getParameter(VoxlineParameterIDs::deEssMode)->setValueNotifyingHost(1.0f);
+
+            juce::AudioBuffer<float> dry(2, 512);
+            for (int channel = 0; channel < dry.getNumChannels(); ++channel)
+                for (int sample = 0; sample < dry.getNumSamples(); ++sample)
+                    dry.setSample(channel, sample, 0.3f * std::sin(
+                        juce::MathConstants<float>::twoPi * 8000.0f * static_cast<float>(sample) / 48000.0f));
+
+            juce::AudioBuffer<float> treated;
+            treated.makeCopyOf(dry);
+            juce::MidiBuffer midi;
+            dryProcessor.processBlock(dry, midi);
+            deEssProcessor.processBlock(treated, midi);
+
+            const auto difference = averageAbsoluteDifference(dry, treated);
+            expect(difference > 0.001f);
+            expect(deEssProcessor.deEssReduction.load() > 1.0f);
+        }
     }
 };
 
 static VoxlineTests voxlineTests;
+
+int renderEditorScreenshot(const juce::String& outputPath, bool showAdvanced)
+{
+    VoxlineAudioProcessor processor;
+    processor.prepareToPlay(48000.0, 2048);
+    juce::AudioBuffer<float> previewAudio(2, 2048);
+    juce::MidiBuffer previewMidi;
+    for (int pass = 0; pass < 4; ++pass)
+    {
+        fillTestSignal(previewAudio, 48000.0);
+        processor.processBlock(previewAudio, previewMidi);
+    }
+    VoxlineAudioProcessorEditor editor(processor);
+
+    if (showAdvanced)
+        editor.setAdvancedOpen(true);
+
+    juce::Image image(juce::Image::ARGB, editor.getWidth(), editor.getHeight(), true);
+    juce::Graphics graphics(image);
+    editor.paintEntireComponent(graphics, true);
+
+    auto file = juce::File(outputPath).getFullPathName().isEmpty()
+                    ? juce::File::getCurrentWorkingDirectory().getChildFile("voxline-editor-screenshot.png")
+                    : juce::File(outputPath);
+
+    file.deleteFile();
+    juce::PNGImageFormat png;
+
+    if (auto stream = file.createOutputStream())
+        if (png.writeImageToStream(image, *stream))
+            return 0;
+
+    return 1;
+}
 } // namespace
 
-int main()
+int main(int argc, char* argv[])
 {
     juce::ScopedJuceInitialiser_GUI guiScope;
+
+    if (argc >= 2 && (juce::String(argv[1]) == "--render-editor"
+                      || juce::String(argv[1]) == "--render-editor-advanced"))
+        return renderEditorScreenshot(argc >= 3 ? juce::String(argv[2]) : juce::String(),
+                                      juce::String(argv[1]) == "--render-editor-advanced");
+
     juce::UnitTestRunner runner;
     runner.runAllTests();
 

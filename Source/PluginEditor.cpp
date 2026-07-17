@@ -2,6 +2,28 @@
 #include "PluginProcessor.h"
 #include "UI/Layout.h"
 #include <cmath>
+#include <complex>
+
+// ---------------------------------------------------------------------------
+// Shared EQ band parameter mappings (index: 0=HPF 1=LOW 2=MUD 3=PRES 4=AIR 5=LPF)
+// ---------------------------------------------------------------------------
+namespace
+{
+    constexpr const char* kEqFreqIDs[6] = {
+        VoxlineParameterIDs::hpfFreq, VoxlineParameterIDs::lowFreq,
+        VoxlineParameterIDs::mudFreq,  VoxlineParameterIDs::presFreq,
+        VoxlineParameterIDs::airFreq,  VoxlineParameterIDs::lpfFreq
+    };
+    constexpr const char* kEqGainIDs[6] = {
+        VoxlineParameterIDs::hpfSlope, VoxlineParameterIDs::body,
+        VoxlineParameterIDs::mudGain,  VoxlineParameterIDs::clarity,
+        VoxlineParameterIDs::air,  VoxlineParameterIDs::lpfSlope
+    };
+    constexpr const char* kEqQIDs[6] = {
+        nullptr, VoxlineParameterIDs::lowQ, VoxlineParameterIDs::mudQ,
+        VoxlineParameterIDs::presQ, VoxlineParameterIDs::airQ, nullptr
+    };
+} // anonymous namespace
 
 // ---------------------------------------------------------------------------
 // Minimal LookAndFeel — hides ToggleButton tick box frame, text only
@@ -15,9 +37,9 @@ struct VoxlineToggleLookAndFeel final : juce::LookAndFeel_V4
         const auto on = button.getToggleState();
 
         // Pill background
-        g.setColour(on ? juce::Colour(0xffD86F96).withAlpha(0.2f) : juce::Colours::transparentBlack);
+        g.setColour(on ? juce::Colour(0xffD86A35).withAlpha(0.20f) : juce::Colours::transparentBlack);
         g.fillRoundedRectangle(b, 7.0f);
-        g.setColour(on ? juce::Colour(0xffD86F96) : juce::Colour(0xffaaaaaa).withAlpha(0.4f));
+        g.setColour(on ? juce::Colour(0xffD86A35) : juce::Colour(0xffaaaaaa).withAlpha(0.4f));
         g.drawRoundedRectangle(b, 7.0f, 1.0f);
 
         g.setFont(juce::FontOptions(12.0f));
@@ -27,7 +49,67 @@ struct VoxlineToggleLookAndFeel final : juce::LookAndFeel_V4
     }
 };
 
-static VoxlineToggleLookAndFeel voxlineToggleLNF;
+VoxlineToggleLookAndFeel& getToggleLookAndFeel()
+{
+    static VoxlineToggleLookAndFeel instance;
+    return instance;
+}
+
+struct VoxlineButtonLookAndFeel final : juce::LookAndFeel_V4
+{
+    void drawButtonBackground(juce::Graphics& g, juce::Button& button,
+                              const juce::Colour&, bool highlighted, bool down) override
+    {
+        const auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
+        const auto active = button.getToggleState()
+                         || button.findColour(juce::TextButton::textColourOffId) == juce::Colour(0xffF06A3D);
+        const auto accent = juce::Colour(0xffF06A3D);
+        auto fill = active ? juce::Colour(0xff241713) : juce::Colour(0xff171818);
+        auto border = active ? accent : juce::Colour(0xff55534F);
+
+        if (highlighted)
+        {
+            fill = active ? juce::Colour(0xff2C1A14) : juce::Colour(0xff202121);
+            border = active ? accent.brighter(0.08f) : juce::Colour(0xff77736D);
+        }
+        if (down)
+            fill = active ? juce::Colour(0xff331B14) : juce::Colour(0xff101111);
+
+        g.setColour(juce::Colours::black.withAlpha(0.38f));
+        g.fillRoundedRectangle(bounds.translated(0.0f, 1.5f), 6.0f);
+        g.setColour(fill);
+        g.fillRoundedRectangle(bounds, 6.0f);
+        g.setColour(border.withAlpha(button.isEnabled() ? 0.95f : 0.28f));
+        g.drawRoundedRectangle(bounds, 6.0f, active ? 1.15f : 0.85f);
+    }
+
+    void drawButtonText(juce::Graphics& g, juce::TextButton& button,
+                        bool highlighted, bool down) override
+    {
+        const auto active = button.getToggleState()
+                         || button.findColour(juce::TextButton::textColourOffId) == juce::Colour(0xffF06A3D);
+        auto colour = active ? juce::Colour(0xffF47A50) : juce::Colour(0xffC6BFB5);
+        if (highlighted)
+            colour = active ? juce::Colour(0xffFF8A5D) : juce::Colour(0xffEEE8DF);
+        if (! button.isEnabled())
+            colour = colour.withAlpha(0.32f);
+
+        const auto height = button.getHeight();
+        const auto fontSize = height <= 30 ? 10.0f : (height <= 36 ? 11.0f : 11.5f);
+        g.setColour(colour);
+        g.setFont(juce::Font(juce::FontOptions(fontSize, juce::Font::bold))
+                      .withExtraKerningFactor(0.08f));
+        g.drawText(button.getButtonText().toUpperCase(),
+                   button.getLocalBounds().reduced(6, down ? 1 : 0),
+                   juce::Justification::centred, false);
+    }
+};
+
+VoxlineButtonLookAndFeel& getButtonLookAndFeel()
+{
+    static VoxlineButtonLookAndFeel instance;
+    return instance;
+}
 
 // ---------------------------------------------------------------------------
 // Pill-style LookAndFeel for Auto Gain toggle
@@ -41,15 +123,16 @@ struct VoxlineAutoGainLNF final : juce::LookAndFeel_V4
         const auto on = button.getToggleState();
         const auto dark = currentAutoGainTheme != 0;
 
-        const auto fillOff = dark ? juce::Colour(0xff2a2635) : juce::Colour(0xffe8e0d4);
-        const auto fillOn  = juce::Colour(0xffD86F96).withAlpha(0.22f);
-        const auto borderOff = dark ? juce::Colour(0xff3d3950) : juce::Colour(0xffc8bfb4);
-        const auto textOn  = juce::Colour(0xffD86F96);
-        const auto textOff = dark ? juce::Colour(0xff9d99a8) : juce::Colour(0xff666666);
+        const auto fillOff = dark ? juce::Colour(0xff171818) : juce::Colour(0xffe8e0d4);
+        const auto fillOn  = dark ? juce::Colour(0xff271712) : juce::Colour(0xffF2E8DC);
+        const auto borderOff = dark ? juce::Colour(0xff3A3936) : juce::Colour(0xffc8bfb4);
+        const auto borderOn = juce::Colour(0xffF06A3D);
+        const auto textOn  = dark ? juce::Colour(0xffF47A50) : juce::Colour(0xffB84E22);
+        const auto textOff = dark ? juce::Colour(0xffA49D94) : juce::Colour(0xff666666);
 
         g.setColour(on ? fillOn : fillOff);
         g.fillRoundedRectangle(b, 7.0f);
-        g.setColour(on ? textOn : borderOff);
+        g.setColour(on ? borderOn : borderOff);
         g.drawRoundedRectangle(b, 7.0f, 1.0f);
 
         g.setFont(juce::FontOptions(12.0f));
@@ -60,7 +143,6 @@ struct VoxlineAutoGainLNF final : juce::LookAndFeel_V4
     static int currentAutoGainTheme;
 };
 
-static VoxlineAutoGainLNF voxlineAutoGainLNF;
 int VoxlineAutoGainLNF::currentAutoGainTheme = 0;
 
 // ---------------------------------------------------------------------------
@@ -102,7 +184,6 @@ struct VoxlineSpaceSliderLNF final : juce::LookAndFeel_V4
 };
 
 int VoxlineSpaceSliderLNF::spaceSliderTheme = 0;
-static VoxlineSpaceSliderLNF voxlineSpaceSliderLNF;
 
 // ---------------------------------------------------------------------------
 // Pill-styled ComboBox LookAndFeel for preset dropdown
@@ -114,7 +195,7 @@ struct VoxlinePresetDropdownLNF final : juce::LookAndFeel_V4
         auto& t = VoxlineTheme::get(box.getProperties().getWithDefault("themeIndex", 0));
         const auto dark = (t.editorBg.getBrightness() < 0.3f);
 
-        g.setColour(dark ? juce::Colour(0xff2f2c38) : juce::Colour(0xffece5de));
+        g.setColour(dark ? juce::Colour(0xff181919) : juce::Colour(0xffece5de));
         g.fillRoundedRectangle(0, 0, (float)w, (float)h, 8.0f);
 
         g.setColour(isDown ? t.accentRose : t.panelBorder);
@@ -138,7 +219,7 @@ struct VoxlinePresetDropdownLNF final : juce::LookAndFeel_V4
         auto& t = VoxlineTheme::get(currentDropdownTheme);
         const auto dark = (t.editorBg.getBrightness() < 0.3f);
 
-        g.setColour(isHighlighted ? t.accentRose.withAlpha(dark ? 0.25f : 0.15f) : (dark ? juce::Colour(0xff181622) : juce::Colour(0xffF7F0E7)));
+        g.setColour(isHighlighted ? t.accentRose.withAlpha(dark ? 0.18f : 0.15f) : (dark ? juce::Colour(0xff181919) : juce::Colour(0xffF7F0E7)));
         g.fillAll();
         g.setColour(isHighlighted ? t.accentRose : t.textPrimary);
         g.setFont(juce::FontOptions(12.0f));
@@ -157,80 +238,54 @@ struct VoxlinePresetDropdownLNF final : juce::LookAndFeel_V4
 
 int VoxlinePresetDropdownLNF::currentDropdownTheme = 0;
 
-static VoxlinePresetDropdownLNF voxlineDropdownLNF;
-
-// ---------------------------------------------------------------------------
-// Theme toggle — simple Component, draws sun/moon directly
-// ---------------------------------------------------------------------------
-struct ThemeToggleComp final : juce::Component
+VoxlinePresetDropdownLNF& getDropdownLookAndFeel()
 {
-    VoxlineAudioProcessorEditor& owner;
-    explicit ThemeToggleComp(VoxlineAudioProcessorEditor& o) : owner(o) {}
-
-    void paint(juce::Graphics& g) override
-    {
-        const auto& t = VoxlineTheme::get(owner.currentThemeIndex);
-        const auto dark = (owner.currentThemeIndex != 0);
-        const auto b = getLocalBounds().toFloat();
-
-        g.setColour(dark ? juce::Colour(0x00ffffff) : juce::Colour(0xffece5de));
-        g.fillRoundedRectangle(b, 8.0f);
-        g.setColour(t.panelBorder);
-        g.drawRoundedRectangle(b.reduced(0.5f), 8.0f, 1.0f);
-
-        const float cx = b.getCentreX(), cy = b.getCentreY(), r = 8.0f;
-        juce::Path icon;
-        if (dark)
-        {
-            icon.addEllipse(cx - r, cy - r, r * 2.0f, r * 2.0f);
-            for (int i = 0; i < 8; ++i)
-            {
-                auto a = juce::MathConstants<float>::twoPi * (float)i / 8.0f;
-                const auto sa = std::sin(a), ca = std::cos(a);
-                icon.addLineSegment({cx + (r + 1.5f) * ca, cy + (r + 1.5f) * sa,
-                                     cx + (r + 5.0f) * ca, cy + (r + 5.0f) * sa}, 2.0f);
-            }
-        }
-        else
-        {
-            juce::Path outer, inner;
-            outer.addEllipse(cx - r, cy - r, r * 2.0f, r * 2.0f);
-            inner.addEllipse(cx - r + 4.0f, cy - r - 1.0f, r * 2.0f, r * 2.0f);
-            icon = outer;
-            icon.addPath(inner);
-            icon.setUsingNonZeroWinding(false);
-        }
-        g.setColour(t.textPrimary);
-        g.strokePath(icon, juce::PathStrokeType(1.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-    }
-
-    void mouseUp(const juce::MouseEvent&) override { owner.cycleTheme(); }
-};
+    static VoxlinePresetDropdownLNF instance;
+    return instance;
+}
 
 // ---------------------------------------------------------------------------
 // Constructor
 // ---------------------------------------------------------------------------
 VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& audioProcessorToEdit)
     : AudioProcessorEditor(&audioProcessorToEdit),
-      audioProcessor(audioProcessorToEdit)
+      audioProcessor(audioProcessorToEdit),
+      spectrumFft(VoxlineAudioProcessor::analyzerFftOrder),
+      spectrumWindow(VoxlineAudioProcessor::analyzerFftSize,
+                     juce::dsp::WindowingFunction<float>::hann, true)
 {
     auto& apvts = audioProcessor.getAPVTS();
+    spectrumDisplay.fill(-72.0f);
+    layout.loadFromMemory(BinaryData::layout_json, BinaryData::layout_jsonSize);
 
+    // ===== V2 Top Bar =====
     configureTextLabel(logoLabel, "VOXLINE", juce::Justification::centredLeft);
     configureTextLabel(subtitleLabel, "Complete Vocal Channel", juce::Justification::centredLeft);
 
-    // Theme toggle icon
-    themeToggle = std::make_unique<ThemeToggleComp>(*this);
-    addAndMakeVisible(*themeToggle);
-
-    // Preset dropdown in bottom bar
-    presetDropdown.setLookAndFeel(&voxlineDropdownLNF);
+    // Preset dropdown
+    presetDropdown.setLookAndFeel(&getDropdownLookAndFeel());
     presetDropdown.setColour(juce::ComboBox::textColourId, juce::Colours::transparentBlack);
     presetDropdown.addItemList({"Clean","Basement Take","Dirty Lead","Cold Plug","Rage Cut","Muddy Trap","Cyber Vox","Noir Vocal","Tape Rap"}, 1);
-    presetDropdown.setSelectedId(1, juce::dontSendNotification); // Clean
+    presetDropdown.addSeparator();
+    presetDropdown.addItem("Load User Preset…", 100);
+    presetDropdown.setSelectedId(1, juce::dontSendNotification);
     presetDropdown.getProperties().set("themeIndex", 0);
     presetDropdown.addListener(this);
     addAndMakeVisible(presetDropdown);
+
+    for (auto* button : { &presetPreviousButton, &presetNextButton, &favouriteButton, &savePresetButton })
+    {
+        addAndMakeVisible(*button);
+        button->addListener(this);
+        button->setLookAndFeel(&getButtonLookAndFeel());
+    }
+    presetPreviousButton.setButtonText("<");
+    presetNextButton.setButtonText(">");
+    favouriteButton.setButtonText("FAV");
+    favouriteButton.setClickingTogglesState(true);
+    savePresetButton.setButtonText("SAVE");
+
+    // ===== V2 Panel Titles =====
 
     configureTextLabel(inputTitleLabel, "INPUT / CLEAN", juce::Justification::centredLeft);
     configureTextLabel(toneTitleLabel, "VOCAL EQ", juce::Justification::centredLeft);
@@ -263,6 +318,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
                                BinaryData::air_active_png, BinaryData::air_active_pngSize);
     setupEqBand(eqLpfButton, BinaryData::lpf_normal_png,  BinaryData::lpf_normal_pngSize,
                                BinaryData::lpf_active_png, BinaryData::lpf_active_pngSize);
+    selectedEqBand = 1;
     eqLowButton.setToggleState(true, juce::dontSendNotification);  // LOW active by default
 
     // Placeholder controls (UI only, no DSP yet)
@@ -273,9 +329,11 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     configureTextLabel(monitorLabel, "MONITOR", juce::Justification::centredLeft);
 
     configurePresetButton(abButton, "A/B");
+    abButton.setLookAndFeel(&getButtonLookAndFeel());
 
     abButton.addListener(this);
 
+    // ===== V2 Input / Clean Panel =====
     configureKnob(inputGainSlider);
     inputGainSlider.setShowInternalLabel(false);
     inputGainSlider.setShowInternalValue(false);
@@ -292,10 +350,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     cleanKnob.setValue(30.0, juce::dontSendNotification);
 
     configureKnob(deEssKnob);
-    deEssKnob.setShowInternalLabel(false);
-    deEssKnob.setShowInternalValue(false);
-    deEssKnob.setRange(0.0, 100.0, 1.0);
-    deEssKnob.setValue(25.0, juce::dontSendNotification);
+    deEssKnob.setVisible(false); // replaced by the real SMOOTH/DE-ESS parameter control
 
     // Dynamics placeholder knobs (visual only, no DSP)
     ratioKnob.setShowInternalLabel(false);
@@ -322,17 +377,29 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     thresholdKnob.setShowInternalValue(false);
     thresholdKnob.setRange(-24.0, 0.0, 0.1);
     thresholdKnob.setValue(-18.0, juce::dontSendNotification);
+    // ===== V2 POLISH Hero Panel =====
     configureKnob(polishSlider);
+    polishSlider.setShowInternalLabel(false);
+    polishSlider.setShowInternalValue(false);
+
+    // ===== V2 Output Panel knobs =====
+    // Creator-facing tone and de-ess controls.
     configureKnob(bodySlider);
     configureKnob(claritySlider);
     configureKnob(airSlider);
     configureKnob(smoothSlider);
-
-    // Old EQ DSP knobs hidden — controlled by band buttons, values shown in selected-band panel
-    bodySlider.setVisible(false);
-    claritySlider.setVisible(false);
-    airSlider.setVisible(false);
-    smoothSlider.setVisible(false);
+    for (auto* knob : { static_cast<VoxlineSpriteKnob*>(&bodySlider),
+                        static_cast<VoxlineSpriteKnob*>(&claritySlider),
+                        static_cast<VoxlineSpriteKnob*>(&airSlider),
+                        static_cast<VoxlineSpriteKnob*>(&smoothSlider) })
+    {
+        knob->setShowInternalLabel(false);
+        knob->setShowInternalValue(false);
+    }
+    bodySlider.setDoubleClickReturnValue(true, 0.0);
+    claritySlider.setDoubleClickReturnValue(true, 0.0);
+    airSlider.setDoubleClickReturnValue(true, 0.0);
+    // ===== V2 Dynamics / Color Panel =====
     configureKnob(compSlider);
     configureKnob(driveSlider);
     configureKnob(thresholdKnob);
@@ -344,21 +411,20 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     outputGainSlider.setShowInternalLabel(false);
     outputGainSlider.setShowInternalValue(false);
 
-    // SPACE control in bottom bar
-    spaceTypeCombo.addItemList({"Tight", "Slap", "Wide"}, 1);
+    // ===== V2 Space / Monitor Panel =====
+    // SPACE control
+    spaceTypeCombo.addItemList({"Tight Ambience", "Filtered Slap", "Stereo Wide"}, 1);
     spaceTypeCombo.setSelectedId(1, juce::dontSendNotification);
     spaceTypeCombo.addListener(this);
-    spaceTypeCombo.setLookAndFeel(&voxlineDropdownLNF);
+    spaceTypeCombo.setLookAndFeel(&getDropdownLookAndFeel());
     spaceTypeCombo.setColour(juce::ComboBox::textColourId, juce::Colours::transparentBlack);
     spaceTypeCombo.getProperties().set("themeIndex", 0);
     addAndMakeVisible(spaceTypeCombo);
 
-    // SPACE horizontal slider
-    spaceSlider.setSliderStyle(juce::Slider::LinearHorizontal);
-    spaceSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-    spaceSlider.setRange(0.0, 100.0, 1.0);
-    spaceSlider.setLookAndFeel(&voxlineSpaceSliderLNF);
-    addAndMakeVisible(spaceSlider);
+    // SPACE is a consistent main-row amount knob in the simplified interface.
+    configureKnob(spaceSlider);
+    spaceSlider.setShowInternalLabel(false);
+    spaceSlider.setShowInternalValue(false);
 
     configureKnob(preDelayKnob);
     configureKnob(spaceHpfKnob);
@@ -384,17 +450,27 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     spaceHpfLabel.setText("", juce::dontSendNotification);
     spaceLpfLabel.setText("", juce::dontSendNotification);
 
-    // Monitor buttons
+    // Monitor section buttons (Space/Monitor panel, V2 visible)
     configurePresetButton(monitorAbBtn, "A/B");
     configurePresetButton(monitorListenBtn, "Listen");
     configurePresetButton(monitorBypassBtn, "Bypass");
 
     configureTextLabel(spaceAmountLabel, "24%", juce::Justification::centredRight);
 
-    // Footer
+    // Footer — V2 visible
     configureTextLabel(footerLabel, "VOXLINE 2.0.0  |  SADTONY", juce::Justification::centred);
 
-
+    // V2 labels — drawn via paint() for now; label components kept for text storage
+    logoLabel.setVisible(false);
+    subtitleLabel.setVisible(false);
+    inputTitleLabel.setVisible(false);
+    toneTitleLabel.setVisible(false);
+    polishTitleLabel.setVisible(false);
+    outputTitleLabel.setVisible(false);
+    meterNamesLabel.setVisible(false);
+    spaceTitleLabel.setVisible(false);
+    monitorLabel.setVisible(false);
+    // footerLabel stays visible in V2
 
     // Bypass — theme-aware image button
     addAndMakeVisible(bypassButton);
@@ -405,6 +481,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
         juce::ImageCache::getFromMemory(BinaryData::bypass_active_light_png, BinaryData::bypass_active_light_pngSize)
     );
     bypassButton.setThemeIndex(0);
+    bypassButton.setHitTestInsets(10, 8, 10, 8);
     bypassButton.addListener(this);
 
     // Listen — theme-aware image button
@@ -416,10 +493,11 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
         juce::ImageCache::getFromMemory(BinaryData::listen_active_light_png, BinaryData::listen_active_light_pngSize)
     );
     listenButton.setThemeIndex(0);
+    listenButton.setHitTestInsets(10, 8, 10, 8);
     listenButton.addListener(this);
 
-    // EQ On/Off — theme-aware image button
-    addAndMakeVisible(eqOnButton);
+    // EQ On/Off has no dedicated artwork yet; keep the attachment alive but do not show it.
+    addChildComponent(eqOnButton);
     eqOnButton.setThemeImages(
         juce::ImageCache::getFromMemory(BinaryData::on_normal_dark_png,  BinaryData::on_normal_dark_pngSize),
         juce::ImageCache::getFromMemory(BinaryData::on_normal_light_png, BinaryData::on_normal_light_pngSize),
@@ -428,15 +506,24 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     );
     eqOnButton.setThemeIndex(0);
     eqOnButton.setToggleState(true, juce::dontSendNotification);
+    eqOnButton.setVisible(false);
     eqOnButton.addListener(this);
 
-    // Auto-gain / Clean — remain ToggleButtons (no PNG assets yet)
-    configureButton(autoGainButton, "ON");
-    autoGainButton.setLookAndFeel(&voxlineAutoGainLNF);
+    // Auto-gain uses the ON/OFF PNG asset. Clean mode remains a hidden placeholder.
+    addAndMakeVisible(autoGainButton);
+    autoGainButton.setThemeImages(
+        juce::ImageCache::getFromMemory(BinaryData::on_normal_dark_png,  BinaryData::on_normal_dark_pngSize),
+        juce::ImageCache::getFromMemory(BinaryData::on_normal_light_png, BinaryData::on_normal_light_pngSize),
+        juce::ImageCache::getFromMemory(BinaryData::on_active_dark_png,  BinaryData::on_active_dark_pngSize),
+        juce::ImageCache::getFromMemory(BinaryData::on_active_light_png, BinaryData::on_active_light_pngSize)
+    );
+    autoGainButton.setThemeIndex(0);
+    autoGainButton.setHitTestInsets(10, 8, 10, 8);
+    autoGainButton.addListener(this);
     configureButton(cleanModeButton, "Clean");
-    cleanModeButton.setLookAndFeel(&voxlineToggleLNF);
+    cleanModeButton.setLookAndFeel(&getToggleLookAndFeel());
 
-    // EQ band knobs
+    // ===== V2 Vocal EQ band controls =====
     configureKnob(eqFreqKnob);
     configureKnob(eqGainKnob);
     eqFreqKnob.setShowInternalLabel(false);
@@ -445,7 +532,75 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     eqGainKnob.setShowInternalValue(false);
     eqFreqKnob.addListener(this);
     eqGainKnob.addListener(this);
+    configureKnob(eqQKnob);
+    eqQKnob.setShowInternalLabel(false);
+    eqQKnob.setShowInternalValue(false);
+    eqQKnob.addListener(this);
+    for (auto* knob : { &eqFreqKnob, &eqGainKnob, &eqQKnob })
+    {
+        knob->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 96, 24);
+        knob->setColour(juce::Slider::textBoxTextColourId, VoxlineTheme::dark.textPrimary);
+        knob->setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xff111212));
+        knob->setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0xff3A3936));
+        knob->setColour(juce::Slider::textBoxHighlightColourId, juce::Colour(0xffF06A3D).withAlpha(0.35f));
+        knob->setVelocityBasedMode(true);
+        knob->setVelocityModeParameters(0.45, 1, 0.06, false);
+        knob->setMouseDragSensitivity(320);
+    }
     syncEQKnobsToSelectedBand();
+
+    // Advanced drawer navigation.
+    for (auto* button : { &advancedButton, &advancedEqButton, &advancedCompButton,
+                          &advancedDeEssButton, &advancedDriveButton, &advancedSpaceButton })
+    {
+        addAndMakeVisible(*button);
+        button->addListener(this);
+        button->setLookAndFeel(&getButtonLookAndFeel());
+    }
+    advancedButton.setButtonText("ADVANCED  v");
+    advancedEqButton.setButtonText("VOCAL EQ");
+    advancedCompButton.setButtonText("COMP");
+    advancedDeEssButton.setButtonText("DE-ESS");
+    advancedDriveButton.setButtonText("DRIVE");
+    advancedSpaceButton.setButtonText("SPACE");
+
+    for (auto* button : { &eqResetButton, &eqRangeButton })
+    {
+        addAndMakeVisible(*button);
+        button->addListener(this);
+        button->setLookAndFeel(&getButtonLookAndFeel());
+    }
+    eqResetButton.setButtonText("RESET");
+    eqRangeButton.setButtonText("+/- 24 dB");
+
+    for (auto* knob : { &compMixKnob, &deEssFreqKnob, &deEssThresholdKnob,
+                        &deEssRangeKnob, &driveToneKnob, &driveMixKnob,
+                        &spaceTimeKnob, &spacePreDelayKnob, &spaceWidthKnob,
+                        &spaceToneKnob, &spaceDecayKnob, &spaceDuckingKnob })
+    {
+        configureKnob(*knob);
+        knob->setShowInternalLabel(false);
+        knob->setShowInternalValue(false);
+    }
+
+    deEssModeCombo.addItemList({"Split", "Wide"}, 1);
+    driveCharacterCombo.addItemList({"Clean", "Warm", "Edge"}, 1);
+    for (auto* combo : { &deEssModeCombo, &driveCharacterCombo })
+    {
+        combo->setLookAndFeel(&getDropdownLookAndFeel());
+        combo->getProperties().set("themeIndex", 1);
+        // The custom LookAndFeel paints the selected text, so JUCE's internal
+        // label must be transparent to avoid drawing the value twice.
+        combo->setColour(juce::ComboBox::textColourId, juce::Colours::transparentBlack);
+        addAndMakeVisible(*combo);
+    }
+
+    bodySlider.setTooltip("Bipolar low-mid tone control. Centre is 0 dB.");
+    claritySlider.setTooltip("Bipolar presence control. Centre is 0 dB.");
+    airSlider.setTooltip("Bipolar high-shelf control. Centre is 0 dB.");
+    smoothSlider.setTooltip("Overall de-esser amount. Detailed controls are in Advanced.");
+    compSlider.setTooltip("Overall compression amount. Threshold, ratio, timing and mix are in Advanced.");
+    driveSlider.setTooltip("Overall saturation amount. Tone, mix and character are in Advanced.");
 
     addChildComponent(outputMeter);   // level tracking only, visual drawn in paint()
     addChildComponent(gainReductionMeter);
@@ -463,6 +618,25 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     driveAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::drive, driveSlider);
     outputGainAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::outputGain, outputGainSlider);
     spaceAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::spaceAmount, spaceSlider);
+    compThresholdAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::compThreshold, thresholdKnob);
+    compRatioAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::compRatio, ratioKnob);
+    compAttackAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::compAttack, attackKnob);
+    compReleaseAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::compRelease, releaseKnob);
+    compMixAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::compMix, compMixKnob);
+    deEssFreqAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::deEssFreq, deEssFreqKnob);
+    deEssThresholdAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::deEssThreshold, deEssThresholdKnob);
+    deEssRangeAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::deEssRange, deEssRangeKnob);
+    driveToneAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::driveTone, driveToneKnob);
+    driveMixAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::driveMix, driveMixKnob);
+    spaceTimeAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::spaceTime, spaceTimeKnob);
+    spacePreDelayAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::spacePreDelay, spacePreDelayKnob);
+    spaceWidthAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::spaceWidth, spaceWidthKnob);
+    spaceToneAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::spaceTone, spaceToneKnob);
+    spaceDecayAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::spaceDecay, spaceDecayKnob);
+    spaceDuckingAttachment = std::make_unique<SliderAttachment>(apvts, VoxlineParameterIDs::spaceDucking, spaceDuckingKnob);
+    spaceTypeAttachment = std::make_unique<ComboBoxAttachment>(apvts, VoxlineParameterIDs::spaceType, spaceTypeCombo);
+    deEssModeAttachment = std::make_unique<ComboBoxAttachment>(apvts, VoxlineParameterIDs::deEssMode, deEssModeCombo);
+    driveCharacterAttachment = std::make_unique<ComboBoxAttachment>(apvts, VoxlineParameterIDs::driveCharacter, driveCharacterCombo);
 
     autoGainAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::autoGain, autoGainButton);
     bypassAttachment = std::make_unique<ButtonAttachment>(apvts, VoxlineParameterIDs::bypass, bypassButton);
@@ -484,19 +658,38 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     apvts.addParameterListener(VoxlineParameterIDs::listen, this);
     apvts.addParameterListener(VoxlineParameterIDs::spaceAmount, this);
     apvts.addParameterListener(VoxlineParameterIDs::spaceType, this);
+    for (auto* id : { VoxlineParameterIDs::spaceTime, VoxlineParameterIDs::spacePreDelay,
+                      VoxlineParameterIDs::spaceWidth, VoxlineParameterIDs::spaceTone,
+                      VoxlineParameterIDs::spaceDecay, VoxlineParameterIDs::spaceDucking })
+        apvts.addParameterListener(id, this);
+    apvts.addParameterListener(VoxlineParameterIDs::eqEnabled, this);
+    apvts.addParameterListener(VoxlineParameterIDs::hpfFreq, this);
+    apvts.addParameterListener(VoxlineParameterIDs::hpfSlope, this);
+    apvts.addParameterListener(VoxlineParameterIDs::lowFreq, this);
+    apvts.addParameterListener(VoxlineParameterIDs::lowGain, this);
+    apvts.addParameterListener(VoxlineParameterIDs::lowQ, this);
+    apvts.addParameterListener(VoxlineParameterIDs::mudFreq, this);
+    apvts.addParameterListener(VoxlineParameterIDs::mudGain, this);
+    apvts.addParameterListener(VoxlineParameterIDs::mudQ, this);
+    apvts.addParameterListener(VoxlineParameterIDs::presFreq, this);
+    apvts.addParameterListener(VoxlineParameterIDs::presGain, this);
+    apvts.addParameterListener(VoxlineParameterIDs::presQ, this);
+    apvts.addParameterListener(VoxlineParameterIDs::airFreq, this);
+    apvts.addParameterListener(VoxlineParameterIDs::airGain, this);
+    apvts.addParameterListener(VoxlineParameterIDs::airQ, this);
+    apvts.addParameterListener(VoxlineParameterIDs::lpfFreq, this);
+    apvts.addParameterListener(VoxlineParameterIDs::lpfSlope, this);
 
     // Init A/B snapshots from current APVTS values
     captureSnapshot(snapshotA);
     snapshotB = snapshotA;
 
-    setSize(VoxlineLayout::editorWidth, VoxlineLayout::editorHeight);
+    setSize(layout.getEditorWidth(), advancedOpen ? 940 : layout.getEditorHeight());
     setResizable(false, false);
 
-    addKeyListener(this);
-    setWantsKeyboardFocus(true);
-
-    loadIconDrawables(false);
-    applyTheme(VoxlineTheme::light, 0);
+    applyTheme(VoxlineTheme::dark);
+    updateAdvancedVisibility();
+    updateSpectrum();
     startTimerHz(30); // meter refresh
 }
 
@@ -516,10 +709,40 @@ VoxlineAudioProcessorEditor::~VoxlineAudioProcessorEditor()
     audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::listen, this);
     audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::spaceAmount, this);
     audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::spaceType, this);
-    removeKeyListener(this);
-    autoGainButton.setLookAndFeel(nullptr);
+    for (auto* id : { VoxlineParameterIDs::spaceTime, VoxlineParameterIDs::spacePreDelay,
+                      VoxlineParameterIDs::spaceWidth, VoxlineParameterIDs::spaceTone,
+                      VoxlineParameterIDs::spaceDecay, VoxlineParameterIDs::spaceDucking })
+        audioProcessor.getAPVTS().removeParameterListener(id, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::eqEnabled, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::hpfFreq, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::hpfSlope, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::lowFreq, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::lowGain, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::lowQ, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::mudFreq, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::mudGain, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::mudQ, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::presFreq, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::presGain, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::presQ, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::airFreq, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::airGain, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::airQ, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::lpfFreq, this);
+    audioProcessor.getAPVTS().removeParameterListener(VoxlineParameterIDs::lpfSlope, this);
     presetDropdown.removeListener(this);
     presetDropdown.setLookAndFeel(nullptr);
+    spaceTypeCombo.removeListener(this);
+    spaceTypeCombo.setLookAndFeel(nullptr);
+    deEssModeCombo.setLookAndFeel(nullptr);
+    driveCharacterCombo.setLookAndFeel(nullptr);
+    cleanModeButton.setLookAndFeel(nullptr);
+    for (auto* button : { &abButton, &presetPreviousButton, &presetNextButton, &favouriteButton,
+                          &savePresetButton, &advancedButton, &advancedEqButton,
+                          &advancedCompButton, &advancedDeEssButton, &advancedDriveButton,
+                          &advancedSpaceButton, &eqResetButton, &eqRangeButton,
+                          &monitorAbBtn, &monitorListenBtn, &monitorBypassBtn })
+        button->setLookAndFeel(nullptr);
     stopTimer();
 }
 
@@ -528,58 +751,74 @@ VoxlineAudioProcessorEditor::~VoxlineAudioProcessorEditor()
 // ---------------------------------------------------------------------------
 void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
 {
+    paintNewInterface(g);
+    return;
+
     const auto& t = VoxlineTheme::get(currentThemeIndex);
-    g.fillAll(t.editorBg);
+    auto bounds = [this](const juce::String& key, juce::Rectangle<int> fallback) {
+        const auto r = layout.getBounds(key);
+        return r.isEmpty() ? fallback : r;
+    };
+    const auto bg = juce::ImageCache::getFromMemory(
+        currentThemeIndex == 0 ? BinaryData::background_light_png : BinaryData::background_dark_png,
+        currentThemeIndex == 0 ? BinaryData::background_light_pngSize : BinaryData::background_dark_pngSize);
+    if (bg.isValid())
+        g.drawImage(bg, getLocalBounds().toFloat());
+    else
+        g.fillAll(t.editorBg);
 
-    // Top bar — just a simple background
-    g.setColour(t.mainCardBg);
-    g.fillRoundedRectangle(20, 20, 1360, 78, 24.0f);
+    // ========================================================================
+    // V2 Panel background rendering (subtle, theme-aware)
+    // ========================================================================
+    {
+        const auto dark = (currentThemeIndex != 0);
+        const auto panelFill   = dark ? juce::Colour(0xff181622) : juce::Colour(0xffF7F0E7);
+        const auto panelBorder = dark ? juce::Colour(0xff2A2635) : juce::Colour(0xffDED3C5);
 
-    // Six panels
-    g.setColour(t.panelBg);
-    g.fillRoundedRectangle(VoxlineLayout::inputPanel.toFloat(), VoxlineLayout::panelCornerSize);
-    g.fillRoundedRectangle(VoxlineLayout::polishPanel.toFloat(), VoxlineLayout::panelCornerSize);
-    g.fillRoundedRectangle(VoxlineLayout::outputPanel.toFloat(), VoxlineLayout::panelCornerSize);
-    g.fillRoundedRectangle(VoxlineLayout::eqPanel.toFloat(), VoxlineLayout::panelCornerSize);
-    g.fillRoundedRectangle(VoxlineLayout::dynamicsPanel.toFloat(), VoxlineLayout::panelCornerSize);
-    g.fillRoundedRectangle(VoxlineLayout::spacePanel.toFloat(), VoxlineLayout::panelCornerSize);
+        auto drawPanel = [&](juce::Rectangle<int> r)
+        {
+            g.setColour(panelFill);
+            g.fillRoundedRectangle(r.toFloat(), VoxlineLayout::panelCornerSize);
+            g.setColour(panelBorder);
+            g.drawRoundedRectangle(r.toFloat().reduced(0.5f), VoxlineLayout::panelCornerSize, 1.0f);
+        };
 
-    g.setColour(t.panelBorder);
-    g.drawRoundedRectangle(VoxlineLayout::inputPanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
-    g.drawRoundedRectangle(VoxlineLayout::polishPanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
-    g.drawRoundedRectangle(VoxlineLayout::outputPanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
-    g.drawRoundedRectangle(VoxlineLayout::eqPanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
-    g.drawRoundedRectangle(VoxlineLayout::dynamicsPanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
-    g.drawRoundedRectangle(VoxlineLayout::spacePanel.toFloat(), VoxlineLayout::panelCornerSize, 1.0f);
+        // Upper Row panels
+        drawPanel(VoxlineLayout::inputPanel);
+        drawPanel(VoxlineLayout::polishPanel);
+        drawPanel(VoxlineLayout::outputPanel);
 
-    // Input divider
-    g.setColour(t.panelBorder);
-    g.fillRect(VoxlineLayout::inputDividerBounds.toFloat());
-
-    // Icons
-    paintIcons(g);
+        // Lower Row panels
+        drawPanel(VoxlineLayout::eqPanel);
+        drawPanel(VoxlineLayout::dynamicsPanel);
+        drawPanel(VoxlineLayout::spacePanel);
+    }
 
     // LED dots
-    paintLedDots(g, VoxlineLayout::inputLedDotsBounds);
+    paintLedDots(g, bounds("inputLedDots", VoxlineLayout::inputLedDotsBounds));
 
     // Input panel upper section — split left/right
     g.setColour(t.textSecondary);
-    g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
-    g.drawText("AUTO GAIN", 293, 168, 100, 18, juce::Justification::centred, false);
+    g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+    g.drawText("AUTO GAIN", autoGainButton.getBounds().translated(0, -22),
+               juce::Justification::centred, false);
 
     // Gain value
     g.setColour(t.textPrimary);
     g.setFont(juce::FontOptions(15.0f, juce::Font::bold));
     g.drawText(inputGainSlider.getTextFromValue(inputGainSlider.getValue()),
-               VoxlineLayout::inputGainValueBounds, juce::Justification::centred, false);
+               bounds("inputGainValue", VoxlineLayout::inputGainValueBounds), juce::Justification::centred, false);
 
     // Input level label + dB value — centered on right half
     g.setColour(t.textSecondary);
-    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    g.drawText("INPUT LEVEL", 278, 260, 130, 18, juce::Justification::centred, false);
+    g.setFont(juce::FontOptions(9.0f, juce::Font::bold));
+    const auto inputLedDotsBounds = bounds("inputLedDots", VoxlineLayout::inputLedDotsBounds);
+    g.drawText("INPUT LEVEL", inputLedDotsBounds.expanded(12, 4).translated(0, -22),
+               juce::Justification::centred, false);
     g.setColour(t.textMuted);
-    g.setFont(juce::FontOptions(12.0f));
-    g.drawText("-18.4 dB", 293, 312, 100, 22, juce::Justification::centred, false);
+    g.setFont(juce::FontOptions(10.0f));
+    g.drawText("-18.4 dB", inputLedDotsBounds.expanded(12, 4).translated(0, 14),
+               juce::Justification::centred, false);
 
     // Input panel knob labels (drawn externally because knobs are too small)
     g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
@@ -591,20 +830,27 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
         g.drawText(value, r.getX(), r.getBottom() - 4, r.getWidth(), 18, juce::Justification::centred, false);
     };
-    drawKnobLabel(VoxlineLayout::lowCutKnobBounds, "LOW CUT", "80 Hz");
-    drawKnobLabel(VoxlineLayout::cleanKnobBounds, "CLEAN", "30%");
-    drawKnobLabel(VoxlineLayout::deEssKnobBounds, "DE-ESS", "25%");
+    drawKnobLabel(bounds("lowCutKnob", VoxlineLayout::lowCutKnobBounds), "LOW CUT", "80 Hz");
+    drawKnobLabel(bounds("cleanKnob", VoxlineLayout::cleanKnobBounds), "CLEAN", "30%");
+    drawKnobLabel(bounds("deEssKnob", VoxlineLayout::deEssKnobBounds), "DE-ESS", "25%");
 
     // POLISH status + description
     {
-        const auto val = polishSlider.getValue();
-        const juce::String status = val < 36 ? "NATURAL" : (val < 71 ? "PUSHED" : "INTENSE");
-        g.setColour(t.accentRose);
+        const auto val = juce::jlimit(0.0, 100.0, polishSlider.getValue());
+        const juce::String status = val <= 33.0 ? "Natural" : (val <= 66.0 ? "Pushed" : "Intense");
+        g.setColour(t.textPrimary);
+        g.setFont(juce::FontOptions(26.0f, juce::Font::bold));
+        g.drawText(polishSlider.getTextFromValue(val), bounds("polishValue", VoxlineLayout::polishValueBounds), juce::Justification::centred, false);
+        const auto statusBounds = bounds("polishStatus", VoxlineLayout::polishStatusBounds);
+        const auto dark = currentThemeIndex != 0;
+        const auto polishAccent = dark ? juce::Colour(0xffFF8A4C) : juce::Colour(0xffD86A35);
+        g.setColour(dark ? juce::Colour(0xff241714) : juce::Colour(0xffF7E6D8));
+        g.fillRoundedRectangle(statusBounds.toFloat(), 8.0f);
+        g.setColour(polishAccent.withAlpha(dark ? 0.75f : 0.65f));
+        g.drawRoundedRectangle(statusBounds.toFloat().reduced(0.5f), 8.0f, 1.0f);
+        g.setColour(dark ? polishAccent : juce::Colour(0xffB84E22));
         g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
-        g.drawText(status, VoxlineLayout::polishStatusBounds, juce::Justification::centred, false);
-        g.setColour(t.textMuted);
-        g.setFont(juce::FontOptions(10.0f));
-        g.drawText("VOCAL FINISH MACRO", VoxlineLayout::polishDescBounds, juce::Justification::centred, false);
+        g.drawText(status, statusBounds, juce::Justification::centred, false);
     }
 
     // Output panel
@@ -658,19 +904,19 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
                 g.drawRoundedRectangle(well.reduced(0.5f), 4.0f, 1.0f);
             };
 
-            drawMeter(VoxlineLayout::outMeterBounds, outLevel, outPeak, t.accentRose);
-            drawMeter(VoxlineLayout::grMeterBounds,  grLevel,  grPeak,  t.accentLavender);
+            drawMeter(bounds("outMeter", VoxlineLayout::outMeterBounds), outLevel, outPeak, juce::Colour(0xffD86A35).withAlpha(0.75f));
+            drawMeter(bounds("grMeter", VoxlineLayout::grMeterBounds),  grLevel,  grPeak,  juce::Colour(0xff7A55FF).withAlpha(0.70f));
         }
 
         // -- Meter labels (below meters) --
         g.setColour(t.textSecondary);
-        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
-        g.drawText("OUT", 1126, 476, 50, 16, juce::Justification::centred, false);
-        g.drawText("GR",  1206, 476, 40, 16, juce::Justification::centred, false);
+        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+        g.drawText("OUT", bounds("outMeter", VoxlineLayout::outMeterBounds).translated(0, -22), juce::Justification::centred, false);
+        g.drawText("GR",  bounds("grMeter", VoxlineLayout::grMeterBounds).translated(0, -22), juce::Justification::centred, false);
 
         // -- Soft Clip pill button --
         {
-            const auto r = VoxlineLayout::softClipBounds;
+            const auto r = bounds("softClip", VoxlineLayout::softClipBounds);
             const auto dark = (currentThemeIndex != 0);
             g.setColour(dark ? juce::Colour(0xff1E1B2A) : juce::Colour(0xffF0EBE4));
             g.fillRoundedRectangle(r.toFloat(), 10.0f);
@@ -683,114 +929,166 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
 
         // -- Right: OUTPUT GAIN label + value --
         g.setColour(t.textSecondary);
-        g.setFont(juce::Font(11.0f, juce::Font::bold));
-        g.drawFittedText("OUTPUT GAIN", 1268, 245, 120, 20, juce::Justification::centred, 1);
+        g.setFont(juce::Font(9.0f, juce::Font::bold));
+        g.drawFittedText("OUTPUT GAIN", outputGainSlider.getBounds().withHeight(16).translated(0, -22),
+                         juce::Justification::centred, 1);
         g.setColour(t.textPrimary);
         g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
         g.drawText(outputGainSlider.getTextFromValue(outputGainSlider.getValue()),
-                   VoxlineLayout::outputGainValueBounds, juce::Justification::centred, false);
+                   bounds("outputGainValue", VoxlineLayout::outputGainValueBounds), juce::Justification::centred, false);
     }
 
-    // Vocal EQ curve display
+    // Vocal EQ response display, driven by the six EQ band parameters.
     {
-        const auto cb = VoxlineLayout::eqCurveBounds.toFloat();
+        const auto cb = bounds("eqCurve", VoxlineLayout::eqCurveBounds).toFloat();
         const auto dark = (currentThemeIndex != 0);
         const auto& t = VoxlineTheme::get(currentThemeIndex);
         const auto cbI = cb.toNearestInt();
+        auto& apvts = audioProcessor.getAPVTS();
 
-        // Dark background
-        g.setColour(dark ? juce::Colour(0xff100E18) : juce::Colour(0xff282430));
+        auto raw = [&](const juce::String& id, float fallback) -> float
+        {
+            if (auto* v = apvts.getRawParameterValue(id))
+                return v->load();
+            return fallback;
+        };
+
+        const float hpfFreq  = raw(VoxlineParameterIDs::hpfFreq, 80.0f);
+        const int   hpfIndex = juce::roundToInt(raw(VoxlineParameterIDs::hpfSlope, 1.0f));
+        const float hpfSlope = hpfIndex == 0 ? 12.0f : (hpfIndex == 1 ? 24.0f : 36.0f);
+        const float lowFreq  = raw(VoxlineParameterIDs::lowFreq, 160.0f);
+        const float lowGain  = raw(VoxlineParameterIDs::lowGain, 1.5f);
+        const float lowQ     = raw(VoxlineParameterIDs::lowQ, 0.8f);
+        const float mudFreq  = raw(VoxlineParameterIDs::mudFreq, 350.0f);
+        const float mudGain  = raw(VoxlineParameterIDs::mudGain, -2.0f);
+        const float mudQ     = raw(VoxlineParameterIDs::mudQ, 1.1f);
+        const float presFreq = raw(VoxlineParameterIDs::presFreq, 2500.0f);
+        const float presGain = raw(VoxlineParameterIDs::presGain, 2.0f);
+        const float presQ    = raw(VoxlineParameterIDs::presQ, 1.0f);
+        const float airFreq  = raw(VoxlineParameterIDs::airFreq, 10000.0f);
+        const float airGain  = raw(VoxlineParameterIDs::airGain, 1.5f);
+        const float airQ     = raw(VoxlineParameterIDs::airQ, 0.7f);
+        const float lpfFreq  = raw(VoxlineParameterIDs::lpfFreq, 18000.0f);
+        const int   lpfIndex = juce::roundToInt(raw(VoxlineParameterIDs::lpfSlope, 0.0f));
+        const float lpfSlope = lpfIndex == 0 ? 12.0f : 24.0f;
+        const bool  eqOn     = raw(VoxlineParameterIDs::eqEnabled, 1.0f) >= 0.5f;
+
+        const auto curveBg = dark ? juce::Colour(0xff100E18) : juce::Colour(0xff211E29);
+        g.setColour(curveBg);
         g.fillRoundedRectangle(cb, 8.0f);
 
         g.saveState();
         g.reduceClipRegion(cbI);
 
         const float logMin = std::log10(20.0f), logMax = std::log10(20000.0f);
-        const float x0 = cb.getX() + 18, xW = cb.getWidth() - 36;
-        const float yTop = cb.getY() + 14, yBot = cb.getBottom() - 14;
+        const float x0 = cb.getX() + 18.0f, xW = cb.getWidth() - 36.0f;
+        const float yTop = cb.getY() + 14.0f, yBot = cb.getBottom() - 14.0f;
         const float yMid = cb.getCentreY();
-        const float yScale = (cb.getHeight() - 28) / 24.0f;
+        const float yScale = (cb.getHeight() - 28.0f) / 24.0f;
 
-        // Grid
-        const auto gridMajor = juce::Colour(dark ? 0xff2A2638 : 0xff3A3648);
-        const auto gridMinor = juce::Colour(dark ? 0xff1E1B2A : 0xff2E2A38);
+        const auto gridMajor = dark ? t.panelBorder : juce::Colour(0xff4A4352);
+        const auto gridMinor = dark ? juce::Colour(0xff1E1B2A) : juce::Colour(0xff332E3C);
         const float minorHz[] = { 20,30,40,50,60,80,100,200,300,400,500,600,800,1000,2000,3000,4000,5000,6000,8000,10000,20000 };
         for (auto f : minorHz)
         {
             const float x = x0 + xW * (std::log10(f) - logMin) / (logMax - logMin);
             const bool major = (f == 20 || f == 50 || f == 100 || f == 200 || f == 500 || f == 1000 || f == 2000 || f == 5000 || f == 10000 || f == 20000);
-            g.setColour(major ? gridMajor : gridMinor);
+            g.setColour(major ? gridMajor.withAlpha(0.65f) : gridMinor.withAlpha(0.55f));
             g.drawVerticalLine(juce::roundToInt(x), juce::roundToInt(yTop), juce::roundToInt(yBot));
         }
         for (int db = -12; db <= 12; db += 6)
         {
             const float y = yMid - (float)db * yScale;
-            g.setColour(db == 0 ? gridMajor.brighter(0.3f) : gridMinor);
-            g.drawHorizontalLine(juce::roundToInt(y), juce::roundToInt(x0 - 6), juce::roundToInt(x0 + xW + 6));
+            g.setColour(db == 0 ? gridMajor.withAlpha(0.95f) : gridMinor.withAlpha(0.65f));
+            g.drawHorizontalLine(juce::roundToInt(y), juce::roundToInt(x0 - 6.0f), juce::roundToInt(x0 + xW + 6.0f));
         }
 
         auto toX = [&](float hz) { return x0 + xW * (std::log10(juce::jlimit(20.0f, 20000.0f, hz)) - logMin) / (logMax - logMin); };
         auto toY = [&](float db) { return juce::jlimit(yTop, yBot, yMid - juce::jlimit(-12.0f, 12.0f, db) * yScale); };
+        auto bellDb = [](float hz, float freq, float gain, float q)
+        {
+            const float w = hz / juce::jmax(1.0f, freq);
+            const float shape = (w - 1.0f / w) / juce::jmax(0.2f, q);
+            return gain / (1.0f + shape * shape);
+        };
+        auto shelfDb = [](float hz, float freq, float gain, float q)
+        {
+            const float w = hz / juce::jmax(1.0f, freq);
+            const float p = juce::jlimit(0.35f, 2.5f, q);
+            const float shaped = std::pow(w, p * 2.0f);
+            return gain * (shaped / (1.0f + shaped));
+        };
+        auto responseDb = [&](float hz)
+        {
+            if (! eqOn)
+                return 0.0f;
 
-        // White EQ curve
+            float resp = 0.0f;
+            if (hz < hpfFreq)
+                resp -= hpfSlope * std::log2(hpfFreq / juce::jmax(1.0f, hz));
+            resp += bellDb(hz, lowFreq, lowGain, lowQ);
+            resp += bellDb(hz, mudFreq, mudGain, mudQ);
+            resp += bellDb(hz, presFreq, presGain, presQ);
+            resp += shelfDb(hz, airFreq, airGain, airQ);
+            if (hz > lpfFreq)
+                resp -= lpfSlope * std::log2(hz / juce::jmax(1.0f, lpfFreq));
+            return resp;
+        };
+
         juce::Path eqPath;
-        const int steps = 140;
+        const int steps = 160;
         for (int i = 0; i <= steps; ++i)
         {
             const float hz = 20.0f * std::pow(1000.0f, (float)i / (float)steps);
-            float resp = 0.0f;
-            if (hz < 80.0f) resp -= 24.0f * std::log2(80.0f / hz);
-            { const float w = hz / 200.0f; resp += 2.0f / (1.0f + (w - 1.0f/w) * (w - 1.0f/w)); }
-            { const float w = hz / 400.0f; resp -= 3.0f / (1.0f + ((w - 1.0f/w) / 1.5f) * ((w - 1.0f/w) / 1.5f)); }
-            { const float w = hz / 2500.0f; resp += 3.0f / (1.0f + ((w - 1.0f/w) / 1.2f) * ((w - 1.0f/w) / 1.2f)); }
-            { const float w = hz / 10000.0f; resp += 2.0f * (w * w / (w * w + 1.0f)); }
-            if (hz > 18000.0f) resp -= 24.0f * std::log2(hz / 18000.0f);
-            const float px = toX(hz), py = toY(resp);
+            const float px = toX(hz), py = toY(responseDb(hz));
             if (i == 0) eqPath.startNewSubPath(px, py);
             else        eqPath.lineTo(px, py);
         }
-        g.setColour(juce::Colour(dark ? 0xffF0ECF8 : 0xffFAF8FF).withAlpha(0.12f));
-        g.strokePath(eqPath, juce::PathStrokeType(5.0f, juce::PathStrokeType::curved));
-        g.setColour(dark ? juce::Colour(0xffE8E4F0) : juce::Colour(0xffF5F2FA));
-        g.strokePath(eqPath, juce::PathStrokeType(1.8f, juce::PathStrokeType::curved));
 
-        // Colored band nodes with selection glow
+        const auto orange = dark ? juce::Colour(0xffFF8A4C) : juce::Colour(0xffD86A35);
+        const auto white = dark ? juce::Colour(0xffF5F0EA) : juce::Colour(0xffFFF9F2);
+        g.setColour(orange.withAlpha(eqOn ? 0.20f : 0.08f));
+        g.strokePath(eqPath, juce::PathStrokeType(5.0f, juce::PathStrokeType::curved));
+        g.setColour(white.withAlpha(eqOn ? 0.95f : 0.45f));
+        g.strokePath(eqPath, juce::PathStrokeType(1.8f, juce::PathStrokeType::curved));
+        g.setColour(orange.withAlpha(eqOn ? 0.92f : 0.38f));
+        g.strokePath(eqPath, juce::PathStrokeType(1.0f, juce::PathStrokeType::curved));
+
         struct BandDot { float hz; float db; int idx; juce::Colour col; };
         const BandDot dots[] = {
-            { 80.0f,  -3.0f, 0, juce::Colour(dark ? 0xffA98CFF : 0xff8D70E8) },
-            { 200.0f,  2.0f, 1, juce::Colour(dark ? 0xff80b080 : 0xff60a060) },
-            { 400.0f, -3.0f, 2, juce::Colour(dark ? 0xffE6B45C : 0xffD8A548) },
-            { 2500.0f, 3.0f, 3, juce::Colour(dark ? 0xffF2A766 : 0xffE99A5C) },
-            { 10000.0f,2.0f, 4, juce::Colour(dark ? 0xff7BA4D8 : 0xff5B8EC0) },
-            { 18000.0f,-3.0f,5, juce::Colour(dark ? 0xff9D96A8 : 0xff7E7888) },
+            { hpfFreq,  responseDb(hpfFreq),  0, orange },
+            { lowFreq,  responseDb(lowFreq),  1, dark ? juce::Colour(0xffE8E4F0) : juce::Colour(0xffF5F2FA) },
+            { mudFreq,  responseDb(mudFreq),  2, t.accentAmber },
+            { presFreq, responseDb(presFreq), 3, t.accentPeach },
+            { airFreq,  responseDb(airFreq),  4, t.accentLavender },
+            { lpfFreq,  responseDb(lpfFreq),  5, orange.withAlpha(0.9f) },
         };
         for (auto& d : dots)
         {
             const auto cx = toX(d.hz), cy = toY(d.db);
             if (d.idx == selectedEqBand)
             {
-                g.setColour(d.col.withAlpha(0.35f));
-                g.fillEllipse(cx - 8, cy - 8, 16, 16);
-                g.setColour(d.col.withAlpha(0.6f));
-                g.drawEllipse(cx - 8.5f, cy - 8.5f, 17, 17, 1.5f);
+                g.setColour(d.col.withAlpha(dark ? 0.35f : 0.28f));
+                g.fillEllipse(cx - 8.0f, cy - 8.0f, 16.0f, 16.0f);
+                g.setColour(white.withAlpha(0.75f));
+                g.drawEllipse(cx - 8.5f, cy - 8.5f, 17.0f, 17.0f, 1.25f);
             }
-            g.setColour(d.col);
-            g.fillEllipse(cx - 4, cy - 4, 8, 8);
+            g.setColour(d.col.withAlpha(eqOn ? 1.0f : 0.42f));
+            g.fillEllipse(cx - 4.0f, cy - 4.0f, 8.0f, 8.0f);
         }
 
-        // Frequency labels
-        g.setColour(juce::Colour(dark ? 0xff6E6878 : 0xff8E8898));
+        g.setColour(dark ? t.textMuted : juce::Colour(0xffAFA6B6));
         g.setFont(juce::FontOptions(8.0f));
         for (auto f : { 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000 })
         {
             const float x = toX((float)f);
             const juce::String label = (f >= 1000) ? juce::String(f / 1000) + "k" : juce::String(f);
-            g.drawText(label, juce::roundToInt(x - 15), juce::roundToInt(yBot + 2), 30, 12, juce::Justification::centred, false);
+            g.drawText(label, juce::roundToInt(x - 15.0f), juce::roundToInt(yBot + 2.0f), 30, 12, juce::Justification::centred, false);
         }
 
         g.restoreState();
 
-        g.setColour(dark ? juce::Colour(0xff2A2635) : juce::Colour(0xff3A3645));
+        g.setColour(dark ? t.panelBorder : juce::Colour(0xff3A3645));
         g.drawRoundedRectangle(cb.reduced(0.5f), 8.0f, 1.0f);
     }
 
@@ -799,18 +1097,55 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         const auto& t = VoxlineTheme::get(currentThemeIndex);
         const auto dark = (currentThemeIndex != 0);
         const char* bandNames[] = { "HPF", "LOW", "MUD", "PRES", "AIR", "LPF" };
-        const char* freqVals[] = { "80 Hz", "160 Hz", "350 Hz", "2.5 kHz", "10 kHz", "18 kHz" };
-        const char* gainVals[] = { "24 dB/oct", "+1.5 dB", "-2.0 dB", "+2.0 dB", "+1.5 dB", "12 dB/oct" };
         const juce::Colour bandCols[] = {
-            juce::Colour(dark ? 0xffA98CFF : 0xff8D70E8),
-            juce::Colour(dark ? 0xff80b080 : 0xff60a060),
-            juce::Colour(dark ? 0xffE6B45C : 0xffD8A548),
-            juce::Colour(dark ? 0xffF2A766 : 0xffE99A5C),
-            juce::Colour(dark ? 0xff7BA4D8 : 0xff5B8EC0),
-            juce::Colour(dark ? 0xff9D96A8 : 0xff7E7888),
+            dark ? juce::Colour(0xffFF8A4C) : juce::Colour(0xffD86A35),
+            dark ? juce::Colour(0xffE8E4F0) : juce::Colour(0xffF5F2FA),
+            t.accentAmber,
+            t.accentPeach,
+            t.accentLavender,
+            dark ? juce::Colour(0xffFF8A4C) : juce::Colour(0xffD86A35),
         };
-        const int sel = selectedEqBand;
+        const int sel = juce::jlimit(0, 5, selectedEqBand);
         const bool isBell = (sel >= 1 && sel <= 4);
+
+        auto& apvts = audioProcessor.getAPVTS();
+        auto raw = [&](const juce::String& id, float fallback) -> float
+        {
+            if (auto* v = apvts.getRawParameterValue(id))
+                return v->load();
+            return fallback;
+        };
+        auto freqText = [](float hz)
+        {
+            return hz >= 1000.0f ? juce::String(hz / 1000.0f, hz >= 10000.0f ? 0 : 1) + " kHz"
+                                  : juce::String(juce::roundToInt(hz)) + " Hz";
+        };
+        auto gainText = [](float db)
+        {
+            return juce::String(db > 0.0f ? "+" : "") + juce::String(db, 1) + " dB";
+        };
+
+        const float freqs[] = {
+            raw(VoxlineParameterIDs::hpfFreq, 80.0f),
+            raw(VoxlineParameterIDs::lowFreq, 160.0f),
+            raw(VoxlineParameterIDs::mudFreq, 350.0f),
+            raw(VoxlineParameterIDs::presFreq, 2500.0f),
+            raw(VoxlineParameterIDs::airFreq, 10000.0f),
+            raw(VoxlineParameterIDs::lpfFreq, 18000.0f),
+        };
+        const float gains[] = {
+            raw(VoxlineParameterIDs::hpfSlope, 1.0f),
+            raw(VoxlineParameterIDs::lowGain, 1.5f),
+            raw(VoxlineParameterIDs::mudGain, -2.0f),
+            raw(VoxlineParameterIDs::presGain, 2.0f),
+            raw(VoxlineParameterIDs::airGain, 1.5f),
+            raw(VoxlineParameterIDs::lpfSlope, 0.0f),
+        };
+        const juce::String freqValue = freqText(freqs[sel]);
+        const juce::String gainValue = isBell ? gainText(gains[sel])
+                                              : juce::String(sel == 0
+                                                    ? (juce::roundToInt(gains[sel]) == 0 ? 12 : (juce::roundToInt(gains[sel]) == 1 ? 24 : 36))
+                                                    : (juce::roundToInt(gains[sel]) == 0 ? 12 : 24)) + " dB/oct";
 
         // Band pill
         const auto r1 = VoxlineLayout::eqSelBandBtnBounds.toFloat();
@@ -826,16 +1161,16 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
         g.drawText("FREQ", VoxlineLayout::eqFreqLabelBounds, juce::Justification::centred, false);
         g.setColour(t.textPrimary);
         g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
-        g.drawText(freqVals[sel], VoxlineLayout::eqFreqValueBounds, juce::Justification::centred, false);
+        g.drawText(freqValue, VoxlineLayout::eqFreqValueBounds, juce::Justification::centred, false);
 
         // GAIN / SLOPE
         const char* gLabel = isBell ? "GAIN" : "SLOPE";
         g.setColour(t.textSecondary);
         g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-        g.drawText(gLabel, VoxlineLayout::eqGainLabelBounds, juce::Justification::centred, false);
+        g.drawText(gLabel, VoxlineLayout::eqQLabelBounds, juce::Justification::centred, false);
         g.setColour(t.textPrimary);
         g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
-        g.drawText(gainVals[sel], VoxlineLayout::eqGainValueBounds, juce::Justification::centred, false);
+        g.drawText(gainValue, VoxlineLayout::eqQValueBounds, juce::Justification::centred, false);
 
         // RESET
         const auto rr = VoxlineLayout::eqResetBounds.toFloat();
@@ -951,87 +1286,716 @@ void VoxlineAudioProcessorEditor::paint(juce::Graphics& g)
     }
 }
 
+void VoxlineAudioProcessorEditor::paintNewInterface(juce::Graphics& g)
+{
+    const auto& t = VoxlineTheme::get(currentThemeIndex);
+    const auto accent = juce::Colour(0xffF06A3D);
+    const auto surface = juce::Colour(0xff151616);
+    const auto raised = juce::Colour(0xff1B1C1C);
+    const auto recessed = juce::Colour(0xff0F1010);
+    const auto hairline = juce::Colour(0xff373735);
+    juce::ColourGradient background(juce::Colour(0xff151616), 0.0f, 0.0f,
+                                    juce::Colour(0xff090A0A), 0.0f, 940.0f, false);
+    g.setGradientFill(background);
+    g.fillAll();
+
+    auto panel = [&](juce::Rectangle<int> r, float radius = 9.0f)
+    {
+        g.setColour(juce::Colours::black.withAlpha(0.48f));
+        g.fillRoundedRectangle(r.translated(0, 3).toFloat(), radius);
+        juce::ColourGradient fill(raised, static_cast<float>(r.getX()), static_cast<float>(r.getY()),
+                                  surface, static_cast<float>(r.getRight()), static_cast<float>(r.getBottom()), false);
+        g.setGradientFill(fill);
+        g.fillRoundedRectangle(r.toFloat(), radius);
+        g.setColour(hairline.withAlpha(0.9f));
+        g.drawRoundedRectangle(r.toFloat().reduced(0.5f), radius, 1.0f);
+    };
+
+    panel({8, 8, 1064, 60}, 7.0f);
+    panel({18, 78, 1044, 258}, 10.0f);
+    panel({18, 346, 1044, 166}, 9.0f);
+    if (advancedOpen)
+        panel({18, 527, 1044, 400}, 10.0f);
+
+    auto title = [&](const juce::String& text, juce::Rectangle<int> area,
+                     juce::Justification justification = juce::Justification::centredLeft)
+    {
+        g.setColour(t.textPrimary);
+        g.setFont(juce::Font(juce::FontOptions(14.0f, juce::Font::bold)).withExtraKerningFactor(0.08f));
+        g.drawText(text, area, justification, false);
+    };
+    auto caption = [&](const juce::String& text, juce::Rectangle<int> area,
+                       juce::Justification justification = juce::Justification::centred)
+    {
+        g.setColour(t.textSecondary);
+        g.setFont(juce::Font(juce::FontOptions(9.0f, juce::Font::bold)).withExtraKerningFactor(0.08f));
+        g.drawText(text, area, justification, false);
+    };
+    auto value = [&](const juce::String& text, juce::Rectangle<int> area, float size = 14.0f)
+    {
+        g.setColour(t.textPrimary);
+        g.setFont(juce::FontOptions(size, juce::Font::bold));
+        g.drawText(text, area, juce::Justification::centred, false);
+    };
+    auto parameterText = [&](const char* id)
+    {
+        if (auto* value = audioProcessor.getAPVTS().getRawParameterValue(id))
+        {
+            const auto plain = value->load();
+            if (juce::String(id) == VoxlineParameterIDs::spaceTime)
+                return plain >= 1000.0f ? juce::String(plain * 0.001f, 2) + " s"
+                                        : juce::String(plain, 0) + " ms";
+            if (juce::String(id) == VoxlineParameterIDs::spacePreDelay)
+                return juce::String(plain, 0) + " ms";
+            if (juce::String(id) == VoxlineParameterIDs::spaceTone)
+                return (plain > 0.0f ? "+" : "") + juce::String(plain, 0);
+            if (juce::String(id) == VoxlineParameterIDs::spaceDecay)
+                return juce::String(plain, 2) + " s";
+        }
+        if (auto* p = audioProcessor.getAPVTS().getParameter(id))
+            return p->getCurrentValueAsText();
+        return juce::String("--");
+    };
+
+    g.setColour(t.textPrimary);
+    g.setFont(juce::Font(juce::FontOptions(25.0f, juce::Font::bold)).withExtraKerningFactor(0.06f));
+    g.drawText("VOXLINE", juce::Rectangle<int>{25, 16, 180, 28}, juce::Justification::centredLeft, false);
+    g.setColour(t.textMuted);
+    g.setFont(juce::Font(juce::FontOptions(7.5f)).withExtraKerningFactor(0.06f));
+    g.drawText("COMPLETE VOCAL CHANNEL", juce::Rectangle<int>{27, 43, 190, 12}, juce::Justification::centredLeft, false);
+    g.setColour(presetIsFavourite ? accent : t.textMuted);
+    g.fillEllipse(521.0f, 32.0f, 6.0f, 6.0f);
+
+    g.setColour(hairline.withAlpha(0.72f));
+    g.drawVerticalLine(334, 94.0f, 321.0f);
+    g.drawVerticalLine(746, 94.0f, 321.0f);
+    title("INPUT", {40, 91, 150, 21});
+    title("POLISH", {334, 91, 412, 21}, juce::Justification::centred);
+    title("OUTPUT", {770, 91, 150, 21});
+
+    caption("GAIN", {61, 128, 100, 17});
+    value(parameterText(VoxlineParameterIDs::inputGain), {57, 275, 108, 21}, 14.0f);
+    caption("AUTO GAIN", {209, 128, 100, 17});
+    caption("TARGET", {209, 210, 100, 17});
+    value("-18.0 dB", {204, 234, 110, 20}, 13.0f);
+    caption("INPUT", {209, 263, 100, 17});
+    value(juce::String(juce::Decibels::gainToDecibels(
+              juce::jmax(audioProcessor.inputPeak.load(), 0.00001f), -60.0f), 1) + " dB",
+          {204, 287, 110, 20}, 13.0f);
+
+    for (int i = 0; i < 6; ++i)
+    {
+        const auto active = audioProcessor.inputPeak.load() * 6.0f > static_cast<float>(i);
+        g.setColour(active ? accent : juce::Colour(0xff4A4844));
+        g.fillEllipse(218.0f + static_cast<float>(i) * 14.0f, 282.0f, 7.0f, 7.0f);
+    }
+
+    value(parameterText(VoxlineParameterIDs::polish), {465, 273, 150, 36}, 29.0f);
+    const auto polish = audioProcessor.getAPVTS().getRawParameterValue(VoxlineParameterIDs::polish)->load();
+    const auto status = polish < 34.0f ? "NATURAL" : (polish < 72.0f ? "PUSHED" : "INTENSE");
+    const auto statusBounds = juce::Rectangle<int>{493, 307, 94, 20};
+    g.setColour(accent.withAlpha(0.10f));
+    g.fillRoundedRectangle(statusBounds.toFloat(), 12.0f);
+    g.setColour(accent);
+    g.drawRoundedRectangle(statusBounds.toFloat().reduced(0.5f), 12.0f, 1.0f);
+    g.setColour(accent);
+    g.setFont(juce::FontOptions(9.0f, juce::Font::bold));
+    g.drawText(status, statusBounds, juce::Justification::centred, false);
+
+    const auto outPeakDb = juce::Decibels::gainToDecibels(
+        juce::jmax(audioProcessor.outputPeak.load(), 0.00001f), -60.0f);
+    const auto outRmsDb = juce::Decibels::gainToDecibels(
+        juce::jmax(audioProcessor.outputRms.load(), 0.00001f), -60.0f);
+    caption("PEAK", {764, 145, 70, 16});
+    value(juce::String(outPeakDb, 1) + " dB", {755, 166, 112, 28}, 17.0f);
+    caption("RMS", {764, 229, 70, 16});
+    value(juce::String(outRmsDb, 1) + " dB", {755, 250, 112, 28}, 17.0f);
+
+    auto segmentedMeter = [&](juce::Rectangle<int> r, float level, bool gr)
+    {
+        constexpr int segments = 15;
+        const auto lit = juce::jlimit(0, segments, juce::roundToInt(level * segments));
+        for (int i = 0; i < segments; ++i)
+        {
+            const auto y = r.getBottom() - (i + 1) * (r.getHeight() / segments);
+            auto c = gr ? accent
+                        : (i < 8 ? juce::Colour(0xff66864B)
+                                 : (i < 12 ? juce::Colour(0xffB79B45) : juce::Colour(0xffD96A3D)));
+            g.setColour(i < lit ? c : c.withAlpha(0.12f));
+            g.fillRoundedRectangle(static_cast<float>(r.getX()), static_cast<float>(y + 2),
+                                   static_cast<float>(r.getWidth()), 6.0f, 2.0f);
+        }
+    };
+    caption("OUT", {875, 125, 36, 16});
+    caption("GR", {920, 125, 36, 16});
+    segmentedMeter({882, 148, 15, 156}, audioProcessor.outputPeak.load(), false);
+    segmentedMeter({927, 148, 15, 156}, audioProcessor.gainReduction.load(), true);
+    caption("OUTPUT GAIN", {963, 139, 82, 17});
+    value(parameterText(VoxlineParameterIDs::outputGain), {963, 285, 88, 22}, 14.0f);
+
+    struct MainControl { const char* label; const char* id; int x; };
+    const MainControl controls[] = {
+        {"BODY", VoxlineParameterIDs::body, 42}, {"PRESENCE", VoxlineParameterIDs::clarity, 190},
+        {"AIR", VoxlineParameterIDs::air, 338}, {"DE-ESS", VoxlineParameterIDs::smooth, 486},
+        {"COMP", VoxlineParameterIDs::comp, 634}, {"DRIVE", VoxlineParameterIDs::drive, 782},
+        {"SPACE", VoxlineParameterIDs::spaceAmount, 930},
+    };
+    for (const auto& c : controls)
+    {
+        const auto amount = audioProcessor.getAPVTS().getRawParameterValue(c.id)->load();
+        g.setColour(std::abs(amount) > 0.001f ? accent : t.textMuted.withAlpha(0.55f));
+        g.fillEllipse(static_cast<float>(c.x + 43), 358.0f, 7.0f, 7.0f);
+        caption(c.label, {c.x, 370, 94, 18});
+        value(parameterText(c.id), {c.x, 478, 94, 22}, 13.0f);
+    }
+
+    g.setColour(t.textMuted.withAlpha(0.62f));
+    g.setFont(juce::FontOptions(8.0f));
+    for (int x : {42, 190, 338})
+        g.drawText("-6          0          +6", juce::Rectangle<int>{x, 465, 94, 14},
+                   juce::Justification::centred, false);
+
+    g.setColour(t.textMuted.withAlpha(0.35f));
+    for (int x : {174, 322, 470, 618, 766, 914})
+        g.drawVerticalLine(x, 361.0f, 497.0f);
+
+    if (! advancedOpen)
+    {
+        g.setColour(t.textMuted.withAlpha(0.55f));
+        g.setFont(juce::FontOptions(9.0f));
+        g.drawText("VOXLINE 2.0  |  SADTONY", juce::Rectangle<int>{15, 695, 1050, 16}, juce::Justification::centred, false);
+        return;
+    }
+
+    g.setColour(hairline.withAlpha(0.72f));
+    g.drawHorizontalLine(575, 34.0f, 1046.0f);
+    const int activeTabX = advancedSection == AdvancedSection::eq ? 252
+                         : advancedSection == AdvancedSection::comp ? 372
+                         : advancedSection == AdvancedSection::deEss ? 492
+                         : advancedSection == AdvancedSection::drive ? 612 : 732;
+    g.setColour(accent);
+    g.fillRoundedRectangle(static_cast<float>(activeTabX + 20), 571.0f, 72.0f, 3.0f, 1.5f);
+
+    if (advancedSection == AdvancedSection::eq)
+    {
+        const auto graph = getEqGraphBounds();
+        g.setColour(recessed);
+        g.fillRoundedRectangle(graph, 6.0f);
+        g.setColour(hairline.withAlpha(0.48f));
+        for (float hz : { 20.0f, 50.0f, 100.0f, 200.0f, 500.0f, 1000.0f,
+                          2000.0f, 5000.0f, 10000.0f, 20000.0f })
+        {
+            const auto norm = std::log(hz / 20.0f) / std::log(1000.0f);
+            const auto x = graph.getX() + norm * graph.getWidth();
+            g.drawVerticalLine(juce::roundToInt(x), graph.getY(), graph.getBottom());
+        }
+        const auto displayDb = eqShows24dB ? 24.0f : 12.0f;
+        for (float db : {-displayDb, -displayDb * 0.5f, 0.0f, displayDb * 0.5f, displayDb})
+        {
+            const auto y = graph.getCentreY() - db / (displayDb * 2.0f) * graph.getHeight();
+            g.setColour(db == 0.0f ? t.textMuted.withAlpha(0.65f) : hairline.withAlpha(0.36f));
+            g.drawHorizontalLine(juce::roundToInt(y), graph.getX(), graph.getRight());
+        }
+
+        juce::Path spectrumPath;
+        for (size_t i = 0; i < spectrumDisplay.size(); ++i)
+        {
+            const auto norm = static_cast<float>(i) / static_cast<float>(spectrumDisplay.size() - 1);
+            const auto y = juce::jmap(spectrumDisplay[i], -72.0f, 0.0f,
+                                      graph.getBottom(), graph.getY() + 8.0f);
+            const auto point = juce::Point<float>{graph.getX() + norm * graph.getWidth(), y};
+            if (i == 0)
+                spectrumPath.startNewSubPath(point);
+            else
+                spectrumPath.lineTo(point);
+        }
+        auto spectrumFill = spectrumPath;
+        spectrumFill.lineTo(graph.getRight(), graph.getBottom());
+        spectrumFill.lineTo(graph.getX(), graph.getBottom());
+        spectrumFill.closeSubPath();
+        g.setColour(juce::Colour(0xffB9B2A8).withAlpha(0.08f));
+        g.fillPath(spectrumFill);
+        g.setColour(juce::Colour(0xffB9B2A8).withAlpha(0.24f));
+        g.strokePath(spectrumPath, juce::PathStrokeType(1.0f));
+
+        const auto raw = [&](const char* id, float fallback)
+        {
+            if (auto* parameter = audioProcessor.getAPVTS().getRawParameterValue(id))
+                return parameter->load();
+            return fallback;
+        };
+        const auto sampleRate = 48000.0;
+        const auto filterMagnitude = [sampleRate](const juce::IIRCoefficients& coefficients, double hz)
+        {
+            const auto phase = -juce::MathConstants<double>::twoPi * hz / sampleRate;
+            const auto z1 = std::polar(1.0, phase);
+            const auto z2 = std::polar(1.0, phase * 2.0);
+            const auto* c = coefficients.coefficients;
+            const auto numerator = static_cast<double>(c[0])
+                                 + static_cast<double>(c[1]) * z1
+                                 + static_cast<double>(c[2]) * z2;
+            const auto denominator = 1.0 + static_cast<double>(c[3]) * z1
+                                          + static_cast<double>(c[4]) * z2;
+            return std::abs(numerator / denominator);
+        };
+        const auto responseDb = [&](double hz)
+        {
+            auto magnitude = 1.0;
+            const auto hpf = juce::IIRCoefficients::makeHighPass(sampleRate, raw(VoxlineParameterIDs::hpfFreq, 80.0f));
+            const auto lpf = juce::IIRCoefficients::makeLowPass(sampleRate, raw(VoxlineParameterIDs::lpfFreq, 18000.0f));
+            for (int i = 0; i <= juce::roundToInt(raw(VoxlineParameterIDs::hpfSlope, 1.0f)); ++i)
+                magnitude *= filterMagnitude(hpf, hz);
+            for (int i = 0; i <= juce::roundToInt(raw(VoxlineParameterIDs::lpfSlope, 0.0f)); ++i)
+                magnitude *= filterMagnitude(lpf, hz);
+            const auto polishScale = juce::jmap(raw(VoxlineParameterIDs::polish, 65.0f) * 0.01f, 0.0f, 1.0f, 0.35f, 1.35f);
+            const auto filters = std::array<juce::IIRCoefficients, 4> {
+                juce::IIRCoefficients::makePeakFilter(sampleRate, raw(VoxlineParameterIDs::lowFreq, 160.0f),
+                    raw(VoxlineParameterIDs::lowQ, 0.8f), juce::Decibels::decibelsToGain(raw(VoxlineParameterIDs::body, 0.0f) * polishScale)),
+                juce::IIRCoefficients::makePeakFilter(sampleRate, raw(VoxlineParameterIDs::mudFreq, 350.0f),
+                    raw(VoxlineParameterIDs::mudQ, 1.1f), juce::Decibels::decibelsToGain(raw(VoxlineParameterIDs::mudGain, -2.0f) * polishScale)),
+                juce::IIRCoefficients::makePeakFilter(sampleRate, raw(VoxlineParameterIDs::presFreq, 2500.0f),
+                    raw(VoxlineParameterIDs::presQ, 1.0f), juce::Decibels::decibelsToGain(raw(VoxlineParameterIDs::clarity, 0.0f) * polishScale)),
+                juce::IIRCoefficients::makeHighShelf(sampleRate, raw(VoxlineParameterIDs::airFreq, 10000.0f),
+                    raw(VoxlineParameterIDs::airQ, 0.7f), juce::Decibels::decibelsToGain(raw(VoxlineParameterIDs::air, 0.0f) * polishScale))
+            };
+            for (const auto& filter : filters)
+                magnitude *= filterMagnitude(filter, hz);
+            return juce::Decibels::gainToDecibels(magnitude, -60.0);
+        };
+
+        juce::Path curve;
+        constexpr int responseSteps = 360;
+        for (int i = 0; i <= responseSteps; ++i)
+        {
+            const auto norm = static_cast<float>(i) / static_cast<float>(responseSteps);
+            const auto hz = 20.0f * std::pow(1000.0f, norm);
+            const auto db = juce::jlimit(-displayDb, displayDb, static_cast<float>(responseDb(hz)));
+            const auto point = juce::Point<float>{graph.getX() + norm * graph.getWidth(),
+                graph.getCentreY() - db / (displayDb * 2.0f) * graph.getHeight()};
+            if (i == 0)
+                curve.startNewSubPath(point);
+            else
+                curve.lineTo(point);
+        }
+        g.setColour(accent.withAlpha(0.13f));
+        auto fill = curve;
+        fill.lineTo(graph.getRight(), graph.getBottom());
+        fill.lineTo(graph.getX(), graph.getBottom());
+        fill.closeSubPath();
+        g.fillPath(fill);
+        g.setColour(accent);
+        g.strokePath(curve, juce::PathStrokeType(2.0f, juce::PathStrokeType::curved));
+        for (int i = 0; i < 6; ++i)
+        {
+            const auto point = getEqNodePosition(i);
+            const auto active = i == selectedEqBand || i == hoveredEqBand;
+            const auto diameter = active ? 18.0f : 14.0f;
+            const auto nodeBounds = juce::Rectangle<float>(diameter, diameter).withCentre(point);
+            g.setColour(active ? accent : juce::Colour(0xff242424));
+            g.fillEllipse(nodeBounds);
+            g.setColour(active ? accent.brighter(0.15f) : t.textPrimary);
+            g.drawEllipse(nodeBounds.reduced(0.5f), 1.2f);
+            g.setFont(juce::FontOptions(active ? 9.5f : 8.5f, juce::Font::bold));
+            g.drawText(juce::String(i + 1), nodeBounds.getSmallestIntegerContainer(),
+                       juce::Justification::centred, false);
+            if (active)
+            {
+                g.setColour(accent.withAlpha(0.28f));
+                g.drawEllipse(point.x - 12.0f, point.y - 12.0f, 24.0f, 24.0f, 1.5f);
+            }
+        }
+        const auto frequencyX = [&](float hz)
+        {
+            return juce::roundToInt(graph.getX()
+                + std::log(hz / 20.0f) / std::log(1000.0f) * graph.getWidth());
+        };
+        for (const auto& mark : std::initializer_list<std::pair<float, const char*>>{
+                 {20.0f, "20"}, {50.0f, "50"}, {100.0f, "100"}, {200.0f, "200"},
+                 {500.0f, "500"}, {1000.0f, "1k"}, {2000.0f, "2k"},
+                 {5000.0f, "5k"}, {10000.0f, "10k"}, {20000.0f, "20k"}})
+            caption(mark.second, {frequencyX(mark.first) - 19, 777, 38, 12});
+
+        caption("FILTER TYPE", {35, 802, 185, 14}, juce::Justification::centredLeft);
+        caption("FREQ", {588, 802, 100, 14});
+        caption(selectedEqBand == 0 || selectedEqBand == 5 ? "SLOPE" : "GAIN", {718, 802, 100, 14});
+        caption("Q", {848, 802, 100, 14});
+        g.setColour(t.textMuted);
+        g.setFont(juce::FontOptions(8.5f));
+        g.drawText("Drag: frequency + gain   |   Wheel: Q/slope   |   Shift: fine   |   Double-click: reset",
+                   juce::Rectangle<int>{36, 902, 810, 14}, juce::Justification::centredLeft, false);
+        caption("LATENCY", {878, 901, 60, 14});
+        value("0 samples", {937, 901, 75, 14}, 9.0f);
+    }
+    else
+    {
+        const char* labels[5] = {};
+        const char* ids[5] = {};
+        int count = 0;
+        if (advancedSection == AdvancedSection::comp)
+        {
+            labels[0] = "THRESHOLD"; ids[0] = VoxlineParameterIDs::compThreshold;
+            labels[1] = "RATIO"; ids[1] = VoxlineParameterIDs::compRatio;
+            labels[2] = "ATTACK"; ids[2] = VoxlineParameterIDs::compAttack;
+            labels[3] = "RELEASE"; ids[3] = VoxlineParameterIDs::compRelease;
+            labels[4] = "MIX"; ids[4] = VoxlineParameterIDs::compMix;
+            count = 5;
+        }
+        else if (advancedSection == AdvancedSection::deEss)
+        {
+            labels[0] = "FREQUENCY"; ids[0] = VoxlineParameterIDs::deEssFreq;
+            labels[1] = "THRESHOLD"; ids[1] = VoxlineParameterIDs::deEssThreshold;
+            labels[2] = "RANGE"; ids[2] = VoxlineParameterIDs::deEssRange;
+            count = 3;
+            caption("MODE", {810, 620, 150, 16});
+            value(juce::String(audioProcessor.deEssReduction.load(), 1) + " dB REDUCTION",
+                  {790, 885, 190, 18}, 11.5f);
+        }
+        else if (advancedSection == AdvancedSection::drive)
+        {
+            labels[0] = "TONE"; ids[0] = VoxlineParameterIDs::driveTone;
+            labels[1] = "MIX"; ids[1] = VoxlineParameterIDs::driveMix;
+            count = 2;
+            caption("CHARACTER", {790, 620, 170, 16});
+        }
+        else
+        {
+            labels[0] = "TIME"; ids[0] = VoxlineParameterIDs::spaceTime;
+            labels[1] = "PRE-DELAY"; ids[1] = VoxlineParameterIDs::spacePreDelay;
+            labels[2] = "WIDTH"; ids[2] = VoxlineParameterIDs::spaceWidth;
+            labels[3] = "TONE"; ids[3] = VoxlineParameterIDs::spaceTone;
+            labels[4] = "DECAY"; ids[4] = VoxlineParameterIDs::spaceDecay;
+            count = 5;
+            caption("DUCKING", {900, 620, 100, 16});
+            value(parameterText(VoxlineParameterIDs::spaceDucking), {900, 885, 100, 16}, 11.5f);
+            caption("SPACE TYPE", {720, 620, 150, 16});
+        }
+
+        const int compXs[] = {70, 260, 450, 640, 830};
+        const int deEssXs[] = {100, 320, 540};
+        const int driveXs[] = {155, 390};
+        for (int i = 0; i < count; ++i)
+        {
+            const int spaceXs[] = {45, 175, 305, 435, 565};
+            const auto x = advancedSection == AdvancedSection::comp ? compXs[i]
+                         : (advancedSection == AdvancedSection::deEss ? deEssXs[i]
+                         : (advancedSection == AdvancedSection::drive ? driveXs[i] : spaceXs[i]));
+            caption(labels[i], {x, 620, 100, 16});
+            value(parameterText(ids[i]), {x, 885, 100, 16}, 11.5f);
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Layout
 // ---------------------------------------------------------------------------
 void VoxlineAudioProcessorEditor::resized()
 {
-    logoLabel.setBounds(VoxlineLayout::logoBounds);
-    subtitleLabel.setBounds(VoxlineLayout::subtitleBounds);
-    themeToggle->setBounds(VoxlineLayout::settingsButtonBounds);
+    presetPreviousButton.setBounds({212, 20, 38, 36});
+    presetNextButton.setBounds({252, 20, 38, 36});
+    presetDropdown.setBounds({294, 20, 238, 36});
+    favouriteButton.setBounds({540, 20, 54, 36});
+    savePresetButton.setBounds({603, 20, 70, 36});
+    abButton.setBounds({704, 21, 58, 34});
+    listenButton.setBounds({783, 21, 96, 34});
+    bypassButton.setBounds({899, 21, 100, 34});
 
-    // === Top Bar ===
-    presetDropdown.setBounds(VoxlineLayout::presetDropdownBounds);
-    abButton.setBounds(VoxlineLayout::abButtonBounds);
-    listenButton.setBounds(VoxlineLayout::listenUtilityBounds);
-    bypassButton.setBounds(VoxlineLayout::bypassToggleBounds);
-
-    // === Input Panel ===
-    inputTitleLabel.setBounds(VoxlineLayout::inputTitleBounds);
-    inputGainSlider.setBounds(VoxlineLayout::inputGainKnobBounds);
-    lowCutKnob.setBounds(VoxlineLayout::lowCutKnobBounds);
-    cleanKnob.setBounds(VoxlineLayout::cleanKnobBounds);
-    deEssKnob.setBounds(VoxlineLayout::deEssKnobBounds);
-    autoGainButton.setBounds(VoxlineLayout::autoGainToggleBounds);
-
-    // === POLISH ===
-    polishTitleLabel.setBounds(VoxlineLayout::polishTitleBounds);
-    polishSlider.setBounds(VoxlineLayout::polishSliderBounds);
-
-    // === Output ===
-    outputTitleLabel.setBounds(VoxlineLayout::outputTitleBounds);
+    inputGainSlider.setBounds({68, 150, 88, 104});
+    autoGainButton.setBounds({224, 154, 70, 28});
+    polishSlider.setBounds({466, 116, 148, 148});
+    outputGainSlider.setBounds({970, 183, 78, 88});
     outputMeter.setBounds(VoxlineLayout::outMeterBounds);
     gainReductionMeter.setBounds(VoxlineLayout::grMeterBounds);
-    outputGainSlider.setBounds(VoxlineLayout::outputGainKnobBounds);
 
-    // === Vocal EQ (placeholder: old tone knobs) ===
-    bodySlider.setBounds(VoxlineLayout::eqLowBounds.withHeight(80).translated(0, 28));
-    claritySlider.setBounds(VoxlineLayout::eqPresBounds.withHeight(80).translated(0, 28));
-    airSlider.setBounds(VoxlineLayout::eqAirBounds.withHeight(80).translated(0, 28));
-    smoothSlider.setBounds(VoxlineLayout::eqLpfBounds.withHeight(80).translated(0, 28));
-    toneTitleLabel.setBounds(VoxlineLayout::eqTitleBounds);
-    eqOnButton.setBounds(VoxlineLayout::eqOnToggleBounds);
-    eqFreqKnob.setBounds(VoxlineLayout::eqFreqKnobBounds);
-    eqGainKnob.setBounds(VoxlineLayout::eqGainKnobBounds);
+    bodySlider.setBounds({48, 393, 82, 72});
+    claritySlider.setBounds({196, 393, 82, 72});
+    airSlider.setBounds({344, 393, 82, 72});
+    smoothSlider.setBounds({492, 393, 82, 72});
+    compSlider.setBounds({640, 393, 82, 72});
+    driveSlider.setBounds({788, 393, 82, 72});
+    spaceSlider.setBounds({936, 393, 82, 72});
+    advancedButton.setBounds({475, 501, 130, 28});
 
-    eqHpfButton.setBounds(VoxlineLayout::eqHpfBounds);
-    eqLowButton.setBounds(VoxlineLayout::eqLowBounds);
-    eqMudButton.setBounds(VoxlineLayout::eqMudBounds);
-    eqPresButton.setBounds(VoxlineLayout::eqPresBounds);
-    eqAirButton.setBounds(VoxlineLayout::eqAirBounds);
-    eqLpfButton.setBounds(VoxlineLayout::eqLpfBounds);
+    advancedEqButton.setBounds({252, 537, 112, 34});
+    advancedCompButton.setBounds({372, 537, 112, 34});
+    advancedDeEssButton.setBounds({492, 537, 112, 34});
+    advancedDriveButton.setBounds({612, 537, 112, 34});
+    advancedSpaceButton.setBounds({732, 537, 112, 34});
 
-    // === Dynamics ===
-    meterNamesLabel.setBounds(VoxlineLayout::dynamicsTitleBounds);
-    compSlider.setBounds(VoxlineLayout::compKnobBounds);
-    thresholdKnob.setBounds(VoxlineLayout::thresholdKnobBounds);
-    driveSlider.setBounds(VoxlineLayout::driveKnobBounds);
-    ratioKnob.setBounds(VoxlineLayout::ratioKnobBounds);
-    attackKnob.setBounds(VoxlineLayout::attackKnobBounds);
-    releaseKnob.setBounds(VoxlineLayout::releaseKnobBounds);
+    eqHpfButton.setBounds({36, 825, 83, 42});
+    eqLowButton.setBounds({122, 825, 83, 42});
+    eqMudButton.setBounds({208, 825, 83, 42});
+    eqPresButton.setBounds({294, 825, 83, 42});
+    eqAirButton.setBounds({380, 825, 83, 42});
+    eqLpfButton.setBounds({466, 825, 83, 42});
+    eqFreqKnob.setBounds({598, 819, 82, 72});
+    eqGainKnob.setBounds({728, 819, 82, 72});
+    eqQKnob.setBounds({858, 819, 82, 72});
+    eqResetButton.setBounds({952, 824, 86, 31});
+    eqRangeButton.setBounds({952, 861, 86, 31});
+    eqOnButton.setBounds({1000, 585, 38, 27});
 
-    // === SPACE ===
-    spaceTitleLabel.setBounds(VoxlineLayout::spaceTitleBounds);
-    spaceTypeCombo.setBounds(VoxlineLayout::spaceTypeBounds);
-    spaceSlider.setBounds(VoxlineLayout::spaceSliderBounds);
-    spaceAmountLabel.setBounds(VoxlineLayout::spaceValueBounds);
-    preDelayKnob.setBounds(VoxlineLayout::spacePreDelayKnobBounds);
-    spaceHpfKnob.setBounds(VoxlineLayout::spaceHpfKnobBounds);
-    spaceLpfKnob.setBounds(VoxlineLayout::spaceLpfKnobBounds);
+    thresholdKnob.setBounds({88, 684, 86, 96});
+    ratioKnob.setBounds({278, 684, 86, 96});
+    attackKnob.setBounds({468, 684, 86, 96});
+    releaseKnob.setBounds({658, 684, 86, 96});
+    compMixKnob.setBounds({848, 684, 86, 96});
+
+    deEssFreqKnob.setBounds({118, 684, 86, 96});
+    deEssThresholdKnob.setBounds({338, 684, 86, 96});
+    deEssRangeKnob.setBounds({558, 684, 86, 96});
+    deEssModeCombo.setBounds({810, 688, 150, 42});
+
+    driveToneKnob.setBounds({173, 684, 86, 96});
+    driveMixKnob.setBounds({408, 684, 86, 96});
+    driveCharacterCombo.setBounds({790, 688, 170, 42});
+
+    spaceTimeKnob.setBounds({63, 684, 86, 96});
+    spacePreDelayKnob.setBounds({193, 684, 86, 96});
+    spaceWidthKnob.setBounds({323, 684, 86, 96});
+    spaceToneKnob.setBounds({453, 684, 86, 96});
+    spaceDecayKnob.setBounds({583, 684, 86, 96});
+    spaceTypeCombo.setBounds({720, 688, 150, 42});
+    spaceDuckingKnob.setBounds({918, 684, 86, 96});
+
+    updateAdvancedVisibility();
+    return;
+
+    auto bounds = [this](const juce::String& key, juce::Rectangle<int> fallback)
+    {
+        const auto r = layout.getBounds(key);
+        return r.isEmpty() ? fallback : r;
+    };
+
+    logoLabel.setBounds(bounds("logo", VoxlineLayout::logoBounds));
+    subtitleLabel.setBounds(bounds("subtitle", VoxlineLayout::subtitleBounds));
+
+    // === V2 Top Bar ===
+    presetDropdown.setBounds(bounds("presetDropdown", VoxlineLayout::presetDropdownBounds));
+    abButton.setBounds(bounds("abButton", VoxlineLayout::abButtonBounds));
+    listenButton.setBounds(bounds("listenButton", VoxlineLayout::listenUtilityBounds));
+    bypassButton.setBounds(bounds("bypassToggle", VoxlineLayout::bypassToggleBounds));
+
+    // === V2 Input / Clean Panel ===
+    inputTitleLabel.setBounds(bounds("inputTitle", VoxlineLayout::inputTitleBounds));
+    inputGainSlider.setBounds(bounds("inputGainKnob", VoxlineLayout::inputGainKnobBounds));
+    lowCutKnob.setBounds(bounds("lowCutKnob", VoxlineLayout::lowCutKnobBounds));
+    cleanKnob.setBounds(bounds("cleanKnob", VoxlineLayout::cleanKnobBounds));
+    deEssKnob.setBounds(bounds("deEssKnob", VoxlineLayout::deEssKnobBounds));
+    autoGainButton.setBounds(bounds("autoGainToggle", VoxlineLayout::autoGainToggleBounds));
+
+    // === V2 POLISH Hero Panel ===
+    polishTitleLabel.setBounds(bounds("polishTitle", VoxlineLayout::polishTitleBounds));
+    polishSlider.setBounds(bounds("polishKnob", VoxlineLayout::polishSliderBounds));
+
+    // === V2 Output Panel ===
+    outputTitleLabel.setBounds(bounds("outputTitle", VoxlineLayout::outputTitleBounds));
+    outputMeter.setBounds(bounds("outMeter", VoxlineLayout::outMeterBounds));
+    gainReductionMeter.setBounds(bounds("grMeter", VoxlineLayout::grMeterBounds));
+    outputGainSlider.setBounds(bounds("outputGainKnob", VoxlineLayout::outputGainKnobBounds));
+
+    // === V2 Vocal EQ Panel (lower row) ===
+    // EQ band label buttons (HPF/LOW/MUD/PRES/AIR/LPF)
+    toneTitleLabel.setBounds(bounds("eqTitle", VoxlineLayout::eqTitleBounds));
+    eqOnButton.setBounds(bounds("eqOnToggle", VoxlineLayout::eqOnToggleBounds));
+    eqFreqKnob.setBounds(bounds("eqFreqKnob", VoxlineLayout::eqFreqKnobBounds));
+    eqGainKnob.setBounds(bounds("eqGainKnob", VoxlineLayout::eqQKnobBounds));
+
+    eqHpfButton.setBounds(bounds("eqHpfBtn", VoxlineLayout::eqHpfBounds));
+    eqLowButton.setBounds(bounds("eqLowBtn", VoxlineLayout::eqLowBounds));
+    eqMudButton.setBounds(bounds("eqMudBtn", VoxlineLayout::eqMudBounds));
+    eqPresButton.setBounds(bounds("eqPresBtn", VoxlineLayout::eqPresBounds));
+    eqAirButton.setBounds(bounds("eqAirBtn", VoxlineLayout::eqAirBounds));
+    eqLpfButton.setBounds(bounds("eqLpfBtn", VoxlineLayout::eqLpfBounds));
+
+    // === V2 Dynamics / Color Panel (lower row) ===
+    meterNamesLabel.setBounds(bounds("dynamicsTitle", VoxlineLayout::dynamicsTitleBounds));
+    compSlider.setBounds(bounds("compKnob", VoxlineLayout::compKnobBounds));
+    thresholdKnob.setBounds(bounds("thresholdKnob", VoxlineLayout::thresholdKnobBounds));
+    driveSlider.setBounds(bounds("driveKnob", VoxlineLayout::driveKnobBounds));
+    ratioKnob.setBounds(bounds("ratioKnob", VoxlineLayout::ratioKnobBounds));
+    attackKnob.setBounds(bounds("attackKnob", VoxlineLayout::attackKnobBounds));
+    releaseKnob.setBounds(bounds("releaseKnob", VoxlineLayout::releaseKnobBounds));
+
+    // === V2 Space / Monitor Panel (lower row) ===
+    spaceTitleLabel.setBounds(bounds("spaceTitle", VoxlineLayout::spaceTitleBounds));
+    spaceTypeCombo.setBounds(bounds("spaceTypeCombo", VoxlineLayout::spaceTypeBounds));
+    spaceSlider.setBounds(bounds("spaceSlider", VoxlineLayout::spaceSliderBounds));
+    spaceAmountLabel.setBounds(bounds("spaceAmountLabel", VoxlineLayout::spaceAmountLabelBounds));
+    preDelayKnob.setBounds(bounds("spacePreDelayKnob", VoxlineLayout::spacePreDelayKnobBounds));
+    spaceHpfKnob.setBounds(bounds("spaceHpfKnob", VoxlineLayout::spaceHpfKnobBounds));
+    spaceLpfKnob.setBounds(bounds("spaceLpfKnob", VoxlineLayout::spaceLpfKnobBounds));
     monitorLabel.setBounds(VoxlineLayout::monitorTitleBounds);
     monitorAbBtn.setBounds(VoxlineLayout::monitorAbBounds);
     monitorListenBtn.setBounds(VoxlineLayout::monitorListenBounds);
     monitorBypassBtn.setBounds(VoxlineLayout::monitorBypassBounds);
 
     // === Footer ===
-    footerLabel.setBounds(VoxlineLayout::footerBounds);
+    footerLabel.setBounds(bounds("footer", VoxlineLayout::footerBounds));
 
     // === Placeholder labels ===
-    thresholdLabel.setBounds(VoxlineLayout::thresholdKnobBounds);
-    preDelayLabel.setBounds(VoxlineLayout::spacePreDelayKnobBounds);
-    spaceHpfLabel.setBounds(VoxlineLayout::spaceHpfKnobBounds);
-    spaceLpfLabel.setBounds(VoxlineLayout::spaceLpfKnobBounds);
-    monitorLabel.setBounds(VoxlineLayout::monitorTitleBounds);
+    thresholdLabel.setBounds(VoxlineLayout::thresholdLabelBounds);
+    preDelayLabel.setBounds(VoxlineLayout::spacePreDelayLabelBounds);
+    spaceHpfLabel.setBounds(VoxlineLayout::spaceHpfLabelBounds);
+    spaceLpfLabel.setBounds(VoxlineLayout::spaceLpfLabelBounds);
+}
+
+juce::Rectangle<float> VoxlineAudioProcessorEditor::getEqGraphBounds() const
+{
+    return {36.0f, 616.0f, 1002.0f, 161.0f};
+}
+
+juce::Point<float> VoxlineAudioProcessorEditor::getEqNodePosition(int band) const
+{
+    const auto graph = getEqGraphBounds();
+    auto& apvts = audioProcessor.getAPVTS();
+    const auto raw = [&](const char* id, float fallback)
+    {
+        if (auto* value = apvts.getRawParameterValue(id))
+            return value->load();
+        return fallback;
+    };
+    const auto frequency = raw(kEqFreqIDs[band], 1000.0f);
+    const auto xNorm = std::log(juce::jlimit(20.0f, 20000.0f, frequency) / 20.0f)
+                     / std::log(1000.0f);
+    auto gain = 0.0f;
+    if (band > 0 && band < 5)
+        gain = raw(kEqGainIDs[band], 0.0f);
+    const auto range = eqShows24dB ? 48.0f : 24.0f;
+    const auto yNorm = juce::jlimit(0.0f, 1.0f, 0.5f - gain / range);
+    return {graph.getX() + xNorm * graph.getWidth(),
+            graph.getY() + yNorm * graph.getHeight()};
+}
+
+int VoxlineAudioProcessorEditor::findEqNode(juce::Point<float> position) const
+{
+    auto nearest = -1;
+    auto distance = 18.0f;
+    for (int band = 0; band < 6; ++band)
+    {
+        const auto d = position.getDistanceFrom(getEqNodePosition(band));
+        if (d < distance)
+        {
+            nearest = band;
+            distance = d;
+        }
+    }
+    return nearest;
+}
+
+void VoxlineAudioProcessorEditor::updateEqNodeFromMouse(juce::Point<float> position)
+{
+    if (draggingEqBand < 0)
+        return;
+    const auto graph = getEqGraphBounds();
+    const auto p = graph.getConstrainedPoint(position);
+    const auto xNorm = juce::jlimit(0.0f, 1.0f, (p.x - graph.getX()) / graph.getWidth());
+    const auto frequency = 20.0f * std::pow(1000.0f, xNorm);
+    auto& apvts = audioProcessor.getAPVTS();
+    if (auto* parameter = apvts.getParameter(kEqFreqIDs[draggingEqBand]))
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(frequency));
+
+    if (draggingEqBand > 0 && draggingEqBand < 5)
+    {
+        if (auto* parameter = apvts.getParameter(kEqGainIDs[draggingEqBand]))
+        {
+            const auto displayRange = eqShows24dB ? 48.0f : 24.0f;
+            const auto requested = (0.5f - (p.y - graph.getY()) / graph.getHeight()) * displayRange;
+            const auto range = parameter->getNormalisableRange();
+            parameter->setValueNotifyingHost(parameter->convertTo0to1(
+                juce::jlimit(range.start, range.end, requested)));
+        }
+    }
+    syncEQKnobsToSelectedBand();
+    repaint();
+}
+
+void VoxlineAudioProcessorEditor::mouseDown(const juce::MouseEvent& event)
+{
+    if (! advancedOpen || advancedSection != AdvancedSection::eq)
+        return;
+    draggingEqBand = findEqNode(event.position);
+    if (draggingEqBand < 0)
+        return;
+    selectedEqBand = draggingEqBand;
+    if (auto* parameter = audioProcessor.getAPVTS().getParameter(kEqFreqIDs[draggingEqBand]))
+        parameter->beginChangeGesture();
+    if (draggingEqBand > 0 && draggingEqBand < 5)
+        if (auto* parameter = audioProcessor.getAPVTS().getParameter(kEqGainIDs[draggingEqBand]))
+            parameter->beginChangeGesture();
+    syncEQKnobsToSelectedBand();
+    updateEqNodeFromMouse(event.position);
+}
+
+void VoxlineAudioProcessorEditor::mouseDrag(const juce::MouseEvent& event)
+{
+    updateEqNodeFromMouse(event.position);
+}
+
+void VoxlineAudioProcessorEditor::mouseUp(const juce::MouseEvent&)
+{
+    if (draggingEqBand < 0)
+        return;
+    if (auto* parameter = audioProcessor.getAPVTS().getParameter(kEqFreqIDs[draggingEqBand]))
+        parameter->endChangeGesture();
+    if (draggingEqBand > 0 && draggingEqBand < 5)
+        if (auto* parameter = audioProcessor.getAPVTS().getParameter(kEqGainIDs[draggingEqBand]))
+            parameter->endChangeGesture();
+    draggingEqBand = -1;
+}
+
+void VoxlineAudioProcessorEditor::mouseMove(const juce::MouseEvent& event)
+{
+    const auto next = advancedOpen && advancedSection == AdvancedSection::eq
+                    ? findEqNode(event.position) : -1;
+    if (next != hoveredEqBand)
+    {
+        hoveredEqBand = next;
+        setMouseCursor(next >= 0 ? juce::MouseCursor::DraggingHandCursor
+                                 : juce::MouseCursor::NormalCursor);
+        repaint();
+    }
+}
+
+void VoxlineAudioProcessorEditor::mouseDoubleClick(const juce::MouseEvent& event)
+{
+    const auto band = findEqNode(event.position);
+    if (! advancedOpen || advancedSection != AdvancedSection::eq || band < 0)
+        return;
+    auto& apvts = audioProcessor.getAPVTS();
+    for (auto* id : { kEqFreqIDs[band], kEqGainIDs[band], kEqQIDs[band] })
+        if (id != nullptr)
+            if (auto* parameter = apvts.getParameter(id))
+                parameter->setValueNotifyingHost(parameter->getDefaultValue());
+    selectedEqBand = band;
+    syncEQKnobsToSelectedBand();
+    repaint();
+}
+
+void VoxlineAudioProcessorEditor::mouseWheelMove(const juce::MouseEvent& event,
+                                                  const juce::MouseWheelDetails& wheel)
+{
+    if (! advancedOpen || advancedSection != AdvancedSection::eq)
+        return AudioProcessorEditor::mouseWheelMove(event, wheel);
+
+    const auto band = findEqNode(event.position);
+    if (band < 0)
+        return AudioProcessorEditor::mouseWheelMove(event, wheel);
+
+    selectedEqBand = band;
+    auto* id = kEqQIDs[band] != nullptr ? kEqQIDs[band] : kEqGainIDs[band];
+    if (auto* parameter = audioProcessor.getAPVTS().getParameter(id))
+    {
+        const auto range = parameter->getNormalisableRange();
+        const auto step = range.interval > 0.0f ? range.interval : (range.end - range.start) / 100.0f;
+        const auto direction = wheel.deltaY > 0.0f ? 1.0f : -1.0f;
+        const auto current = parameter->convertFrom0to1(parameter->getValue());
+        parameter->beginChangeGesture();
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(
+            juce::jlimit(range.start, range.end, current + direction * step)));
+        parameter->endChangeGesture();
+        syncEQKnobsToSelectedBand();
+        repaint();
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1056,13 +2020,16 @@ void VoxlineAudioProcessorEditor::parameterChanged(const juce::String& parameter
     }
     else if (parameterID == VoxlineParameterIDs::spaceType)
     {
-        const int t = juce::roundToInt(newValue * 3.0f);
-        const juce::String names[] = {"Tight", "Slap", "Wide"};
+        const int t = juce::jlimit(0, 2, juce::roundToInt(newValue <= 1.0f ? newValue * 2.0f : newValue));
         spaceTypeCombo.setSelectedId(t + 1, juce::dontSendNotification);
     }
     else if (parameterID == VoxlineParameterIDs::autoGain)
     {
         autoGainButton.setButtonText(newValue >= 0.5f ? "ON" : "OFF");
+    }
+    else
+    {
+        repaintEQCurve();
     }
 
     // Update active A/B slot on every parameter change
@@ -1077,24 +2044,12 @@ void VoxlineAudioProcessorEditor::handleAsyncUpdate()
 }
 
 // ---------------------------------------------------------------------------
-// Keyboard
-// ---------------------------------------------------------------------------
-bool VoxlineAudioProcessorEditor::keyPressed(const juce::KeyPress& key, juce::Component*)
-{
-    const auto k = key.getTextCharacter();
-
-    if (k == 't' || k == 'T') { cycleTheme(); return true; }
-
-    return false;
-}
-
-// ---------------------------------------------------------------------------
 // Theme
 // ---------------------------------------------------------------------------
-void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int index)
+void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme)
 {
-    currentThemeIndex = index;
-    const auto dark = (index != 0);
+    constexpr int index = 1;
+    constexpr bool dark = true;
 
     // Knobs
     inputGainSlider.setTheme(theme);
@@ -1114,7 +2069,21 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     spaceLpfKnob.setTheme(theme);
     eqFreqKnob.setTheme(theme);
     eqGainKnob.setTheme(theme);
+    eqQKnob.setTheme(theme);
+    compMixKnob.setTheme(theme);
+    deEssFreqKnob.setTheme(theme);
+    deEssThresholdKnob.setTheme(theme);
+    deEssRangeKnob.setTheme(theme);
+    driveToneKnob.setTheme(theme);
+    driveMixKnob.setTheme(theme);
+    spaceTimeKnob.setTheme(theme);
+    spacePreDelayKnob.setTheme(theme);
+    spaceWidthKnob.setTheme(theme);
+    spaceToneKnob.setTheme(theme);
+    spaceDecayKnob.setTheme(theme);
+    spaceDuckingKnob.setTheme(theme);
     outputGainSlider.setTheme(theme);
+    spaceSlider.setTheme(theme);
     lowCutKnob.setTheme(theme);
     cleanKnob.setTheme(theme);
     deEssKnob.setTheme(theme);
@@ -1161,9 +2130,17 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     listenButton.setThemeIndex(index);
 
     // === Bottom bar utility buttons ===
-    const auto inactiveBg = dark ? juce::Colour(0xff1e1b2a) : juce::Colour(0xfffaf7f2);
+    const auto inactiveBg = dark ? juce::Colour(0xff171818) : juce::Colour(0xfffaf7f2);
     abButton.setColour(juce::TextButton::buttonColourId, inactiveBg);
     abButton.setColour(juce::TextButton::textColourOffId, theme.textPrimary);
+    for (auto* button : { &presetPreviousButton, &presetNextButton, &favouriteButton,
+                          &savePresetButton, &eqResetButton, &eqRangeButton })
+    {
+        button->setColour(juce::TextButton::buttonColourId, inactiveBg);
+        button->setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff241714));
+        button->setColour(juce::TextButton::textColourOffId, theme.textSecondary);
+        button->setColour(juce::TextButton::textColourOnId, theme.accentRose);
+    }
 
     // Monitor buttons — same style but quieter
     auto styleMonitorBtn = [&](juce::TextButton& b) {
@@ -1173,6 +2150,8 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     styleMonitorBtn(monitorAbBtn);
     styleMonitorBtn(monitorListenBtn);
     styleMonitorBtn(monitorBypassBtn);
+    advancedButton.setColour(juce::TextButton::buttonColourId, inactiveBg);
+    advancedButton.setColour(juce::TextButton::textColourOffId, theme.textSecondary);
 
     // === SPACE ===
     VoxlineSpaceSliderLNF::spaceSliderTheme = index;
@@ -1182,42 +2161,37 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme, int inde
     VoxlinePresetDropdownLNF::currentDropdownTheme = index;
 
     // === Vocal EQ band buttons (single-theme PNGs, no theme update needed) ===
-    VoxlineAutoGainLNF::currentAutoGainTheme = index;
     presetDropdown.getProperties().set("themeIndex", index);
     presetDropdown.repaint();
+    deEssModeCombo.getProperties().set("themeIndex", index);
+    driveCharacterCombo.getProperties().set("themeIndex", index);
+    spaceTypeCombo.getProperties().set("themeIndex", index);
 
     // === Toggles ===
-    autoGainButton.setColour(juce::ToggleButton::textColourId, 
-        dark ? juce::Colour(0xff9d99a8) : juce::Colour(0xff666666));
+    autoGainButton.setThemeIndex(index);
     cleanModeButton.setColour(juce::ToggleButton::textColourId, theme.textSecondary);
     cleanModeButton.setColour(juce::ToggleButton::tickColourId, theme.accentLavender);
-    // listen / eqOn — VoxlineImageButton (theme-aware), already updated via setThemeIndex above
+    // eqOn is hidden until dedicated EQ artwork exists.
     eqOnButton.setThemeIndex(index);
 
     // === Meters ===
-    const auto meterWell = dark ? juce::Colour(0xff14121A) : juce::Colour(0xffD5CFC8);
+    const auto meterWell = dark ? juce::Colour(0xff111212) : juce::Colour(0xffD5CFC8);
     outputMeter.setColour(VoxlineLevelMeter::backgroundColour, meterWell);
     outputMeter.setColour(VoxlineLevelMeter::foregroundColour, theme.meterMid);
     gainReductionMeter.setColour(VoxlineLevelMeter::backgroundColour, meterWell);
     gainReductionMeter.setColour(VoxlineLevelMeter::foregroundColour, theme.meterLow);
 
     // === Icons ===
-    loadIconDrawables(dark);
+    loadIconDrawables();
+    updateAdvancedVisibility();
 
     repaint();
-}
-
-void VoxlineAudioProcessorEditor::cycleTheme()
-{
-    const auto nextIndex = (currentThemeIndex + 1) % 2;
-    applyTheme(VoxlineTheme::get(nextIndex), nextIndex);
-    DBG("VOXLINE theme: " << juce::String(nextIndex == 0 ? "Light" : "Dark"));
 }
 
 // ---------------------------------------------------------------------------
 // Icons
 // ---------------------------------------------------------------------------
-void VoxlineAudioProcessorEditor::loadIconDrawables(bool dark)
+void VoxlineAudioProcessorEditor::loadIconDrawables()
 {
     const auto parse = [](const char* data, int size) -> std::unique_ptr<juce::Drawable>
     {
@@ -1226,18 +2200,9 @@ void VoxlineAudioProcessorEditor::loadIconDrawables(bool dark)
         return xml ? juce::Drawable::createFromSVG(*xml) : nullptr;
     };
 
-    if (dark)
-    {
-        cachedBypassIcon  = parse(BinaryData::bypass_dark_svg,  BinaryData::bypass_dark_svgSize);
-        cachedListenIcon  = parse(BinaryData::listen_dark_svg,  BinaryData::listen_dark_svgSize);
-        cachedSettingsIcon = parse(BinaryData::settings_dark_svg, BinaryData::settings_dark_svgSize);
-    }
-    else
-    {
-        cachedBypassIcon  = parse(BinaryData::bypass_light_svg,  BinaryData::bypass_light_svgSize);
-        cachedListenIcon  = parse(BinaryData::listen_light_svg,  BinaryData::listen_light_svgSize);
-        cachedSettingsIcon = parse(BinaryData::settings_light_svg, BinaryData::settings_light_svgSize);
-    }
+    cachedBypassIcon = parse(BinaryData::bypass_dark_svg, BinaryData::bypass_dark_svgSize);
+    cachedListenIcon = parse(BinaryData::listen_dark_svg, BinaryData::listen_dark_svgSize);
+    cachedSettingsIcon.reset();
 }
 
 void VoxlineAudioProcessorEditor::paintIcons(juce::Graphics& g)
@@ -1298,6 +2263,7 @@ void VoxlineAudioProcessorEditor::timerCallback()
 
     outputMeter.setLevel(outPeak);
     gainReductionMeter.setLevel(gr);
+    updateSpectrum();
 
     // Update PEAK/RMS readout
     const auto outPeakDb = juce::Decibels::gainToDecibels(juce::jmax(outPeak, 0.00001f), -60.0f);
@@ -1306,12 +2272,157 @@ void VoxlineAudioProcessorEditor::timerCallback()
     repaint();
 }
 
+void VoxlineAudioProcessorEditor::updateSpectrum()
+{
+    audioProcessor.copyAnalyzerSamples(spectrumInput);
+    std::fill(spectrumFftData.begin(), spectrumFftData.end(), 0.0f);
+    std::copy(spectrumInput.begin(), spectrumInput.end(), spectrumFftData.begin());
+    spectrumWindow.multiplyWithWindowingTable(spectrumFftData.data(),
+                                               VoxlineAudioProcessor::analyzerFftSize);
+    spectrumFft.performFrequencyOnlyForwardTransform(spectrumFftData.data());
+
+    constexpr auto sampleRate = 48000.0f;
+    for (size_t i = 0; i < spectrumDisplay.size(); ++i)
+    {
+        const auto norm = static_cast<float>(i) / static_cast<float>(spectrumDisplay.size() - 1);
+        const auto frequency = 20.0f * std::pow(1000.0f, norm);
+        const auto bin = juce::jlimit(1, VoxlineAudioProcessor::analyzerFftSize / 2 - 1,
+            juce::roundToInt(frequency * VoxlineAudioProcessor::analyzerFftSize / sampleRate));
+        const auto magnitude = spectrumFftData[static_cast<size_t>(bin)]
+                             / static_cast<float>(VoxlineAudioProcessor::analyzerFftSize);
+        const auto db = juce::Decibels::gainToDecibels(magnitude, -72.0f);
+        spectrumDisplay[i] += (db - spectrumDisplay[i]) * (db > spectrumDisplay[i] ? 0.45f : 0.12f);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Preset system
 // ---------------------------------------------------------------------------
+void VoxlineAudioProcessorEditor::setAdvancedSection(AdvancedSection section)
+{
+    advancedSection = section;
+    updateAdvancedVisibility();
+    repaint();
+}
+
+void VoxlineAudioProcessorEditor::setAdvancedOpen(bool shouldOpen)
+{
+    advancedOpen = shouldOpen;
+    setSize(VoxlineLayout::editorWidth, advancedOpen ? 940 : VoxlineLayout::editorHeight);
+    updateAdvancedVisibility();
+    repaint();
+}
+
+void VoxlineAudioProcessorEditor::updateAdvancedVisibility()
+{
+    advancedButton.setButtonText(advancedOpen ? "ADVANCED  ^" : "ADVANCED  v");
+
+    for (auto* button : { &advancedEqButton, &advancedCompButton,
+                          &advancedDeEssButton, &advancedDriveButton, &advancedSpaceButton })
+        button->setVisible(advancedOpen);
+
+    const auto eq = advancedOpen && advancedSection == AdvancedSection::eq;
+    juce::Component* eqComponents[] = { &eqHpfButton, &eqLowButton, &eqMudButton,
+                                        &eqPresButton, &eqAirButton, &eqLpfButton,
+                                        &eqFreqKnob, &eqGainKnob, &eqQKnob, &eqOnButton,
+                                        &eqResetButton, &eqRangeButton };
+    for (auto* component : eqComponents)
+        component->setVisible(eq);
+
+    const auto comp = advancedOpen && advancedSection == AdvancedSection::comp;
+    juce::Component* compComponents[] = { &thresholdKnob, &ratioKnob,
+                                          &attackKnob, &releaseKnob, &compMixKnob };
+    for (auto* component : compComponents)
+        component->setVisible(comp);
+
+    const auto deEss = advancedOpen && advancedSection == AdvancedSection::deEss;
+    deEssFreqKnob.setVisible(deEss);
+    deEssThresholdKnob.setVisible(deEss);
+    deEssRangeKnob.setVisible(deEss);
+    deEssModeCombo.setVisible(deEss);
+
+    const auto drive = advancedOpen && advancedSection == AdvancedSection::drive;
+    driveToneKnob.setVisible(drive);
+    driveMixKnob.setVisible(drive);
+    driveCharacterCombo.setVisible(drive);
+
+    const auto space = advancedOpen && advancedSection == AdvancedSection::space;
+    for (auto* component : { static_cast<juce::Component*>(&spaceTimeKnob),
+                             static_cast<juce::Component*>(&spacePreDelayKnob),
+                             static_cast<juce::Component*>(&spaceWidthKnob),
+                             static_cast<juce::Component*>(&spaceToneKnob),
+                             static_cast<juce::Component*>(&spaceDecayKnob),
+                             static_cast<juce::Component*>(&spaceDuckingKnob),
+                             static_cast<juce::Component*>(&spaceTypeCombo) })
+        component->setVisible(space);
+
+    // Old V2 placeholders are intentionally removed from the fast interface.
+    juce::Component* retiredComponents[] = { &lowCutKnob, &cleanKnob, &deEssKnob,
+                                             &preDelayKnob, &spaceHpfKnob, &spaceLpfKnob,
+                                             &monitorAbBtn, &monitorListenBtn, &monitorBypassBtn,
+                                             &cleanModeButton };
+    for (auto* component : retiredComponents)
+        component->setVisible(false);
+
+    const auto& theme = VoxlineTheme::get(currentThemeIndex);
+    const auto inactive = currentThemeIndex != 0 ? juce::Colour(0xff171818) : juce::Colour(0xffEEE7DF);
+    const auto active = currentThemeIndex != 0 ? juce::Colour(0xff171818) : juce::Colour(0xffF3E7DF);
+    struct Nav { juce::TextButton* button; AdvancedSection section; };
+    const Nav nav[] = { {&advancedEqButton, AdvancedSection::eq},
+                        {&advancedCompButton, AdvancedSection::comp},
+                        {&advancedDeEssButton, AdvancedSection::deEss},
+                        {&advancedDriveButton, AdvancedSection::drive},
+                        {&advancedSpaceButton, AdvancedSection::space} };
+    for (const auto& item : nav)
+    {
+        item.button->setColour(juce::TextButton::buttonColourId,
+                               item.section == advancedSection ? active : inactive);
+        item.button->setColour(juce::TextButton::textColourOffId,
+                               item.section == advancedSection ? juce::Colour(0xffF06A3D) : theme.textSecondary);
+    }
+}
+
 void VoxlineAudioProcessorEditor::buttonClicked(juce::Button* button)
 {
+    if (button == &presetPreviousButton) { selectRelativePreset(-1); return; }
+    if (button == &presetNextButton) { selectRelativePreset(1); return; }
+    if (button == &favouriteButton)
+    {
+        presetIsFavourite = favouriteButton.getToggleState();
+        favouriteButton.setButtonText(presetIsFavourite ? "FAV*" : "FAV");
+        repaint();
+        return;
+    }
+    if (button == &savePresetButton) { saveUserPreset(); return; }
+    if (button == &advancedButton)
+    {
+        setAdvancedOpen(! advancedOpen);
+        return;
+    }
+    if (button == &advancedEqButton) { setAdvancedSection(AdvancedSection::eq); return; }
+    if (button == &advancedCompButton) { setAdvancedSection(AdvancedSection::comp); return; }
+    if (button == &advancedDeEssButton) { setAdvancedSection(AdvancedSection::deEss); return; }
+    if (button == &advancedDriveButton) { setAdvancedSection(AdvancedSection::drive); return; }
+    if (button == &advancedSpaceButton) { setAdvancedSection(AdvancedSection::space); return; }
     if (button == &abButton) { toggleAb(); return; }
+    if (button == &eqRangeButton)
+    {
+        eqShows24dB = ! eqShows24dB;
+        eqRangeButton.setButtonText(eqShows24dB ? "+/- 24 dB" : "+/- 12 dB");
+        repaint();
+        return;
+    }
+    if (button == &eqResetButton)
+    {
+        auto& apvts = audioProcessor.getAPVTS();
+        for (auto* id : { kEqFreqIDs[selectedEqBand], kEqGainIDs[selectedEqBand], kEqQIDs[selectedEqBand] })
+            if (id != nullptr)
+                if (auto* parameter = apvts.getParameter(id))
+                    parameter->setValueNotifyingHost(parameter->getDefaultValue());
+        syncEQKnobsToSelectedBand();
+        repaint();
+        return;
+    }
 
     // EQ band button selection — radio behavior
     VoxlineImageButton* bandBtns[] = { &eqHpfButton, &eqLowButton, &eqMudButton,
@@ -1333,13 +2444,67 @@ void VoxlineAudioProcessorEditor::buttonClicked(juce::Button* button)
 void VoxlineAudioProcessorEditor::comboBoxChanged(juce::ComboBox* comboBoxThatHasChanged)
 {
     if (comboBoxThatHasChanged == &presetDropdown)
-        applyPreset(presetDropdown.getText());
-    else if (comboBoxThatHasChanged == &spaceTypeCombo)
     {
-        const int t = spaceTypeCombo.getSelectedId() - 1;
-        if (auto* p = audioProcessor.getAPVTS().getParameter(VoxlineParameterIDs::spaceType))
-            p->setValueNotifyingHost((float)t / 2.0f);
+        if (presetDropdown.getSelectedId() == 100)
+            loadUserPreset();
+        else
+            applyPreset(presetDropdown.getText());
     }
+}
+
+void VoxlineAudioProcessorEditor::selectRelativePreset(int delta)
+{
+    auto id = presetDropdown.getSelectedId();
+    if (id < 1 || id > 9)
+        id = 1;
+    id = ((id - 1 + delta + 9) % 9) + 1;
+    presetDropdown.setSelectedId(id, juce::sendNotification);
+}
+
+void VoxlineAudioProcessorEditor::saveUserPreset()
+{
+    presetFileChooser = std::make_unique<juce::FileChooser>(
+        "Save VOXLINE preset", juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
+            .getChildFile(presetDropdown.getText().replaceCharacters(" /", "__") + ".vxpreset"),
+        "*.vxpreset");
+    presetFileChooser->launchAsync(juce::FileBrowserComponent::saveMode
+                                       | juce::FileBrowserComponent::canSelectFiles
+                                       | juce::FileBrowserComponent::warnAboutOverwriting,
+        [safe = juce::Component::SafePointer<VoxlineAudioProcessorEditor>(this)](const juce::FileChooser& chooser)
+        {
+            if (safe == nullptr)
+                return;
+            const auto file = chooser.getResult();
+            if (file == juce::File{})
+                return;
+            if (auto xml = safe->audioProcessor.getAPVTS().copyState().createXml())
+                xml->writeTo(file);
+        });
+}
+
+void VoxlineAudioProcessorEditor::loadUserPreset()
+{
+    presetFileChooser = std::make_unique<juce::FileChooser>(
+        "Load VOXLINE preset", juce::File::getSpecialLocation(juce::File::userDocumentsDirectory),
+        "*.vxpreset");
+    presetFileChooser->launchAsync(juce::FileBrowserComponent::openMode
+                                       | juce::FileBrowserComponent::canSelectFiles,
+        [safe = juce::Component::SafePointer<VoxlineAudioProcessorEditor>(this)](const juce::FileChooser& chooser)
+        {
+            if (safe == nullptr)
+                return;
+            const auto file = chooser.getResult();
+            if (file == juce::File{})
+                return;
+            if (auto xml = juce::XmlDocument::parse(file);
+                xml != nullptr && xml->hasTagName(safe->audioProcessor.getAPVTS().state.getType()))
+            {
+                safe->audioProcessor.getAPVTS().replaceState(juce::ValueTree::fromXml(*xml));
+                safe->presetDropdown.setText(file.getFileNameWithoutExtension(), juce::dontSendNotification);
+                safe->syncEQKnobsToSelectedBand();
+                safe->repaint();
+            }
+        });
 }
 
 void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
@@ -1357,40 +2522,8 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
     }
     if (idx < 0) return;
 
-    // Preset table: { inGain, autoGain, polish, body, clarity, air, smooth, comp, drive, outGain }
-    struct PresetDef { float in; bool ag; float pol, bd, cl, ar, sm, cp, dr, out; float spAmt; int spType; };
-    static const PresetDef presets[] = {
-        // name,            inG,  ag,  pol, bd,  cl,  ar,  sm,  cp,  dr,  out,     spAmt, spType
-        {  0.0f, true,  22,  50,  42,  30,  10,  18,   0,  0.0f,     0, 0 }, // Clean
-        { -1.0f, true,  58,  68,  54,  32,  20,  52,  34, -1.5f,    12, 1 }, // Basement Take
-        { -1.5f, true,  78,  62,  78,  48,  24,  76,  46, -2.0f,     8, 0 }, // Dirty Lead
-        { -1.0f, true,  68,  30,  64,  82,  66,  48,  10, -1.5f,    20, 2 }, // Cold Plug
-        { -2.0f, true,  86,  38,  90,  72,  22,  84,  56, -3.0f,    10, 2 }, // Rage Cut
-        { -1.5f, true,  72,  84,  52,  24,  28,  70,  48, -2.5f,     6, 1 }, // Muddy Trap
-        { -2.0f, true,  88,  24,  86,  94,  38,  78,  32, -3.0f,    25, 0 }, // Cyber Vox
-        { -1.0f, true,  60,  58,  44,  26,  70,  46,  18, -1.5f,    18, 1 }, // Noir Vocal
-        { -1.5f, true,  70,  72,  56,  36,  38,  66,  58, -2.5f,    12, 2 }, // Tape Rap
-    };
-    auto& p = presets[idx];
-
-    auto setParam = [&](const juce::String& id, float value) {
-        if (auto* param = apvts.getParameter(id))
-            param->setValueNotifyingHost(value);
-    };
-
-    setParam("cleanMode",  0.0f);
-    setParam("inputGain",  (p.in  + 24.0f) / 48.0f);
-    setParam("autoGain",   p.ag ? 1.0f : 0.0f);
-    setParam("polish",     p.pol / 100.0f);
-    setParam("body",       p.bd  / 100.0f);
-    setParam("clarity",    p.cl  / 100.0f);
-    setParam("air",        p.ar  / 100.0f);
-    setParam("smooth",     p.sm  / 100.0f);
-    setParam("comp",       p.cp  / 100.0f);
-    setParam("drive",      p.dr  / 100.0f);
-    setParam("outputGain", (p.out + 24.0f) / 48.0f);
-    setParam("spaceAmount", p.spAmt / 100.0f);
-    setParam("spaceType",   (float)p.spType / 3.0f);
+    juce::ignoreUnused(apvts);
+    audioProcessor.setCurrentProgram(idx);
 
     // Sync dropdown
     presetDropdown.setSelectedId(idx + 1, juce::dontSendNotification);
@@ -1400,50 +2533,14 @@ void VoxlineAudioProcessorEditor::applyPreset(const juce::String& name)
 
 void VoxlineAudioProcessorEditor::captureSnapshot(ParameterSnapshot& snap)
 {
-    auto& apvts = audioProcessor.getAPVTS();
-    auto val = [&](const juce::String& id) -> float {
-        if (auto* p = apvts.getParameter(id)) return p->getValue();
-        return 0.0f;
-    };
-    snap.inputGain  = val("inputGain");
-    snap.autoGain   = val("autoGain") >= 0.5f;
-    snap.polish     = val("polish");
-    snap.body       = val("body");
-    snap.clarity    = val("clarity");
-    snap.air        = val("air");
-    snap.smooth     = val("smooth");
-    snap.comp       = val("comp");
-    snap.drive      = val("drive");
-    snap.outputGain = val("outputGain");
-    snap.spaceAmount = val("spaceAmount");
-    snap.spaceType   = val("spaceType");
-    snap.cleanMode  = val("cleanMode") >= 0.5f;
-    snap.bypass     = val("bypass") >= 0.5f;
-    snap.listen     = val("listen") >= 0.5f;
+    snap.state = audioProcessor.getAPVTS().copyState().createCopy();
 }
 
 void VoxlineAudioProcessorEditor::applySnapshot(const ParameterSnapshot& snap)
 {
-    auto& apvts = audioProcessor.getAPVTS();
-    auto set = [&](const juce::String& id, float v) {
-        if (auto* p = apvts.getParameter(id))
-            p->setValueNotifyingHost(v);
-    };
-    set("inputGain",  snap.inputGain);
-    set("autoGain",   snap.autoGain ? 1.0f : 0.0f);
-    set("polish",     snap.polish);
-    set("body",       snap.body);
-    set("clarity",    snap.clarity);
-    set("air",        snap.air);
-    set("smooth",     snap.smooth);
-    set("comp",       snap.comp);
-    set("drive",      snap.drive);
-    set("outputGain", snap.outputGain);
-    set("spaceAmount", snap.spaceAmount);
-    set("spaceType",   snap.spaceType);
-    set("cleanMode",  snap.cleanMode ? 1.0f : 0.0f);
-    set("bypass",     snap.bypass ? 1.0f : 0.0f);
-    set("listen",     snap.listen ? 1.0f : 0.0f);
+    if (snap.state.isValid())
+        audioProcessor.getAPVTS().replaceState(snap.state.createCopy());
+    syncEQKnobsToSelectedBand();
 }
 
 void VoxlineAudioProcessorEditor::toggleAb()
@@ -1459,11 +2556,13 @@ void VoxlineAudioProcessorEditor::toggleAb()
     // Update button visual
     auto& t = VoxlineTheme::get(currentThemeIndex);
     abButton.setButtonText(isSlotAActive ? "A" : "B");
-    const auto activeBg = t.accentRose.withAlpha(0.22f);
+    const auto dark = currentThemeIndex != 0;
+    const auto activeBg = dark ? juce::Colour(0xff241714) : juce::Colour(0xffF2E8DC);
+    const auto activeText = dark ? juce::Colour(0xffFF8A4C) : juce::Colour(0xffB84E22);
     abButton.setColour(juce::TextButton::buttonColourId,
                        isSlotAActive ? activeBg : (t.editorBg.getBrightness() < 0.3f ? juce::Colour(0xff1e1b2a) : juce::Colour(0xfffaf7f2)));
     abButton.setColour(juce::TextButton::textColourOffId,
-                       isSlotAActive ? t.accentRose : t.textPrimary);
+                       isSlotAActive ? activeText : t.textPrimary);
 }
 
 // ---------------------------------------------------------------------------
@@ -1471,32 +2570,51 @@ void VoxlineAudioProcessorEditor::toggleAb()
 // ---------------------------------------------------------------------------
 void VoxlineAudioProcessorEditor::configureKnob(VoxlineCustomKnob& knob)           { addAndMakeVisible(knob); }
 void VoxlineAudioProcessorEditor::configureButton(juce::ToggleButton& b, const juce::String& t) { b.setButtonText(t); addAndMakeVisible(b); }
-void VoxlineAudioProcessorEditor::configureHeaderButton(juce::TextButton& b, const juce::String& t) { b.setButtonText(t); addAndMakeVisible(b); }
-void VoxlineAudioProcessorEditor::configurePresetButton(juce::TextButton& b, const juce::String& t, bool) { b.setButtonText(t); b.setEnabled(true); addAndMakeVisible(b); }
+void VoxlineAudioProcessorEditor::configureHeaderButton(juce::TextButton& b, const juce::String& t) { b.setButtonText(t); b.setLookAndFeel(&getButtonLookAndFeel()); addAndMakeVisible(b); }
+void VoxlineAudioProcessorEditor::configurePresetButton(juce::TextButton& b, const juce::String& t, bool) { b.setButtonText(t); b.setLookAndFeel(&getButtonLookAndFeel()); b.setEnabled(true); addAndMakeVisible(b); }
 void VoxlineAudioProcessorEditor::configureTextLabel(juce::Label& l, const juce::String& t, juce::Justification j) { l.setText(t, juce::dontSendNotification); l.setJustificationType(j); addAndMakeVisible(l); }
+
+void VoxlineAudioProcessorEditor::repaintEQCurve()
+{
+    const auto area = VoxlineLayout::eqPanel.expanded(2);
+    if (juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        repaint(area);
+        return;
+    }
+
+    juce::Component::SafePointer<VoxlineAudioProcessorEditor> safeThis(this);
+    juce::MessageManager::callAsync([safeThis, area]
+    {
+        if (safeThis != nullptr)
+            safeThis->repaint(area);
+    });
+}
 
 void VoxlineAudioProcessorEditor::sliderValueChanged(juce::Slider* slider)
 {
     auto& apvts = audioProcessor.getAPVTS();
-    if (slider == &eqFreqKnob || slider == &eqGainKnob)
+    if (slider == &eqFreqKnob || slider == &eqGainKnob || slider == &eqQKnob)
     {
         const int sel = selectedEqBand;
         const float val = (float)slider->getValue();
 
-        const char* freqIDs[] = { VoxlineParameterIDs::hpfFreq, VoxlineParameterIDs::lowFreq, VoxlineParameterIDs::mudFreq, VoxlineParameterIDs::presFreq, VoxlineParameterIDs::airFreq, VoxlineParameterIDs::lpfFreq };
-        const char* gainIDs[] = { VoxlineParameterIDs::hpfSlope, VoxlineParameterIDs::lowGain, VoxlineParameterIDs::mudGain, VoxlineParameterIDs::presGain, VoxlineParameterIDs::airGain, VoxlineParameterIDs::lpfSlope };
-
         if (slider == &eqFreqKnob)
         {
-            if (auto* p = apvts.getParameter(freqIDs[sel]))
+            if (auto* p = apvts.getParameter(kEqFreqIDs[sel]))
                 p->setValueNotifyingHost(p->convertTo0to1(val));
         }
-        else
+        else if (slider == &eqGainKnob)
         {
-            if (auto* p = apvts.getParameter(gainIDs[sel]))
+            if (auto* p = apvts.getParameter(kEqGainIDs[sel]))
                 p->setValueNotifyingHost(p->convertTo0to1(val));
         }
-        repaint();
+        else if (kEqQIDs[sel] != nullptr)
+        {
+            if (auto* p = apvts.getParameter(kEqQIDs[sel]))
+                p->setValueNotifyingHost(p->convertTo0to1(val));
+        }
+        repaintEQCurve();
     }
 }
 
@@ -1505,19 +2623,67 @@ void VoxlineAudioProcessorEditor::syncEQKnobsToSelectedBand()
     auto& apvts = audioProcessor.getAPVTS();
     const int sel = selectedEqBand;
 
-    const char* freqIDs[] = { VoxlineParameterIDs::hpfFreq, VoxlineParameterIDs::lowFreq, VoxlineParameterIDs::mudFreq, VoxlineParameterIDs::presFreq, VoxlineParameterIDs::airFreq, VoxlineParameterIDs::lpfFreq };
-    const char* gainIDs[] = { VoxlineParameterIDs::hpfSlope, VoxlineParameterIDs::lowGain, VoxlineParameterIDs::mudGain, VoxlineParameterIDs::presGain, VoxlineParameterIDs::airGain, VoxlineParameterIDs::lpfSlope };
-    const float freqDefaults[] = { 80.0f, 160.0f, 350.0f, 2500.0f, 10000.0f, 18000.0f };
-    const float gainDefaults[] = { 1.0f, 1.5f, -2.0f, 2.0f, 1.5f, 0.0f }; // hpfSlope=24(1), lpfSlope=12(0)
-
-    if (auto* p = apvts.getParameter(freqIDs[sel]))
+    if (auto* p = apvts.getParameter(kEqFreqIDs[sel]))
     {
-        eqFreqKnob.setRange(p->getNormalisableRange().start, p->getNormalisableRange().end, p->getNormalisableRange().interval);
-        eqFreqKnob.setValue(p->getValue(), juce::dontSendNotification);
+        const auto range = p->getNormalisableRange();
+        eqFreqKnob.setRange(range.start, range.end, range.interval);
+        eqFreqKnob.setSkewFactor(range.skew);
+        eqFreqKnob.textFromValueFunction = [](double value)
+        {
+            return value >= 1000.0 ? juce::String(value / 1000.0, value < 10000.0 ? 2 : 1) + " kHz"
+                                   : juce::String(value, 0) + " Hz";
+        };
+        eqFreqKnob.valueFromTextFunction = [](const juce::String& text)
+        {
+            auto cleaned = text.trim().toLowerCase();
+            const auto multiplier = cleaned.contains("k") ? 1000.0 : 1.0;
+            return cleaned.retainCharacters("0123456789.-").getDoubleValue() * multiplier;
+        };
+        eqFreqKnob.setValue(p->convertFrom0to1(p->getValue()), juce::dontSendNotification);
     }
-    if (auto* p = apvts.getParameter(gainIDs[sel]))
+    if (auto* p = apvts.getParameter(kEqGainIDs[sel]))
     {
+        if (sel == 0 || sel == 5)
+        {
+            eqGainKnob.textFromValueFunction = [](double index)
+            {
+                return juce::String(12 * (juce::roundToInt(index) + 1)) + " dB/oct";
+            };
+            eqGainKnob.valueFromTextFunction = [](const juce::String& text)
+            {
+                return juce::jmax(0.0, text.retainCharacters("0123456789").getDoubleValue() / 12.0 - 1.0);
+            };
+        }
+        else
+        {
+            eqGainKnob.textFromValueFunction = [](double value)
+            {
+                return (value > 0.0 ? "+" : "") + juce::String(value, 1) + " dB";
+            };
+            eqGainKnob.valueFromTextFunction = [](const juce::String& text)
+            {
+                return text.retainCharacters("0123456789.-").getDoubleValue();
+            };
+        }
         eqGainKnob.setRange(p->getNormalisableRange().start, p->getNormalisableRange().end, p->getNormalisableRange().interval);
-        eqGainKnob.setValue(p->getValue(), juce::dontSendNotification);
+        eqGainKnob.setValue(p->convertFrom0to1(p->getValue()), juce::dontSendNotification);
+    }
+    if (kEqQIDs[sel] != nullptr)
+    {
+        if (auto* p = apvts.getParameter(kEqQIDs[sel]))
+        {
+            eqQKnob.setRange(p->getNormalisableRange().start, p->getNormalisableRange().end,
+                             p->getNormalisableRange().interval);
+            eqQKnob.textFromValueFunction = [](double value) { return juce::String(value, 2); };
+            eqQKnob.valueFromTextFunction = [](const juce::String& text) { return text.getDoubleValue(); };
+            eqQKnob.setValue(p->convertFrom0to1(p->getValue()), juce::dontSendNotification);
+            eqQKnob.setEnabled(true);
+        }
+    }
+    else
+    {
+        eqQKnob.setRange(0.0, 1.0, 0.01);
+        eqQKnob.setValue(0.5, juce::dontSendNotification);
+        eqQKnob.setEnabled(false);
     }
 }

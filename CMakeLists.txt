@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(VOXLINE VERSION 0.1.0 LANGUAGES CXX)
+project(VOXLINE VERSION 1.0.0 LANGUAGES C CXX)
 
 include(FetchContent)
 include(CTest)
@@ -58,6 +58,10 @@ target_sources(VOXLINE
         Source/UI/ImageButton.cpp
         Source/UI/ImageButton.h
         Source/UI/Layout.h
+        Source/UI/LayoutLoader.cpp
+        Source/UI/LayoutLoader.h
+        Source/UI/SpriteKnob.cpp
+        Source/UI/SpriteKnob.h
         Source/UI/Theme.cpp
         Source/UI/Theme.h
         Source/UI/VoxlineMeter.cpp
@@ -81,6 +85,17 @@ juce_add_binary_data(VOXLINEAssets
         Source/UI/Assets/svg/soft_radial_glow_dark.svg
         Source/UI/Assets/svg/moon.svg
         Source/UI/Assets/svg/sun.svg
+        Source/UI/Assets/svg/ab_dark.svg
+        Source/UI/Assets/svg/ab_light.svg
+        Source/UI/Assets/svg/auto_gain_dark.svg
+        Source/UI/Assets/svg/auto_gain_light.svg
+        Source/UI/Assets/svg/chevron_down_dark.svg
+        Source/UI/Assets/svg/chevron_down_light.svg
+        Source/UI/Assets/svg/clean_sparkle_dark.svg
+        Source/UI/Assets/svg/clean_sparkle_light.svg
+        # Background PNGs
+        Source/UI/Assets/backgrounds/background_dark.png
+        Source/UI/Assets/backgrounds/background_light.png
         # Button PNGs — theme-aware (dark/light)
         Source/UI/Assets/buttons/bypass_normal_dark.png
         Source/UI/Assets/buttons/bypass_normal_light.png
@@ -107,6 +122,31 @@ juce_add_binary_data(VOXLINEAssets
         Source/UI/Assets/buttons/air_active.png
         Source/UI/Assets/buttons/lpf_normal.png
         Source/UI/Assets/buttons/lpf_active.png
+        # Knob face PNGs
+        Source/UI/Assets/buttons/knob_face_large_dark@2x.png
+        Source/UI/Assets/buttons/knob_face_large_light@2x.png
+        Source/UI/Assets/buttons/knob_face_medium_dark@2x.png
+        Source/UI/Assets/buttons/knob_face_medium_light@2x.png
+        Source/UI/Assets/buttons/knob_face_small_dark@2x.png
+        Source/UI/Assets/buttons/knob_face_small_light@2x.png
+        # Knob inside sprite strips (64 frames)
+        Source/UI/Assets/buttons/knob_face_large_inside_dark@2x.png
+        Source/UI/Assets/buttons/knob_face_large_inside_light@2x.png
+        Source/UI/Assets/buttons/knob_face_medium_inside_dark@2x.png
+        Source/UI/Assets/buttons/knob_face_medium_inside_light@2x.png
+        Source/UI/Assets/buttons/knob_face_small_inside_dark@2x.png
+        Source/UI/Assets/buttons/knob_face_small_inside_light@2x.png
+        # V2 knob PNGs
+        Source/UI/Assets/png/knob_hero_polish_dark.png
+        Source/UI/Assets/png/knob_hero_polish_light.png
+        Source/UI/Assets/png/knob_medium_body_dark.png
+        Source/UI/Assets/png/knob_medium_body_light.png
+        Source/UI/Assets/png/knob_medium_clarity_dark.png
+        Source/UI/Assets/png/knob_medium_clarity_light.png
+        Source/UI/Assets/png/knob_small_output_dark.png
+        Source/UI/Assets/png/knob_small_output_light.png
+        # Layout JSON
+        Source/UI/layout.json
 )
 
 juce_generate_juce_header(VOXLINE)
@@ -121,6 +161,7 @@ target_compile_definitions(VOXLINE
 target_link_libraries(VOXLINE
     PRIVATE
         juce::juce_audio_utils
+        juce::juce_dsp
         VOXLINEAssets
     PUBLIC
         juce::juce_recommended_config_flags
@@ -143,7 +184,13 @@ if(BUILD_TESTING)
             Source/UI/CustomKnob.h
             Source/UI/HeroKnob.cpp
             Source/UI/HeroKnob.h
+            Source/UI/ImageButton.cpp
+            Source/UI/ImageButton.h
             Source/UI/Layout.h
+            Source/UI/LayoutLoader.cpp
+            Source/UI/LayoutLoader.h
+            Source/UI/SpriteKnob.cpp
+            Source/UI/SpriteKnob.h
             Source/UI/Theme.cpp
             Source/UI/Theme.h
             Source/UI/VoxlineMeter.cpp
@@ -170,6 +217,7 @@ if(BUILD_TESTING)
         PRIVATE
             juce::juce_audio_utils
             juce::juce_audio_processors
+            juce::juce_dsp
             VOXLINEAssets
         PUBLIC
             juce::juce_recommended_config_flags
@@ -179,3 +227,34 @@ if(BUILD_TESTING)
 
     add_test(NAME VOXLINEPhase1Tests COMMAND VOXLINEPhase1Tests)
 endif()
+
+# ===========================================================================
+# CPack — cross-platform release packaging
+# ===========================================================================
+set(CPACK_PACKAGE_NAME "VOXLINE")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_VENDOR "ONETAKE")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Vocal channel strip audio plugin")
+set(CPACK_PACKAGE_FILE_NAME "VOXLINE-${PROJECT_VERSION}-${CMAKE_SYSTEM_NAME}")
+set(CPACK_COMPONENTS_ALL Plugins)
+set(CPACK_COMPONENTS_GROUPING ALL_COMPONENTS_IN_ONE)
+
+if(APPLE)
+    set(CPACK_GENERATOR "DragNDrop")
+    set(CPACK_DMG_VOLUME_NAME "VOXLINE")
+    set(CPACK_DMG_FORMAT "UDZO")
+
+    install(DIRECTORY ${CMAKE_BINARY_DIR}/VOXLINE_artefacts/Release/VST3/
+            DESTINATION "VST3"
+            COMPONENT Plugins)
+    install(DIRECTORY ${CMAKE_BINARY_DIR}/VOXLINE_artefacts/Release/AU/
+            DESTINATION "Components"
+            COMPONENT Plugins)
+elseif(WIN32)
+    set(CPACK_GENERATOR "ZIP")
+    install(DIRECTORY ${CMAKE_BINARY_DIR}/VOXLINE_artefacts/Release/VST3/
+            DESTINATION "VST3"
+            COMPONENT Plugins)
+endif()
+
+include(CPack)

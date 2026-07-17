@@ -41,12 +41,11 @@ struct VoxlineTheme
     juce::Colour shadowLight;
     juce::Colour shadowMedium;
 
-    // === Built-in themes ===
-    static const VoxlineTheme light;
+    // === Fixed product theme ===
     static const VoxlineTheme dark;
 
-    static const VoxlineTheme& get(int index)
+    static const VoxlineTheme& get(int)
     {
-        return (index % 2 == 0) ? light : dark;
+        return dark;
     }
 };

@@ -28,7 +28,7 @@ public:
                         const juce::Image& activeDark,
                         const juce::Image& activeLight);
 
-    /** Switch active theme pair (0 = dark, 1 = light). */
+    /** Switch active theme pair (0 = light, 1 = dark). */
     void setThemeIndex(int index);
 
     /** Resize the button to match image dimensions (call after setting images). */
@@ -38,9 +38,13 @@ public:
         When false (default), draw at original PNG size, centered. */
     void setScaleToFit(bool shouldScale)   { scaleToFit = shouldScale; }
 
+    /** Restrict hit testing to the visible button body while still painting full PNG padding. */
+    void setHitTestInsets(int left, int top, int right, int bottom);
+
     //==============================================================================
     void paintButton(juce::Graphics& g, bool shouldDrawButtonAsHighlighted,
                      bool shouldDrawButtonAsDown) override;
+    bool hitTest(int x, int y) override;
 
 private:
     //==============================================================================
@@ -55,6 +59,7 @@ private:
     int themeIndex = 0;
     bool isThemed = false;
     bool scaleToFit = false;
+    juce::BorderSize<int> hitTestInsets;
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(VoxlineImageButton)
