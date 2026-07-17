@@ -66,7 +66,7 @@ struct VoxlineToggleLookAndFeel final : juce::LookAndFeel_V4
     }
 };
 
-VoxlineToggleLookAndFeel& getToggleLookAndFeel()
+static VoxlineToggleLookAndFeel& getToggleLookAndFeel()
 {
     static VoxlineToggleLookAndFeel instance;
     return instance;
@@ -122,7 +122,7 @@ struct VoxlineButtonLookAndFeel final : juce::LookAndFeel_V4
     }
 };
 
-VoxlineButtonLookAndFeel& getButtonLookAndFeel()
+static VoxlineButtonLookAndFeel& getButtonLookAndFeel()
 {
     static VoxlineButtonLookAndFeel instance;
     return instance;
@@ -169,13 +169,12 @@ struct VoxlineSpaceSliderLNF final : juce::LookAndFeel_V4
 {
     void drawLinearSlider(juce::Graphics& g, int x, int y, int w, int h,
                           float sliderPos, float, float,
-                          const juce::Slider::SliderStyle, juce::Slider& slider) override
+                          const juce::Slider::SliderStyle, juce::Slider&) override
     {
         const auto b = juce::Rectangle<float>((float)x, (float)y, (float)w, (float)h);
         const auto trackY = b.getCentreY();
         const auto trackH = 2.5f;
         const auto thumbR = 6.0f;
-        const auto& t = VoxlineTheme::get(spaceSliderTheme);
         const auto dark = (spaceSliderTheme != 0);
 
         // Track background
@@ -255,7 +254,7 @@ struct VoxlinePresetDropdownLNF final : juce::LookAndFeel_V4
 
 int VoxlinePresetDropdownLNF::currentDropdownTheme = 0;
 
-VoxlinePresetDropdownLNF& getDropdownLookAndFeel()
+static VoxlinePresetDropdownLNF& getDropdownLookAndFeel()
 {
     static VoxlinePresetDropdownLNF instance;
     return instance;
@@ -1447,7 +1446,6 @@ void VoxlineAudioProcessorEditor::paintNewInterface(juce::Graphics& g)
     g.setFont(juce::FontOptions(9.0f, juce::Font::bold));
     g.drawText(status, statusBounds, juce::Justification::centred, false);
 
-    const auto outPeakDb = outputFrame.channels[0].peakDbfs;
     const auto outRmsDb = outputFrame.channels[0].rmsDbfs;
     caption("TRUE PEAK", {764, 145, 80, 16});
     value(juce::String(outputFrame.channels[0].truePeakDbtp, 1) + " dBTP", {755, 166, 112, 28}, 15.0f);
@@ -2144,10 +2142,6 @@ void VoxlineAudioProcessorEditor::parameterChanged(const juce::String& parameter
         pendingPolishValue.store(newValue);
         triggerAsyncUpdate();
     }
-    else if (parameterID == VoxlineParameterIDs::outputGain)
-    {
-        auto* param = audioProcessor.getAPVTS().getParameter(parameterID);
-    }
     else if (parameterID == VoxlineParameterIDs::spaceAmount)
     {
         auto* param = audioProcessor.getAPVTS().getParameter(parameterID);
@@ -2223,7 +2217,8 @@ void VoxlineAudioProcessorEditor::applyTheme(const VoxlineTheme& theme)
     subtitleLabel.setFont(juce::FontOptions(13.0f));
 
     // Panel titles — unified: 14px bold, subtle tracking, Text Primary
-    const auto titleFont = juce::Font(14.0f, juce::Font::bold).withExtraKerningFactor(0.06f);
+    const auto titleFont = juce::Font(juce::FontOptions(14.0f, juce::Font::bold))
+                               .withExtraKerningFactor(0.06f);
     inputTitleLabel.setFont(titleFont);
     toneTitleLabel.setFont(titleFont);
     polishTitleLabel.setFont(titleFont);
@@ -2337,13 +2332,7 @@ void VoxlineAudioProcessorEditor::loadIconDrawables()
 
 void VoxlineAudioProcessorEditor::paintIcons(juce::Graphics& g)
 {
-    const auto draw = [&](juce::Drawable* d, int x, int y, int w, int h)
-    {
-        if (d)
-            d->drawWithin(g, juce::Rectangle<float>((float)x, (float)y, (float)w, (float)h),
-                          juce::RectanglePlacement::centred, 1.0f);
-    };
-
+    juce::ignoreUnused(g);
 }
 
 // ---------------------------------------------------------------------------
@@ -2355,18 +2344,20 @@ void VoxlineAudioProcessorEditor::paintLedDots(juce::Graphics& g, juce::Rectangl
     const int numDots = 7;
     const float dotR = 3.5f;
     const float spacing = (float)bounds.getWidth() / (float)(numDots - 1);
-    const float cy = bounds.getCentreY();
+    const float cy = static_cast<float>(bounds.getCentreY());
 
     const int activeDots = juce::jlimit(0, numDots, juce::roundToInt(inputLedLevel * (float)numDots));
 
     for (int i = 0; i < numDots; ++i)
     {
-        const float cx = bounds.getX() + (float)i * spacing;
+        const float cx = static_cast<float>(bounds.getX()) + static_cast<float>(i) * spacing;
         if (i < activeDots)
         {
             // Gradient from green-ish (low) to accentLavender (high)
-            const auto t = (float)i / (float)(numDots - 1);
-            g.setColour(juce::Colour::fromFloatRGBA(0.55f + t * 0.13f, 0.72f + t * 0.11f, 0.55f + t * 0.45f, 1.0f));
+            const auto gradientAmount = static_cast<float>(i) / static_cast<float>(numDots - 1);
+            g.setColour(juce::Colour::fromFloatRGBA(0.55f + gradientAmount * 0.13f,
+                                                     0.72f + gradientAmount * 0.11f,
+                                                     0.55f + gradientAmount * 0.45f, 1.0f));
             g.fillEllipse(cx - dotR, cy - dotR, dotR * 2.0f, dotR * 2.0f);
         }
         else
@@ -2384,9 +2375,7 @@ void VoxlineAudioProcessorEditor::timerCallback()
 {
     auto& proc = audioProcessor;
     const auto inPeak = proc.inputPeak.load();
-    const auto inRms = proc.inputRms.load();
     const auto outPeak = proc.outputPeak.load();
-    const auto outRms = proc.outputRms.load();
     const auto gr = proc.gainReduction.load();
 
     inputLedLevel = inPeak;
@@ -2402,10 +2391,6 @@ void VoxlineAudioProcessorEditor::timerCallback()
         juce::dontSendNotification);
     deEssListenButton.setToggleState(monitorMode == VoxlineState::MonitorMode::deEssListenS,
                                      juce::dontSendNotification);
-
-    // Update PEAK/RMS readout
-    const auto outPeakDb = juce::Decibels::gainToDecibels(juce::jmax(outPeak, 0.00001f), -60.0f);
-    const auto outRmsDb = juce::Decibels::gainToDecibels(juce::jmax(outRms, 0.00001f), -60.0f);
 
     repaint();
 }
@@ -2764,7 +2749,7 @@ void VoxlineAudioProcessorEditor::showPresetNameDialog(bool rename, std::functio
                     return;
                 const auto name = safe->presetNameDialog->getTextEditorContents("name").trim();
                 const auto renameCurrent = safe->presetNameDialogRenamesCurrent;
-                auto completion = std::move(safe->presetNameDialogCompletion);
+                auto afterNameDialog = std::move(safe->presetNameDialogCompletion);
                 safe->presetNameDialog->setVisible(false);
                 safe->presetNameDialog.reset();
                 if (result == 1)
@@ -2774,11 +2759,11 @@ void VoxlineAudioProcessorEditor::showPresetNameDialog(bool rename, std::functio
                     safe->showResult(saveResult);
                     safe->refreshPresetMenu();
                     safe->repaint();
-                    if (completion)
-                        completion(saveResult.wasOk());
+                    if (afterNameDialog)
+                        afterNameDialog(saveResult.wasOk());
                 }
-                else if (completion)
-                    completion(false);
+                else if (afterNameDialog)
+                    afterNameDialog(false);
             }), false);
 }
 
