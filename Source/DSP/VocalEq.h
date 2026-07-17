@@ -14,6 +14,17 @@ enum class FilterSlope
     db48
 };
 
+enum class VocalEqBand
+{
+    none,
+    hpf,
+    low,
+    mud,
+    presence,
+    air,
+    lpf
+};
+
 struct EqBandSettings
 {
     bool enabled {};
@@ -47,6 +58,7 @@ public:
     void prepare(const ModuleSpec&);
     void reset() noexcept;
     void setTargetSettings(const VocalEqSettings&) noexcept;
+    void setSoloBand(VocalEqBand) noexcept;
     void process(juce::AudioBuffer<float>&) noexcept;
     float magnitudeAt(float frequencyHz) const noexcept;
 

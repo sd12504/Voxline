@@ -10,6 +10,7 @@ using namespace Voxline::Dsp;
 
 constexpr int maximumChannels = 2;
 constexpr int maximumSlopeStages = 4;
+constexpr int toneBandCount = 4;
 
 int slopeStages(FilterSlope slope) noexcept
 {
@@ -35,6 +36,29 @@ VocalEqSettings clampSettings(VocalEqSettings settings,
     settings.air = clampBand(settings.air, sampleRate);
     settings.lpf = clampBand(settings.lpf, sampleRate);
     return settings;
+}
+
+bool bandsEqual(const EqBandSettings& lhs,
+                const EqBandSettings& rhs) noexcept
+{
+    return lhs.enabled == rhs.enabled
+        && juce::exactlyEqual(lhs.frequencyHz, rhs.frequencyHz)
+        && juce::exactlyEqual(lhs.gainDb, rhs.gainDb)
+        && juce::exactlyEqual(lhs.q, rhs.q);
+}
+
+bool settingsEqual(const VocalEqSettings& lhs,
+                   const VocalEqSettings& rhs) noexcept
+{
+    return lhs.enabled == rhs.enabled
+        && bandsEqual(lhs.hpf, rhs.hpf)
+        && bandsEqual(lhs.low, rhs.low)
+        && bandsEqual(lhs.mud, rhs.mud)
+        && bandsEqual(lhs.presence, rhs.presence)
+        && bandsEqual(lhs.air, rhs.air)
+        && bandsEqual(lhs.lpf, rhs.lpf)
+        && lhs.hpfSlope == rhs.hpfSlope
+        && lhs.lpfSlope == rhs.lpfSlope;
 }
 
 juce::IIRCoefficients makeHighPass(double sampleRate,
@@ -75,6 +99,29 @@ juce::IIRCoefficients makeHighShelf(double sampleRate,
         juce::Decibels::decibelsToGain(band.gainDb));
 }
 
+juce::IIRCoefficients makeBandPass(double sampleRate,
+                                   const EqBandSettings& band) noexcept
+{
+    return juce::IIRCoefficients::makeBandPass(
+        sampleRate, band.frequencyHz, band.q);
+}
+
+size_t toneBandIndex(VocalEqBand band) noexcept
+{
+    switch (band)
+    {
+        case VocalEqBand::low: return 0;
+        case VocalEqBand::mud: return 1;
+        case VocalEqBand::presence: return 2;
+        case VocalEqBand::air: return 3;
+        case VocalEqBand::none:
+        case VocalEqBand::hpf:
+        case VocalEqBand::lpf:
+            break;
+    }
+    return 0;
+}
+
 float coefficientMagnitude(const juce::IIRCoefficients& coefficients,
                            double sampleRate,
                            float frequencyHz) noexcept
@@ -110,6 +157,11 @@ struct ChannelChain
     bool mudEnabled {};
     bool presenceEnabled {};
     bool airEnabled {};
+    std::array<juce::SingleThreadedIIRFilter, maximumSlopeStages> soloHpf;
+    std::array<juce::SingleThreadedIIRFilter, toneBandCount> soloTone;
+    std::array<juce::SingleThreadedIIRFilter, maximumSlopeStages> soloLpf;
+    int soloHpfStages {};
+    int soloLpfStages {};
 
     void reset() noexcept
     {
@@ -120,6 +172,22 @@ struct ChannelChain
         presence.reset();
         air.reset();
         for (auto& filter : lpf)
+            filter.reset();
+        for (auto& filter : soloHpf)
+            filter.reset();
+        for (auto& filter : soloTone)
+            filter.reset();
+        for (auto& filter : soloLpf)
+            filter.reset();
+    }
+
+    void resetSolo() noexcept
+    {
+        for (auto& filter : soloHpf)
+            filter.reset();
+        for (auto& filter : soloTone)
+            filter.reset();
+        for (auto& filter : soloLpf)
             filter.reset();
     }
 
@@ -138,6 +206,29 @@ struct ChannelChain
         for (auto stage = 0; stage < lpfStages; ++stage)
             sample = lpf[static_cast<size_t>(stage)].processSingleSampleRaw(sample);
         return sample;
+    }
+
+    float processSolo(VocalEqBand band, float sample) noexcept
+    {
+        if (band == VocalEqBand::hpf)
+        {
+            auto filtered = sample;
+            for (auto stage = 0; stage < soloHpfStages; ++stage)
+                filtered = soloHpf[static_cast<size_t>(stage)]
+                    .processSingleSampleRaw(filtered);
+            return sample - filtered;
+        }
+
+        if (band == VocalEqBand::lpf)
+        {
+            auto filtered = sample;
+            for (auto stage = 0; stage < soloLpfStages; ++stage)
+                filtered = soloLpf[static_cast<size_t>(stage)]
+                    .processSingleSampleRaw(filtered);
+            return sample - filtered;
+        }
+
+        return soloTone[toneBandIndex(band)].processSingleSampleRaw(sample);
     }
 };
 
@@ -184,6 +275,23 @@ void configureChain(ChannelChain& chain,
         configureFilter(chain.lpf[static_cast<size_t>(stage)],
                         settings.lpf.enabled && stage < lpfStageCount,
                         lpfCoefficients);
+
+    chain.soloHpfStages = hpfStageCount;
+    chain.soloLpfStages = lpfStageCount;
+    for (auto stage = 0; stage < maximumSlopeStages; ++stage)
+    {
+        configureFilter(chain.soloHpf[static_cast<size_t>(stage)], true,
+                        hpfCoefficients);
+        configureFilter(chain.soloLpf[static_cast<size_t>(stage)], true,
+                        lpfCoefficients);
+    }
+
+    const std::array toneBands {
+        settings.low, settings.mud, settings.presence, settings.air
+    };
+    for (size_t index = 0; index < toneBands.size(); ++index)
+        configureFilter(chain.soloTone[index], true,
+                        makeBandPass(sampleRate, toneBands[index]));
 }
 
 struct FilterBank
@@ -191,8 +299,11 @@ struct FilterBank
     VocalEqSettings settings;
     std::array<ChannelChain, maximumChannels> channels;
 
-    float process(int channel, float sample) noexcept
+    float process(int channel, float sample, VocalEqBand soloBand) noexcept
     {
+        if (soloBand != VocalEqBand::none)
+            return channels[static_cast<size_t>(channel)]
+                .processSolo(soloBand, sample);
         if (! settings.enabled)
             return sample;
         return channels[static_cast<size_t>(channel)].process(sample);
@@ -263,8 +374,20 @@ struct VocalEq::Impl
     int activeBank {};
     int targetBank {1};
     bool crossfading {};
+    bool hasPendingSettings {};
+    VocalEqBand soloBand {VocalEqBand::none};
     VocalEqSettings targetSettings;
+    VocalEqSettings pendingSettings;
     std::array<FilterBank, 2> banks;
+
+    void beginTransition(const VocalEqSettings& settings) noexcept
+    {
+        targetBank = 1 - activeBank;
+        configureBank(banks[static_cast<size_t>(targetBank)],
+                      settings, sampleRate);
+        crossfadePosition = 0;
+        crossfading = true;
+    }
 };
 
 VocalEq::VocalEq() = default;
@@ -283,6 +406,8 @@ void VocalEq::prepare(const ModuleSpec& spec)
     impl->activeBank = 0;
     impl->targetBank = 1;
     impl->crossfading = false;
+    impl->hasPendingSettings = false;
+    impl->soloBand = VocalEqBand::none;
     impl->targetSettings = clampSettings(VocalEqSettings{}, impl->sampleRate);
     configureBank(impl->banks[0], impl->targetSettings, impl->sampleRate);
     configureBank(impl->banks[1], impl->targetSettings, impl->sampleRate);
@@ -302,12 +427,33 @@ void VocalEq::setTargetSettings(const VocalEqSettings& settings) noexcept
     if (impl == nullptr)
         return;
 
-    impl->targetSettings = clampSettings(settings, impl->sampleRate);
-    impl->targetBank = 1 - impl->activeBank;
-    configureBank(impl->banks[static_cast<size_t>(impl->targetBank)],
-                  impl->targetSettings, impl->sampleRate);
-    impl->crossfadePosition = 0;
-    impl->crossfading = true;
+    const auto clamped = clampSettings(settings, impl->sampleRate);
+    if (settingsEqual(clamped, impl->targetSettings))
+        return;
+
+    impl->targetSettings = clamped;
+    if (impl->crossfading)
+    {
+        impl->pendingSettings = clamped;
+        impl->hasPendingSettings = true;
+        return;
+    }
+
+    if (! settingsEqual(
+            impl->banks[static_cast<size_t>(impl->activeBank)].settings,
+            clamped))
+        impl->beginTransition(clamped);
+}
+
+void VocalEq::setSoloBand(VocalEqBand band) noexcept
+{
+    if (impl == nullptr || impl->soloBand == band)
+        return;
+
+    impl->soloBand = band;
+    for (auto& bank : impl->banks)
+        for (auto& chain : bank.channels)
+            chain.resetSolo();
 }
 
 void VocalEq::process(juce::AudioBuffer<float>& buffer) noexcept
@@ -330,11 +476,13 @@ void VocalEq::process(juce::AudioBuffer<float>& buffer) noexcept
         {
             const auto input = buffer.getSample(channel, sample);
             const auto current = impl->banks[
-                static_cast<size_t>(impl->activeBank)].process(channel, input);
+                static_cast<size_t>(impl->activeBank)]
+                    .process(channel, input, impl->soloBand);
             if (impl->crossfading)
             {
                 const auto target = impl->banks[
-                    static_cast<size_t>(impl->targetBank)].process(channel, input);
+                    static_cast<size_t>(impl->targetBank)]
+                        .process(channel, input, impl->soloBand);
                 buffer.setSample(channel, sample,
                                  current + mix * (target - current));
             }
@@ -349,6 +497,15 @@ void VocalEq::process(juce::AudioBuffer<float>& buffer) noexcept
         {
             impl->activeBank = impl->targetBank;
             impl->crossfading = false;
+            if (impl->hasPendingSettings)
+            {
+                const auto pending = impl->pendingSettings;
+                impl->hasPendingSettings = false;
+                if (! settingsEqual(
+                        impl->banks[static_cast<size_t>(impl->activeBank)].settings,
+                        pending))
+                    impl->beginTransition(pending);
+            }
         }
     }
 }

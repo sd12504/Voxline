@@ -46,6 +46,12 @@ float responseDb(VocalEq& eq, float frequencyHz)
         eq.magnitudeAt(frequencyHz), -120.0f);
 }
 
+float tailRms(const juce::AudioBuffer<float>& buffer, int samplesToMeasure)
+{
+    const auto startSample = buffer.getNumSamples() - samplesToMeasure;
+    return buffer.getRMSLevel(0, startSample, samplesToMeasure);
+}
+
 class VocalEqTests final : public juce::UnitTest
 {
 public:
@@ -221,6 +227,105 @@ public:
             }
         }
 
+        beginTest("tone-band solo auditions content around the selected band");
+        {
+            struct SoloCase
+            {
+                VocalEqBand band;
+                float centreHz;
+                float distantHz;
+            };
+
+            constexpr std::array cases {
+                SoloCase{VocalEqBand::low, 200.0f, 5000.0f},
+                SoloCase{VocalEqBand::mud, 500.0f, 8000.0f},
+                SoloCase{VocalEqBand::presence, 3000.0f, 200.0f},
+                SoloCase{VocalEqBand::air, 10000.0f, 500.0f}
+            };
+
+            for (const auto& testCase : cases)
+            {
+                const auto auditionRms = [&](float inputFrequency)
+                {
+                    VocalEq eq;
+                    eq.prepare({48000.0, 512, 2});
+                    auto settings = flatSettings();
+                    EqBandSettings* band = nullptr;
+                    switch (testCase.band)
+                    {
+                        case VocalEqBand::low: band = &settings.low; break;
+                        case VocalEqBand::mud: band = &settings.mud; break;
+                        case VocalEqBand::presence: band = &settings.presence; break;
+                        case VocalEqBand::air: band = &settings.air; break;
+                        case VocalEqBand::none:
+                        case VocalEqBand::hpf:
+                        case VocalEqBand::lpf:
+                            break;
+                    }
+                    band->frequencyHz = testCase.centreHz;
+                    band->q = 2.0f;
+                    eq.setTargetSettings(settings);
+                    settleTransition(eq, 48000.0, 2);
+                    eq.setSoloBand(testCase.band);
+                    eq.reset();
+
+                    juce::AudioBuffer<float> buffer(2, 4096);
+                    fillSine(buffer, 48000.0, inputFrequency, 0.25f);
+                    eq.process(buffer);
+                    return tailRms(buffer, 2048);
+                };
+
+                expect(auditionRms(testCase.centreHz)
+                       > auditionRms(testCase.distantHz) * 4.0f);
+            }
+        }
+
+        beginTest("cut-band solo outputs dry minus the selected filtered signal");
+        {
+            for (const auto soloBand : {VocalEqBand::hpf, VocalEqBand::lpf})
+            {
+                auto settings = flatSettings();
+                if (soloBand == VocalEqBand::hpf)
+                {
+                    settings.hpf = {true, 1200.0f, 0.0f, 0.707f};
+                    settings.hpfSlope = FilterSlope::db24;
+                }
+                else
+                {
+                    settings.lpf = {true, 3500.0f, 0.0f, 0.707f};
+                    settings.lpfSlope = FilterSlope::db36;
+                }
+
+                VocalEq filteredEq;
+                VocalEq soloEq;
+                filteredEq.prepare({48000.0, 512, 2});
+                soloEq.prepare({48000.0, 512, 2});
+                filteredEq.setTargetSettings(settings);
+                soloEq.setTargetSettings(settings);
+                settleTransition(filteredEq, 48000.0, 2);
+                settleTransition(soloEq, 48000.0, 2);
+                filteredEq.reset();
+                soloEq.setSoloBand(soloBand);
+                soloEq.reset();
+
+                juce::AudioBuffer<float> dry(2, 2048);
+                fillSine(dry, 48000.0, 997.0f, 0.25f);
+                juce::AudioBuffer<float> filtered;
+                juce::AudioBuffer<float> solo;
+                filtered.makeCopyOf(dry);
+                solo.makeCopyOf(dry);
+                filteredEq.process(filtered);
+                soloEq.process(solo);
+
+                for (auto channel = 0; channel < dry.getNumChannels(); ++channel)
+                    for (auto sample = 0; sample < dry.getNumSamples(); ++sample)
+                        expectWithinAbsoluteError(
+                            filtered.getSample(channel, sample)
+                                + solo.getSample(channel, sample),
+                            dry.getSample(channel, sample), 2.0e-5f);
+            }
+        }
+
         beginTest("automation crossfade remains finite and bounded");
         {
             VocalEq eq;
@@ -255,6 +360,101 @@ public:
                                  - buffer.getSample(channel, sample - 1)));
             }
             expect(maximumDelta < 0.5f);
+        }
+
+        beginTest("identical setters converge for 64 512 and 2048 sample blocks");
+        {
+            std::array<float, 3> settledRms {};
+            constexpr std::array blockSizes {64, 512, 2048};
+
+            for (size_t blockIndex = 0; blockIndex < blockSizes.size(); ++blockIndex)
+            {
+                const auto blockSize = blockSizes[blockIndex];
+                VocalEq eq;
+                eq.prepare({48000.0, blockSize, 2});
+                auto initial = flatSettings();
+                eq.setTargetSettings(initial);
+                settleTransition(eq, 48000.0, 2);
+
+                auto target = initial;
+                target.presence = {true, 997.0f, 12.0f, 2.0f};
+
+                constexpr auto totalSamples = 8192;
+                juce::AudioBuffer<float> output(2, totalSamples);
+                auto processed = 0;
+                while (processed < totalSamples)
+                {
+                    const auto samplesThisBlock = juce::jmin(
+                        blockSize, totalSamples - processed);
+                    juce::AudioBuffer<float> block(2, samplesThisBlock);
+                    fillSine(block, 48000.0, 997.0f, 0.2f, processed);
+                    eq.setTargetSettings(target);
+                    eq.process(block);
+                    for (auto channel = 0; channel < block.getNumChannels(); ++channel)
+                        output.copyFrom(channel, processed, block, channel, 0,
+                                        samplesThisBlock);
+                    processed += samplesThisBlock;
+                }
+
+                settledRms[blockIndex] = tailRms(output, 4096);
+                const auto expectedRms = 0.2f
+                    * juce::Decibels::decibelsToGain(12.0f)
+                    / std::sqrt(2.0f);
+                expectWithinAbsoluteError(settledRms[blockIndex],
+                                          expectedRms, 0.015f);
+            }
+
+            const auto [minimum, maximum] = std::minmax_element(
+                settledRms.begin(), settledRms.end());
+            expect(*maximum - *minimum < 0.01f);
+        }
+
+        beginTest("mid-transition retarget stays continuous and converges to latest");
+        {
+            VocalEq eq;
+            eq.prepare({48000.0, 64, 2});
+            auto settings = flatSettings();
+            eq.setTargetSettings(settings);
+            settleTransition(eq, 48000.0, 2);
+            eq.reset();
+
+            settings.low = {true, 160.0f, 12.0f, 0.8f};
+            eq.setTargetSettings(settings);
+            juce::AudioBuffer<float> leadIn(2, 240);
+            for (auto channel = 0; channel < leadIn.getNumChannels(); ++channel)
+                for (auto sample = 0; sample < leadIn.getNumSamples(); ++sample)
+                    leadIn.setSample(channel, sample, 0.1f);
+            eq.process(leadIn);
+
+            auto previous = leadIn.getSample(0, leadIn.getNumSamples() - 1);
+            auto maximumBoundaryDelta = 0.0f;
+            constexpr std::array automatedGains {
+                6.0f, 3.0f, 0.0f, -3.0f, 0.0f, 3.0f, 6.0f, 6.0f
+            };
+            for (const auto gainDb : automatedGains)
+            {
+                settings.low.gainDb = gainDb;
+                eq.setTargetSettings(settings);
+                juce::AudioBuffer<float> block(2, 64);
+                for (auto channel = 0; channel < block.getNumChannels(); ++channel)
+                    for (auto sample = 0; sample < block.getNumSamples(); ++sample)
+                        block.setSample(channel, sample, 0.1f);
+                eq.process(block);
+                maximumBoundaryDelta = juce::jmax(
+                    maximumBoundaryDelta,
+                    std::abs(block.getSample(0, 0) - previous));
+                previous = block.getSample(0, block.getNumSamples() - 1);
+            }
+            expect(maximumBoundaryDelta < 0.02f);
+
+            juce::AudioBuffer<float> settle(2, 2048);
+            for (auto channel = 0; channel < settle.getNumChannels(); ++channel)
+                for (auto sample = 0; sample < settle.getNumSamples(); ++sample)
+                    settle.setSample(channel, sample, 0.1f);
+            eq.process(settle);
+            expectWithinAbsoluteError(
+                settle.getRMSLevel(0, settle.getNumSamples() - 256, 256),
+                0.1f * juce::Decibels::decibelsToGain(6.0f), 0.01f);
         }
     }
 };
