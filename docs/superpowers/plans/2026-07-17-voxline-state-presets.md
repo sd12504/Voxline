@@ -13,7 +13,8 @@
 - BODY／PRESENCE／AIR 與 Advanced LOW／PRES／AIR 共用 `body`／`clarity`／`air` Host IDs。
 - LOW、MUD、PRES、AIR gain 為 −12.0…+12.0 dB，step 0.1，default 0。
 - 舊 v2 的 −6…+6 dB 值載入 v3 時保持相同 dB，不因 range 擴大而倍增。
-- `autoGain`、`cleanMode`、全域 `listen`、`mudAmount`、`lowGain`、`presGain`、`airGain` 是 retired tombstones：舊 state 可讀，新 DSP 不讀，新 UI/Preset/A/B 不保存。
+- `autoGain`、`cleanMode`、全域 `listen`、`mudAmount`、`lowGain`、`presGain`、`airGain`、`compThreshold`、legacy `spaceType`、legacy `spaceTime` 是 retired tombstones：舊 state 可讀，新 UI/Preset/A/B 不保存。
+- Legacy `spaceType` 與 `spaceTime` 必須完整保留既有 descriptor；新版使用 appended `spaceMode` Choice 與 `spaceSlapTime`（40–250 ms/default 120 ms）。v1/v2 Host Session 透過保存的 compatibility bridge 把 legacy 0/1/2 映射為 Room/Slap/Width，並在 Slap 模式把 legacy time clamp 到新版合法範圍；新建/v3 Session 只讀新版 IDs。
 - Band Solo 與 Listen S 是 transient monitor state，不是 APVTS parameter，不可保存或自動化。
 - 不提供 factory presets；Host program API 合法地保留一個無行為的 `Default` program。
 - User Preset 只保存聲音參數，不保存 A/B、Bypass、monitor、meter、clip hold、Advanced 開關或 UI 狀態。
@@ -64,7 +65,8 @@ Tests assert:
   - `compSensitivity`, `compMakeup`, `compAutoMakeup`.
   - `driveOutputTrim`, `driveLevelMatch`.
   - `spaceSize`, `spaceFeedback`, `spaceMonoSafety`.
-- `spaceType` choices are Room／Plate／Hall／Slap／Width.
+- `spaceMode` choices are Room／Plate／Hall／Slap／Width; legacy `spaceType` descriptor is frozen.
+- `spaceSlapTime` range is 40–250 ms, default 120 ms; legacy `spaceTime` descriptor is frozen.
 - Retired IDs are tagged retired and excluded by `copyRegisteredSoundState()`.
 - Bypass is utility, excluded from User Preset and A/B.
 
@@ -91,6 +93,8 @@ inline constexpr auto driveLevelMatch = "driveLevelMatch";
 inline constexpr auto spaceSize = "spaceSize";
 inline constexpr auto spaceFeedback = "spaceFeedback";
 inline constexpr auto spaceMonoSafety = "spaceMonoSafety";
+inline constexpr auto spaceMode = "spaceMode";
+inline constexpr auto spaceSlapTime = "spaceSlapTime";
 ```
 
 - [ ] **Step 4: Implement registry**
@@ -99,7 +103,7 @@ Registry rules:
 
 - Every audible active parameter: `sound, true, true`.
 - `bypass`: `utility, false, false`.
-- `autoGain`, `cleanMode`, `listen`, `mudAmount`, `lowGain`, `presGain`, `airGain`: `retired, false, false`.
+- `autoGain`, `cleanMode`, `listen`, `mudAmount`, `lowGain`, `presGain`, `airGain`, `compThreshold`, legacy `spaceType`, legacy `spaceTime`: `retired, false, false`.
 - Tombstones stay at their legacy ParameterLayout positions for Host/index compatibility and are never consumed by DSP/UI；new v3 parameter IDs are appended after every legacy ID.
 
 - [ ] **Step 5: Update ParameterLayout**
@@ -109,7 +113,7 @@ Exact defaults:
 - HPF/MUD/LPF enabled false; LOW/PRES/AIR true.
 - Comp Sensitivity 0%, Makeup 0 dB, Auto Makeup true.
 - Drive Output Trim 0 dB, Level Match true.
-- Space Type Plate; Size 62%; Feedback 20%; Mono Safety true.
+- Legacy `spaceType` and `spaceTime` remain descriptor-identical. Appended `spaceMode` defaults to Plate; `spaceSlapTime` defaults to 120 ms; Size 62%; Feedback 20%; Mono Safety true.
 - `body`/`clarity`/`air`/`mudGain`: −12…+12 dB, 0.1 step, 0 default.
 - Retired tombstones use their legacy types/ranges/defaults so old Host state can bind, but registry excludes them.
 
@@ -158,6 +162,9 @@ juce::ValueTree migrateV2ToV3(juce::ValueTree);
 - Duplicate-only: active value at its default and changed duplicate uses duplicate value, clamped to ±12.
 - Both active and duplicate changed: active value wins.
 - v3 values remain unchanged.
+- v1/v2 legacy `spaceType` 0/1/2 maps to v3 `spaceMode` Room/Slap/Width and enables the Host-session compatibility bridge.
+- v1/v2 legacy `spaceTime` maps to `spaceSlapTime` with clamping to 40–250 ms when legacy mode is Slap.
+- v3 `spaceMode` wins over legacy `spaceType`; new v3 sessions leave the bridge disabled.
 - Unknown v3 fields are ignored when applying APVTS but parsing succeeds.
 - Future schema >3 and corrupt/wrong-root return `nullopt` and leave live state unchanged.
 - Migrated result contains no saved retired values.

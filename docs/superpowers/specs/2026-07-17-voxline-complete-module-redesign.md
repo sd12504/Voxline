@@ -333,6 +333,9 @@ Width：
   - 舊 Session 可載入。
   - 不出現在新 UI。
   - 不再影響聲音。
+- 舊版三段式 `spaceType` Host descriptor（Int 0–2）與舊 `spaceTime` descriptor 保持原 index、型別、range 與 default；新版五模式使用追加的 `spaceMode` Choice，Slap Time 使用追加的 `spaceSlapTime`（40–250 ms，default 120 ms）。
+- 載入 v1／v2 Session 時啟用 legacy Space automation bridge，把舊 `spaceType` 0／1／2 映射為 Room／Slap／Width；新建或 v3 Session 只由 `spaceMode` 控制。
+- User Preset／A/B 只保存 `spaceMode`、`spaceSlapTime` 與其他新版聲音參數，不保存 legacy `spaceType`／`spaceTime` 或 bridge 狀態；Host Session 保存 schema 與 bridge 狀態以維持舊 automation。
 - 重複 EQ 參數需遷移到實際使用的 Body／Presence／Air 參數。
 - 狀態載入必須檢查版本，對缺少的新參數套用安全預設。
 - User Preset 使用版本化狀態格式，未知欄位可忽略，避免未來版本無法載入。
