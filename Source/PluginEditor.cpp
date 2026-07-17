@@ -348,6 +348,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
 
     configurePresetButton(abButton, "A/B");
     abButton.setLookAndFeel(&getButtonLookAndFeel());
+    abButton.setButtonText("A");
 
     abButton.addListener(this);
 
@@ -1492,11 +1493,22 @@ void VoxlineAudioProcessorEditor::paintNewInterface(juce::Graphics& g)
     }
 
     const auto deEssReduction = audioProcessor.deEssReduction.load();
-    caption(deEssReduction > 0.5f ? "S ACTIVE" : "FOCUS", {486, 478, 94, 15});
-    value(juce::String(deEssReduction, 1) + " dB", {486, 492, 94, 16}, 10.5f);
+    caption("FOCUS " + parameterText(VoxlineParameterIDs::deEssFreq), {486, 478, 94, 15});
+    value((deEssReduction > 0.5f ? "S ACTIVE " : "") + juce::String(deEssReduction, 1) + " dB GR", {486, 492, 94, 16}, 9.5f);
     const auto compAmount = audioProcessor.getAPVTS().getRawParameterValue(VoxlineParameterIDs::comp)->load();
     caption(compAmount < 34.0f ? "LIGHT" : (compAmount < 73.0f ? "CONTROLLED" : "FIRM"), {634, 478, 94, 15});
     value(juce::String(audioProcessor.getGainReductionDb(), 1) + " dB GR", {634, 492, 94, 16}, 10.5f);
+    const auto reductionBar = [&](int x, float reduction, juce::Colour colour)
+    {
+        const auto area = juce::Rectangle<int>{x, 466, 94, 3};
+        g.setColour(recessed);
+        g.fillRoundedRectangle(area.toFloat(), 1.5f);
+        g.setColour(colour);
+        g.fillRoundedRectangle(area.withWidth(juce::roundToInt(area.getWidth()
+            * juce::jlimit(0.0f, 1.0f, reduction / 12.0f))).toFloat(), 1.5f);
+    };
+    reductionBar(486, deEssReduction, juce::Colour(0xffD96A3D));
+    reductionBar(634, audioProcessor.getGainReductionDb(), juce::Colour(0xffA58AEF));
     const auto driveAmount = audioProcessor.getAPVTS().getRawParameterValue(VoxlineParameterIDs::drive)->load();
     caption(driveAmount < 1.0f ? "NEUTRAL" : (driveAmount <= 40.0f ? "WARM" : (driveAmount <= 75.0f ? "GRIT" : "EDGE")), {782, 478, 94, 15});
     value(juce::String(driveAmount, 0) + "%", {782, 492, 94, 16}, 10.5f);
@@ -1598,12 +1610,16 @@ void VoxlineAudioProcessorEditor::paintNewInterface(juce::Graphics& g)
         const auto responseDb = [&](double hz)
         {
             auto magnitude = 1.0;
+            if (raw(VoxlineParameterIDs::eqEnabled, 1.0f) < 0.5f)
+                return 0.0;
             const auto hpf = juce::IIRCoefficients::makeHighPass(sampleRate, raw(VoxlineParameterIDs::hpfFreq, 80.0f));
             const auto lpf = juce::IIRCoefficients::makeLowPass(sampleRate, raw(VoxlineParameterIDs::lpfFreq, 18000.0f));
-            for (int i = 0; i <= juce::roundToInt(raw(VoxlineParameterIDs::hpfSlope, 1.0f)); ++i)
-                magnitude *= filterMagnitude(hpf, hz);
-            for (int i = 0; i <= juce::roundToInt(raw(VoxlineParameterIDs::lpfSlope, 0.0f)); ++i)
-                magnitude *= filterMagnitude(lpf, hz);
+            if (raw(VoxlineParameterIDs::hpfEnabled, 0.0f) >= 0.5f)
+                for (int i = 0; i <= juce::roundToInt(raw(VoxlineParameterIDs::hpfSlope, 1.0f)); ++i)
+                    magnitude *= filterMagnitude(hpf, hz);
+            if (raw(VoxlineParameterIDs::lpfEnabled, 0.0f) >= 0.5f)
+                for (int i = 0; i <= juce::roundToInt(raw(VoxlineParameterIDs::lpfSlope, 0.0f)); ++i)
+                    magnitude *= filterMagnitude(lpf, hz);
             const auto filters = std::array<juce::IIRCoefficients, 4> {
                 juce::IIRCoefficients::makePeakFilter(sampleRate, raw(VoxlineParameterIDs::lowFreq, 160.0f),
                     raw(VoxlineParameterIDs::lowQ, 0.8f), juce::Decibels::decibelsToGain(raw(VoxlineParameterIDs::body, 0.0f))),
@@ -1614,8 +1630,15 @@ void VoxlineAudioProcessorEditor::paintNewInterface(juce::Graphics& g)
                 juce::IIRCoefficients::makeHighShelf(sampleRate, raw(VoxlineParameterIDs::airFreq, 10000.0f),
                     raw(VoxlineParameterIDs::airQ, 0.7f), juce::Decibels::decibelsToGain(raw(VoxlineParameterIDs::air, 0.0f)))
             };
-            for (const auto& filter : filters)
-                magnitude *= filterMagnitude(filter, hz);
+            const bool enabled[] = {
+                raw(VoxlineParameterIDs::lowEnabled, 1.0f) >= 0.5f,
+                raw(VoxlineParameterIDs::mudEnabled, 0.0f) >= 0.5f,
+                raw(VoxlineParameterIDs::presEnabled, 1.0f) >= 0.5f,
+                raw(VoxlineParameterIDs::airEnabled, 1.0f) >= 0.5f
+            };
+            for (size_t index = 0; index < filters.size(); ++index)
+                if (enabled[index])
+                    magnitude *= filterMagnitude(filters[index], hz);
             return juce::Decibels::gainToDecibels(magnitude, -60.0);
         };
 
