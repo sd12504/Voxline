@@ -237,6 +237,49 @@ std::vector<float> renderAutomation(int runtimeBlockSize)
     return output;
 }
 
+std::vector<float> renderDynamicLevelMatch(int runtimeBlockSize)
+{
+    constexpr int totalSamples = 24576;
+    Voxline::Dsp::VocalDrive drive;
+    drive.prepare({sampleRate, 2048, 1});
+    drive.setTargetSettings({0.88f, Voxline::Dsp::DriveCharacter::warm,
+                             0.2f, 1.0f, 0.0f, true});
+    drive.reset();
+
+    std::vector<float> output(static_cast<size_t>(totalSamples));
+    juce::AudioBuffer<float> block(1, runtimeBlockSize);
+
+    for (int offset = 0; offset < totalSamples; offset += runtimeBlockSize)
+    {
+        const auto samplesThisBlock =
+            juce::jmin(runtimeBlockSize, totalSamples - offset);
+        block.setSize(1, samplesThisBlock, false, false, true);
+
+        for (int sample = 0; sample < samplesThisBlock; ++sample)
+        {
+            const auto absoluteSample = offset + sample;
+            const auto amplitude =
+                absoluteSample < 3333 ? 0.025f
+              : absoluteSample < 7777 ? 0.24f
+              : absoluteSample < 12013 ? 0.055f
+              : absoluteSample < 16789 ? 0.31f
+                                       : 0.11f;
+            const auto phase =
+                juce::MathConstants<double>::twoPi * 731.0
+                * static_cast<double>(absoluteSample) / sampleRate;
+            block.setSample(0, sample,
+                            amplitude * static_cast<float>(std::sin(phase)));
+        }
+
+        drive.process(block);
+        for (int sample = 0; sample < samplesThisBlock; ++sample)
+            output[static_cast<size_t>(offset + sample)] =
+                block.getSample(0, sample);
+    }
+
+    return output;
+}
+
 class VocalDriveTests final : public juce::UnitTest
 {
 public:
@@ -313,6 +356,65 @@ public:
                         ratios[left][1] - ratios[right][1]);
                     expect(distance > 2.0f,
                            "Character harmonic fingerprints must be measurably distinct");
+                }
+        }
+
+        beginTest("All characters preserve digital silence at every amount");
+        {
+            const std::array characters {
+                Voxline::Dsp::DriveCharacter::clean,
+                Voxline::Dsp::DriveCharacter::warm,
+                Voxline::Dsp::DriveCharacter::edge
+            };
+            const std::array amounts {
+                0.0f, 0.01f, 0.25f, 0.5f, 0.75f, 1.0f
+            };
+
+            for (const auto character : characters)
+                for (const auto amount : amounts)
+                {
+                    Voxline::Dsp::VocalDrive drive;
+                    drive.prepare({sampleRate, blockSize, 2});
+                    drive.setTargetSettings({amount, character, 0.0f,
+                                             1.0f, 0.0f, false});
+                    drive.reset();
+
+                    juce::AudioBuffer<float> silence(2, blockSize);
+                    float maximumMagnitude {};
+                    double mean {};
+                    int sampleCount {};
+
+                    for (int blockIndex = 0; blockIndex < 32; ++blockIndex)
+                    {
+                        silence.clear();
+                        drive.process(silence);
+
+                        for (int channel = 0; channel < silence.getNumChannels();
+                             ++channel)
+                            for (int sample = 0;
+                                 sample < silence.getNumSamples();
+                                 ++sample)
+                            {
+                                const auto value =
+                                    silence.getSample(channel, sample);
+                                expect(std::isfinite(value));
+                                maximumMagnitude =
+                                    juce::jmax(maximumMagnitude,
+                                               std::abs(value));
+                                mean += value;
+                                ++sampleCount;
+                            }
+                    }
+
+                    const auto dc =
+                        static_cast<float>(mean
+                            / static_cast<double>(juce::jmax(1, sampleCount)));
+                    const auto context =
+                        "character="
+                        + juce::String(static_cast<int>(character))
+                        + " amount=" + juce::String(amount, 2);
+                    expect(maximumMagnitude <= 1.0e-7f, context);
+                    expect(std::abs(dc) <= 1.0e-7f, context);
                 }
         }
 
@@ -507,6 +609,26 @@ public:
                                           blocks2048[sample],
                                           1.0e-5f);
             }
+        }
+
+        beginTest("Dynamic Level Match is invariant to block partitioning");
+        {
+            const auto blocks64 = renderDynamicLevelMatch(64);
+            const auto blocks512 = renderDynamicLevelMatch(512);
+            const auto blocks2048 = renderDynamicLevelMatch(2048);
+            float maximumDifference {};
+
+            for (size_t sample = 0; sample < blocks64.size(); ++sample)
+            {
+                maximumDifference = juce::jmax(
+                    maximumDifference,
+                    std::abs(blocks64[sample] - blocks512[sample]),
+                    std::abs(blocks64[sample] - blocks2048[sample]));
+            }
+
+            expect(maximumDifference <= 1.0e-5f,
+                   "maximum difference="
+                       + juce::String(maximumDifference, 8));
         }
 
         beginTest("Level Match toggle begins from the current compensated output");

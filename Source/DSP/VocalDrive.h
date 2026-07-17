@@ -55,6 +55,8 @@ private:
     float currentTone {};
     float currentMix {0.7f};
     float currentTrimDb {};
+    float currentDryEnergy {};
+    float currentWetEnergy {};
     float currentMatchGain {1.0f};
     float targetMatchGain {1.0f};
     float currentLevelMatchWeight {1.0f};

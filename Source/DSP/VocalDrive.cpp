@@ -75,6 +75,8 @@ void VocalDrive::reset() noexcept
     currentTone = targetSettings.tone;
     currentMix = targetSettings.mix;
     currentTrimDb = targetSettings.outputTrimDb;
+    currentDryEnergy = 0.0f;
+    currentWetEnergy = 0.0f;
     currentMatchGain = 1.0f;
     targetMatchGain = 1.0f;
     currentLevelMatchWeight = targetSettings.levelMatch ? 1.0f : 0.0f;
@@ -115,7 +117,6 @@ void VocalDrive::process(juce::AudioBuffer<float>& audio) noexcept
                                     moduleSpec.maximumBlockSize);
     const auto delayCapacity =
         static_cast<int>(dryDelay.front().size());
-    auto inputEnergy = 0.0;
 
     for (int sample = 0; sample < samples; ++sample)
     {
@@ -126,7 +127,6 @@ void VocalDrive::process(juce::AudioBuffer<float>& audio) noexcept
         for (int channel = 0; channel < channels; ++channel)
         {
             const auto input = audio.getSample(channel, sample);
-            inputEnergy += static_cast<double>(input) * input;
             delayedDry.setSample(
                 channel,
                 sample,
@@ -189,28 +189,39 @@ void VocalDrive::process(juce::AudioBuffer<float>& audio) noexcept
 
     oversampling->processSamplesDown(audioBlock);
 
-    auto wetEnergy = 0.0;
-    for (int channel = 0; channel < channels; ++channel)
-        for (int sample = 0; sample < samples; ++sample)
-        {
-            const auto wet = audio.getSample(channel, sample);
-            wetEnergy += static_cast<double>(wet) * wet;
-        }
-
-    if (inputEnergy > 1.0e-12 && wetEnergy > 1.0e-12)
-    {
-        targetMatchGain = juce::jlimit(
-            0.03f,
-            4.0f,
-            static_cast<float>(std::sqrt(inputEnergy / wetEnergy)));
-    }
-    else
-    {
-        targetMatchGain = 1.0f;
-    }
-
     for (int sample = 0; sample < samples; ++sample)
     {
+        auto dryEnergy = 0.0f;
+        auto wetEnergy = 0.0f;
+        for (int channel = 0; channel < channels; ++channel)
+        {
+            const auto dry = delayedDry.getSample(channel, sample);
+            const auto wet = audio.getSample(channel, sample);
+            dryEnergy += dry * dry;
+            wetEnergy += wet * wet;
+        }
+
+        const auto channelScale = 1.0f / static_cast<float>(channels);
+        dryEnergy *= channelScale;
+        wetEnergy *= channelScale;
+        currentDryEnergy =
+            dryEnergy + matchCoefficient * (currentDryEnergy - dryEnergy);
+        currentWetEnergy =
+            wetEnergy + matchCoefficient * (currentWetEnergy - wetEnergy);
+
+        if (currentDryEnergy > 1.0e-12f
+            && currentWetEnergy > 1.0e-12f)
+        {
+            targetMatchGain = juce::jlimit(
+                0.03f,
+                4.0f,
+                std::sqrt(currentDryEnergy / currentWetEnergy));
+        }
+        else
+        {
+            targetMatchGain = 1.0f;
+        }
+
         currentMatchGain =
             advance(currentMatchGain, targetMatchGain, matchCoefficient);
         currentLevelMatchWeight =
@@ -272,9 +283,11 @@ float VocalDrive::transfer(float sample,
         case DriveCharacter::warm:
         {
             const auto biased = input + 0.18f * amount;
-            const auto shaped = std::tanh(
-                biased * (input >= 0.0f ? 0.82f : 1.08f));
-            return shaped - std::tanh(0.18f * amount);
+            const auto branchScale = input >= 0.0f ? 0.82f : 1.08f;
+            const auto shaped = std::tanh(biased * branchScale);
+            const auto zero = std::tanh(
+                0.18f * amount * branchScale);
+            return shaped - zero;
         }
 
         case DriveCharacter::edge:
