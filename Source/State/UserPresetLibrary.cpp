@@ -96,6 +96,26 @@ juce::Result VoxlineState::UserPresetLibrary::saveAs(
     if (listNames().contains(name, true))
         return juce::Result::fail("Preset already exists");
 
+    return write(name, soundState);
+}
+
+juce::Result VoxlineState::UserPresetLibrary::replace(
+    juce::StringRef requestedName, const juce::ValueTree& soundState)
+{
+    auto name = juce::String(requestedName);
+    if (const auto result = normaliseName(name); result.failed())
+        return result;
+    if (const auto result = initialise(); result.failed())
+        return result;
+    if (! fileFor(name).existsAsFile())
+        return juce::Result::fail("Preset does not exist");
+
+    return write(name, soundState);
+}
+
+juce::Result VoxlineState::UserPresetLibrary::write(
+    const juce::String& name, const juce::ValueTree& soundState)
+{
     const auto sound = Voxline::copyRegisteredSoundState(soundState);
     if (! sound.isValid() || sound.getNumChildren() == 0)
         return juce::Result::fail("Preset contains no sound parameters");

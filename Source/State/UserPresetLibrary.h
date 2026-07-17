@@ -13,6 +13,8 @@ public:
     juce::StringArray listNames() const;
     juce::Result saveAs(juce::String name,
                         const juce::ValueTree& soundState);
+    juce::Result replace(juce::StringRef name,
+                         const juce::ValueTree& soundState);
     juce::Result load(juce::StringRef name,
                       juce::ValueTree& destination) const;
     juce::Result rename(juce::StringRef from, juce::String to);
@@ -22,6 +24,8 @@ private:
     static juce::Result normaliseName(juce::String&);
     juce::File fileFor(const juce::String&) const;
     juce::Result read(const juce::File&, juce::ValueTree&) const;
+    juce::Result write(const juce::String&,
+                       const juce::ValueTree&);
 
     juce::File root;
 };
