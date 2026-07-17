@@ -1,26 +1,204 @@
 #include "PluginProcessor.h"
+
+#include "Parameters/ParameterLayout.h"
 #include "PluginEditor.h"
 #include "State/StateSchema.h"
-#include "Parameters/ParameterLayout.h"
 
-// VOXLINE DSP signal flow
-// 1. Input Gain: smoothed gain staging before detection and processing.
-// 2. Clean Mode: optional rumble HPF gate/cleanup before tone shaping.
-// 3. Vocal EQ: dedicated EQ chain HPF -> LOW -> MUD -> PRES -> AIR -> LPF.
-//    The eqEnabled parameter only bypasses this dedicated EQ stage; legacy tone
-//    smooth/body/clarity/air processing and SPACE remain independent.
-// 4. Compressor: level detector drives soft-knee gain reduction with variable timing.
-// 5. Drive/Saturation: conservative asymmetric saturation with pre/de-emphasis.
-// 6. SPACE: optional vocal ambience after dynamics and saturation.
-// 7. Output Gain, safety soft clip, listen/bypass crossfade, then meters.
+#include <cmath>
 
 namespace
 {
-float percentToUnit(float value) noexcept
+float unitFromPercent(float value) noexcept
 {
     return juce::jlimit(0.0f, 1.0f, value * 0.01f);
 }
 
+float rawValue(const VoxlineAudioProcessor::APVTS& state,
+               const char* parameterId) noexcept
+{
+    const auto* value = state.getRawParameterValue(parameterId);
+    jassert(value != nullptr);
+    return value != nullptr ? value->load(std::memory_order_relaxed) : 0.0f;
+}
+
+bool rawBool(const VoxlineAudioProcessor::APVTS& state,
+             const char* parameterId) noexcept
+{
+    return rawValue(state, parameterId) >= 0.5f;
+}
+
+Voxline::Dsp::FilterSlope slopeFromIndex(float value) noexcept
+{
+    return static_cast<Voxline::Dsp::FilterSlope>(
+        juce::jlimit(0, 3, juce::roundToInt(value)));
+}
+
+Voxline::Dsp::DriveCharacter driveCharacterFromIndex(float value) noexcept
+{
+    return static_cast<Voxline::Dsp::DriveCharacter>(
+        juce::jlimit(0, 2, juce::roundToInt(value)));
+}
+
+Voxline::Dsp::SpaceMode spaceModeFromIndex(float value) noexcept
+{
+    return static_cast<Voxline::Dsp::SpaceMode>(
+        juce::jlimit(0, 4, juce::roundToInt(value)));
+}
+
+float normaliseMeterDb(float db) noexcept
+{
+    return juce::jlimit(
+        0.0f,
+        1.0f,
+        (db - Voxline::Dsp::silenceFloorDbfs)
+            / -Voxline::Dsp::silenceFloorDbfs);
+}
+
+float maximumChannelValue(
+    const Voxline::Dsp::MeterFrame& frame,
+    float Voxline::Dsp::ChannelMeter::* member) noexcept
+{
+    auto value = Voxline::Dsp::silenceFloorDbfs;
+    for (auto channel = 0; channel < frame.channelCount; ++channel)
+        value = juce::jmax(
+            value,
+            frame.channels[static_cast<size_t>(channel)].*member);
+    return value;
+}
+
+struct ParameterSnapshot
+{
+    float inputGainDb {};
+    float outputGainDb {};
+    bool bypass {};
+    Voxline::Dsp::VocalEqSettings eq;
+    Voxline::Dsp::DeEsserSettings deEss;
+    Voxline::Dsp::CompressorSettings compressor;
+    Voxline::Dsp::PolishSettings polish;
+    Voxline::Dsp::DriveSettings drive;
+    Voxline::Dsp::SpaceSettings space;
+};
+
+ParameterSnapshot captureParameters(
+    const VoxlineAudioProcessor::APVTS& state) noexcept
+{
+    ParameterSnapshot snapshot;
+    snapshot.inputGainDb =
+        rawValue(state, VoxlineParameterIDs::inputGain);
+    snapshot.outputGainDb =
+        rawValue(state, VoxlineParameterIDs::outputGain);
+    snapshot.bypass =
+        rawBool(state, VoxlineParameterIDs::bypass);
+
+    snapshot.eq.enabled =
+        rawBool(state, VoxlineParameterIDs::eqEnabled);
+    snapshot.eq.hpf = {
+        rawBool(state, VoxlineParameterIDs::hpfEnabled),
+        rawValue(state, VoxlineParameterIDs::hpfFreq),
+        0.0f,
+        0.707f};
+    snapshot.eq.low = {
+        rawBool(state, VoxlineParameterIDs::lowEnabled),
+        rawValue(state, VoxlineParameterIDs::lowFreq),
+        rawValue(state, VoxlineParameterIDs::body),
+        rawValue(state, VoxlineParameterIDs::lowQ)};
+    snapshot.eq.mud = {
+        rawBool(state, VoxlineParameterIDs::mudEnabled),
+        rawValue(state, VoxlineParameterIDs::mudFreq),
+        rawValue(state, VoxlineParameterIDs::mudGain),
+        rawValue(state, VoxlineParameterIDs::mudQ)};
+    snapshot.eq.presence = {
+        rawBool(state, VoxlineParameterIDs::presEnabled),
+        rawValue(state, VoxlineParameterIDs::presFreq),
+        rawValue(state, VoxlineParameterIDs::clarity),
+        rawValue(state, VoxlineParameterIDs::presQ)};
+    snapshot.eq.air = {
+        rawBool(state, VoxlineParameterIDs::airEnabled),
+        rawValue(state, VoxlineParameterIDs::airFreq),
+        rawValue(state, VoxlineParameterIDs::air),
+        rawValue(state, VoxlineParameterIDs::airQ)};
+    snapshot.eq.lpf = {
+        rawBool(state, VoxlineParameterIDs::lpfEnabled),
+        rawValue(state, VoxlineParameterIDs::lpfFreq),
+        0.0f,
+        0.707f};
+    snapshot.eq.hpfSlope =
+        slopeFromIndex(rawValue(state, VoxlineParameterIDs::hpfSlope));
+    snapshot.eq.lpfSlope =
+        slopeFromIndex(rawValue(state, VoxlineParameterIDs::lpfSlope));
+
+    snapshot.deEss.amount =
+        unitFromPercent(rawValue(state, VoxlineParameterIDs::smooth));
+    snapshot.deEss.focusHz =
+        rawValue(state, VoxlineParameterIDs::deEssFreq);
+    snapshot.deEss.sensitivityDb =
+        rawValue(state, VoxlineParameterIDs::deEssThreshold);
+    snapshot.deEss.maxRangeDb =
+        rawValue(state, VoxlineParameterIDs::deEssRange);
+    snapshot.deEss.mode =
+        rawValue(state, VoxlineParameterIDs::deEssMode) >= 0.5f
+            ? Voxline::Dsp::DeEssMode::wide
+            : Voxline::Dsp::DeEssMode::split;
+
+    snapshot.compressor.amount =
+        rawValue(state, VoxlineParameterIDs::comp);
+    snapshot.compressor.sensitivity =
+        rawValue(state, VoxlineParameterIDs::compSensitivity);
+    snapshot.compressor.ratio =
+        rawValue(state, VoxlineParameterIDs::compRatio);
+    snapshot.compressor.attackMs =
+        rawValue(state, VoxlineParameterIDs::compAttack);
+    snapshot.compressor.releaseMs =
+        rawValue(state, VoxlineParameterIDs::compRelease);
+    snapshot.compressor.mix =
+        unitFromPercent(rawValue(state, VoxlineParameterIDs::compMix));
+    snapshot.compressor.makeupDb =
+        rawValue(state, VoxlineParameterIDs::compMakeup);
+    snapshot.compressor.autoMakeup =
+        rawBool(state, VoxlineParameterIDs::compAutoMakeup);
+
+    snapshot.polish.amount =
+        unitFromPercent(rawValue(state, VoxlineParameterIDs::polish));
+
+    snapshot.drive.amount =
+        unitFromPercent(rawValue(state, VoxlineParameterIDs::drive));
+    snapshot.drive.character =
+        driveCharacterFromIndex(
+            rawValue(state, VoxlineParameterIDs::driveCharacter));
+    snapshot.drive.tone =
+        rawValue(state, VoxlineParameterIDs::driveTone) * 0.01f;
+    snapshot.drive.mix =
+        unitFromPercent(rawValue(state, VoxlineParameterIDs::driveMix));
+    snapshot.drive.outputTrimDb =
+        rawValue(state, VoxlineParameterIDs::driveOutputTrim);
+    snapshot.drive.levelMatch =
+        rawBool(state, VoxlineParameterIDs::driveLevelMatch);
+
+    snapshot.space.amount =
+        unitFromPercent(rawValue(state, VoxlineParameterIDs::spaceAmount));
+    snapshot.space.mode =
+        spaceModeFromIndex(rawValue(state, VoxlineParameterIDs::spaceType));
+    snapshot.space.preDelayMs =
+        snapshot.space.mode == Voxline::Dsp::SpaceMode::slap
+            ? rawValue(state, VoxlineParameterIDs::spaceTime)
+            : rawValue(state, VoxlineParameterIDs::spacePreDelay);
+    snapshot.space.sizeOrTime =
+        unitFromPercent(rawValue(state, VoxlineParameterIDs::spaceSize));
+    snapshot.space.decaySeconds =
+        rawValue(state, VoxlineParameterIDs::spaceDecay);
+    snapshot.space.tone =
+        rawValue(state, VoxlineParameterIDs::spaceTone) * 0.01f;
+    snapshot.space.width =
+        rawValue(state, VoxlineParameterIDs::spaceWidth) * 0.01f;
+    snapshot.space.ducking =
+        unitFromPercent(rawValue(state, VoxlineParameterIDs::spaceDucking));
+    snapshot.space.feedback =
+        unitFromPercent(rawValue(state, VoxlineParameterIDs::spaceFeedback));
+    snapshot.space.monoSafety =
+        rawBool(state, VoxlineParameterIDs::spaceMonoSafety);
+
+    return snapshot;
+}
 } // namespace
 
 VoxlineAudioProcessor::VoxlineAudioProcessor()
@@ -36,42 +214,71 @@ VoxlineAudioProcessor::VoxlineAudioProcessor()
 {
 }
 
-void VoxlineAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
+void VoxlineAudioProcessor::prepareToPlay(double sampleRate,
+                                          int samplesPerBlock)
 {
-    currentSampleRate = juce::jmax(1.0, sampleRate);
+    const auto rate = juce::jmax(1.0, sampleRate);
+    preparedMaximumBlockSize = juce::jmax(1, samplesPerBlock);
+    preparedChannels = juce::jlimit(
+        1, 2, juce::jmax(getTotalNumInputChannels(),
+                         getTotalNumOutputChannels()));
+    const auto spec = Voxline::Dsp::ModuleSpec {
+        rate, preparedMaximumBlockSize, preparedChannels};
 
-    inputGainSmoothed.reset(currentSampleRate, 0.02);
-    outputGainSmoothed.reset(currentSampleRate, 0.02);
-    bypassSmoothed.reset(currentSampleRate, 0.005);
-    bypassSmoothed.setCurrentAndTargetValue(0.0f);
-    inputGainSmoothed.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(
-        apvts.getRawParameterValue(VoxlineParameterIDs::inputGain)->load()));
-    outputGainSmoothed.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(
-        apvts.getRawParameterValue(VoxlineParameterIDs::outputGain)->load()));
+    inputMeter.prepare(spec);
+    vocalEq.prepare(spec);
+    deEsser.prepare(spec);
+    compressor.prepare(spec);
+    polish.prepare(spec);
+    drive.prepare(spec);
+    space.prepare(spec);
+    outputSafety.reset();
+    outputMeter.prepare(spec);
 
-    for (auto& channelFilters : hpfFilters)
-        for (auto& filter : channelFilters)
-            filter.reset();
-    for (auto& channelFilters : lpfFilters)
-        for (auto& filter : channelFilters)
-            filter.reset();
-    for (auto* filters : { &bodyFilters, &mudFilters, &clarityFilters, &airFilters, &smoothFilters, &lowFilters })
-        for (auto& filter : *filters)
-            filter.reset();
+    setLatencySamples(drive.latencySamples());
+    prepareBypassDelay(preparedChannels,
+                       preparedMaximumBlockSize,
+                       getLatencySamples());
 
-    dryBuffer.setSize(juce::jmax(1, getTotalNumInputChannels()), juce::jmax(1, samplesPerBlock), false, false, true);
-    maxSpaceDelaySamples = juce::jmax(1, static_cast<int>(std::ceil(currentSampleRate * 3.0)));
-    spaceBuffer.setSize(juce::jmax(2, getTotalNumOutputChannels()), maxSpaceDelaySamples, false, false, true);
-    spaceBuffer.clear();
-    spaceWritePos = 0;
-    compressorEnvelope = 1.0f;
-    cleanModeXPrev[0] = cleanModeXPrev[1] = 0.0f;
-    cleanModeYPrev[0] = cleanModeYPrev[1] = 0.0f;
-    drivePreEmphasisState[0] = drivePreEmphasisState[1] = 0.0f;
-    driveDeEmphasisState[0] = driveDeEmphasisState[1] = 0.0f;
-    deEssLowpassState[0] = deEssLowpassState[1] = 0.0f;
-    spaceDuckEnvelope = 0.0f;
-    updateToneFilters();
+    spaceSidechainBuffer.setSize(
+        preparedChannels,
+        preparedMaximumBlockSize,
+        false,
+        true,
+        false);
+    spaceSidechainBuffer.clear();
+
+    const auto parameters = captureParameters(apvts);
+    inputGainSmoothed.reset(rate, 0.020);
+    outputGainSmoothed.reset(rate, 0.020);
+    bypassSmoothed.reset(rate, 0.005);
+    inputGainSmoothed.setCurrentAndTargetValue(
+        juce::Decibels::decibelsToGain(parameters.inputGainDb));
+    outputGainSmoothed.setCurrentAndTargetValue(
+        juce::Decibels::decibelsToGain(parameters.outputGainDb));
+    bypassSmoothed.setCurrentAndTargetValue(parameters.bypass ? 1.0f : 0.0f);
+
+    vocalEq.setTargetSettings(parameters.eq);
+    deEsser.setTargetSettings(parameters.deEss);
+    compressor.setTargetSettings(parameters.compressor);
+    polish.setTargetSettings(parameters.polish);
+    drive.setTargetSettings(parameters.drive);
+    space.setTargetSettings(parameters.space);
+
+    const auto empty = Voxline::Dsp::MeterFrame {};
+    inputMeterSnapshot.store(empty);
+    outputMeterSnapshot.store(empty);
+    compressorReductionDb.store(0.0f, std::memory_order_relaxed);
+    outputSafetyActive.store(false, std::memory_order_relaxed);
+    inputPeak.store(0.0f, std::memory_order_relaxed);
+    inputRms.store(0.0f, std::memory_order_relaxed);
+    outputPeak.store(0.0f, std::memory_order_relaxed);
+    outputRms.store(0.0f, std::memory_order_relaxed);
+    gainReduction.store(0.0f, std::memory_order_relaxed);
+    deEssReduction.store(0.0f, std::memory_order_relaxed);
+    analyzerWritePosition.store(0, std::memory_order_relaxed);
+    for (auto& sample : analyzerSamples)
+        sample.store(0.0f, std::memory_order_relaxed);
 }
 
 void VoxlineAudioProcessor::releaseResources()
@@ -79,22 +286,20 @@ void VoxlineAudioProcessor::releaseResources()
 }
 
 #if ! JucePlugin_IsMidiEffect
-bool VoxlineAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
+bool VoxlineAudioProcessor::isBusesLayoutSupported(
+    const BusesLayout& layouts) const
 {
    #if JucePlugin_IsSynth
     juce::ignoreUnused(layouts);
     return true;
    #else
-    const auto mainOutput = layouts.getMainOutputChannelSet();
-
-    if (mainOutput != juce::AudioChannelSet::mono()
-        && mainOutput != juce::AudioChannelSet::stereo())
-    {
+    const auto output = layouts.getMainOutputChannelSet();
+    if (output != juce::AudioChannelSet::mono()
+        && output != juce::AudioChannelSet::stereo())
         return false;
-    }
 
    #if ! JucePlugin_IsSynth
-    if (mainOutput != layouts.getMainInputChannelSet())
+    if (output != layouts.getMainInputChannelSet())
         return false;
    #endif
 
@@ -103,406 +308,117 @@ bool VoxlineAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) c
 }
 #endif
 
-void VoxlineAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+void VoxlineAudioProcessor::processBlock(
+    juce::AudioBuffer<float>& buffer,
+    juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
     juce::ignoreUnused(midiMessages);
 
-    for (auto channel = getTotalNumInputChannels(); channel < getTotalNumOutputChannels(); ++channel)
-        buffer.clear(channel, 0, buffer.getNumSamples());
+    const auto inputChannels = getTotalNumInputChannels();
+    const auto outputChannels = getTotalNumOutputChannels();
+    const auto samples = buffer.getNumSamples();
+    for (auto channel = inputChannels; channel < outputChannels; ++channel)
+        buffer.clear(channel, 0, samples);
 
-    const auto numInputChannels = getTotalNumInputChannels();
-    const auto numOutputChannels = getTotalNumOutputChannels();
-    const auto numSamples = buffer.getNumSamples();
-
-    if (numInputChannels <= 0 || numOutputChannels <= 0 || numSamples <= 0)
+    if (inputChannels <= 0 || outputChannels <= 0 || samples <= 0)
         return;
 
-    dryBuffer.setSize(numInputChannels, numSamples, false, false, true);
-    for (auto channel = 0; channel < numInputChannels; ++channel)
-        dryBuffer.copyFrom(channel, 0, buffer, channel, 0, numSamples);
-
-    // Calculate input meters from dry buffer
-    float inPeak = 0.0f, inRms = 0.0f;
-    for (auto channel = 0; channel < numInputChannels; ++channel)
+    jassert(samples <= preparedMaximumBlockSize);
+    jassert(inputChannels <= preparedChannels);
+    if (samples > preparedMaximumBlockSize
+        || inputChannels > preparedChannels)
     {
-        auto* data = dryBuffer.getReadPointer(channel);
-        for (auto i = 0; i < numSamples; ++i)
+        return;
+    }
+
+    const auto parameters = captureParameters(apvts);
+    inputGainSmoothed.setTargetValue(
+        juce::Decibels::decibelsToGain(parameters.inputGainDb));
+    outputGainSmoothed.setTargetValue(
+        juce::Decibels::decibelsToGain(parameters.outputGainDb));
+    bypassSmoothed.setTargetValue(parameters.bypass ? 1.0f : 0.0f);
+    vocalEq.setTargetSettings(parameters.eq);
+    deEsser.setTargetSettings(parameters.deEss);
+    compressor.setTargetSettings(parameters.compressor);
+    polish.setTargetSettings(parameters.polish);
+    drive.setTargetSettings(parameters.drive);
+    space.setTargetSettings(parameters.space);
+
+    captureLatencyAlignedDry(buffer);
+
+    for (auto sample = 0; sample < samples; ++sample)
+    {
+        const auto gain = inputGainSmoothed.getNextValue();
+        for (auto channel = 0; channel < inputChannels; ++channel)
+            buffer.setSample(channel,
+                             sample,
+                             buffer.getSample(channel, sample) * gain);
+    }
+
+    const auto inputFrame = inputMeter.measureBlock(buffer);
+    vocalEq.process(buffer);
+    const auto deEssMetrics =
+        deEsser.process(buffer, Voxline::Dsp::DeEssMonitor::off);
+    const auto compressorMetrics = compressor.process(buffer);
+    polish.process(buffer);
+    drive.process(buffer);
+
+    for (auto channel = 0; channel < inputChannels; ++channel)
+        spaceSidechainBuffer.copyFrom(
+            channel, 0, buffer, channel, 0, samples);
+    space.process(buffer, spaceSidechainBuffer);
+
+    for (auto sample = 0; sample < samples; ++sample)
+    {
+        const auto gain = outputGainSmoothed.getNextValue();
+        for (auto channel = 0; channel < outputChannels; ++channel)
+            buffer.setSample(channel,
+                             sample,
+                             buffer.getSample(channel, sample) * gain);
+    }
+
+    outputSafety.process(buffer);
+    outputSafetyActive.store(
+        outputSafety.wasActive(), std::memory_order_release);
+
+    for (auto sample = 0; sample < samples; ++sample)
+    {
+        const auto bypass = bypassSmoothed.getNextValue();
+        for (auto channel = 0; channel < outputChannels; ++channel)
         {
-            const auto s = std::abs(data[i]);
-            inPeak = juce::jmax(inPeak, s);
-            inRms += s * s;
-        }
-    }
-    inRms = std::sqrt(inRms / static_cast<float>(numSamples * numInputChannels));
-
-    // Smooth and store input meters
-    const auto meterAttack = std::exp(-1.0f / static_cast<float>(currentSampleRate * 0.008f));
-    const auto meterRelease = std::exp(-1.0f / static_cast<float>(currentSampleRate * 0.400f));
-    const auto inPeakDb = juce::Decibels::gainToDecibels(inPeak, -60.0f);
-    const auto inRmsDb = juce::Decibels::gainToDecibels(inRms, -60.0f);
-
-    auto targetInPeak = juce::jlimit(0.0f, 1.0f, (inPeakDb + 60.0f) / 60.0f);
-    auto targetInRms = juce::jlimit(0.0f, 1.0f, (inRmsDb + 60.0f) / 60.0f);
-    auto prevInPeak = inputPeak.load();
-    auto prevInRms = inputRms.load();
-    auto ipCoeff = targetInPeak > prevInPeak ? meterAttack : meterRelease;
-    auto irCoeff = targetInRms > prevInRms ? meterAttack : meterRelease;
-    inputPeak.store(prevInPeak + ipCoeff * (targetInPeak - prevInPeak));
-    inputRms.store(prevInRms + irCoeff * (targetInRms - prevInRms));
-
-    if (apvts.getRawParameterValue(VoxlineParameterIDs::bypass)->load() >= 0.5f)
-    {
-        bypassSmoothed.setTargetValue(1.0f);
-        auto prevOutPeak = outputPeak.load();
-        auto prevOutRms = outputRms.load();
-        auto opCoeff = targetInPeak > prevOutPeak ? meterAttack : meterRelease;
-        auto orCoeff = targetInRms > prevOutRms ? meterAttack : meterRelease;
-        outputPeak.store(prevOutPeak + opCoeff * (targetInPeak - prevOutPeak));
-        outputRms.store(prevOutRms + orCoeff * (targetInRms - prevOutRms));
-        gainReduction.store(0.0f);
-    }
-    else
-    {
-        bypassSmoothed.setTargetValue(0.0f);
-    }
-
-    const auto polishRaw = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::polish)->load());
-    const auto polishScale = juce::jmap(polishRaw, 0.0f, 1.0f, 0.35f, 1.35f);
-    const auto compRaw = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::comp)->load());
-    const auto driveRaw = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::drive)->load());
-
-    const auto compAmount = juce::jlimit(0.0f, 1.0f, compRaw * polishScale);
-    const auto driveAmount = juce::jlimit(0.0f, 1.0f, driveRaw * polishScale);
-    const auto autoGainEnabled = apvts.getRawParameterValue(VoxlineParameterIDs::autoGain)->load() >= 0.5f;
-    const auto listenEnabled = apvts.getRawParameterValue(VoxlineParameterIDs::listen)->load() >= 0.5f;
-    const auto cleanModeOn = apvts.getRawParameterValue(VoxlineParameterIDs::cleanMode)->load() >= 0.5f;
-
-    const auto spaceAmount = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::spaceAmount)->load());
-    const auto spaceType = static_cast<int>(apvts.getRawParameterValue(VoxlineParameterIDs::spaceType)->load());
-    const auto spaceTimeMs = apvts.getRawParameterValue(VoxlineParameterIDs::spaceTime)->load();
-    const auto spacePreDelayMs = apvts.getRawParameterValue(VoxlineParameterIDs::spacePreDelay)->load();
-    const auto spaceWidth = apvts.getRawParameterValue(VoxlineParameterIDs::spaceWidth)->load() * 0.01f;
-    const auto spaceTone = apvts.getRawParameterValue(VoxlineParameterIDs::spaceTone)->load() * 0.01f;
-    const auto spaceDecay = apvts.getRawParameterValue(VoxlineParameterIDs::spaceDecay)->load();
-    const auto spaceDucking = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::spaceDucking)->load());
-
-    inputGainSmoothed.setTargetValue(juce::Decibels::decibelsToGain(
-        apvts.getRawParameterValue(VoxlineParameterIDs::inputGain)->load()));
-
-    auto outputGainDb = apvts.getRawParameterValue(VoxlineParameterIDs::outputGain)->load();
-    if (autoGainEnabled)
-    {
-        const auto eqOn = apvts.getRawParameterValue(VoxlineParameterIDs::eqEnabled)->load() > 0.5f;
-        const auto lowBoostDb = eqOn ? juce::jmax(0.0f, apvts.getRawParameterValue(VoxlineParameterIDs::body)->load() * polishScale) : 0.0f;
-        const auto mudBoostDb = eqOn ? juce::jmax(0.0f, apvts.getRawParameterValue(VoxlineParameterIDs::mudGain)->load() * polishScale) : 0.0f;
-        const auto presBoostDb = eqOn ? juce::jmax(0.0f, apvts.getRawParameterValue(VoxlineParameterIDs::clarity)->load() * polishScale) : 0.0f;
-        const auto airBoostDb = eqOn ? juce::jmax(0.0f, apvts.getRawParameterValue(VoxlineParameterIDs::air)->load() * polishScale) : 0.0f;
-        const auto eqBoostCompDb = juce::jlimit(0.0f, 2.0f,
-                                               (lowBoostDb * 0.10f) + (mudBoostDb * 0.08f)
-                                               + (presBoostDb * 0.12f) + (airBoostDb * 0.10f));
-        outputGainDb += compAmount * 2.3f - driveAmount * 0.9f - eqBoostCompDb;
-    }
-    outputGainSmoothed.setTargetValue(juce::Decibels::decibelsToGain(outputGainDb));
-
-    updateToneFilters();
-    updateEQFilters();
-
-    const auto driveCharacter = static_cast<int>(apvts.getRawParameterValue(VoxlineParameterIDs::driveCharacter)->load());
-    const auto driveTone = apvts.getRawParameterValue(VoxlineParameterIDs::driveTone)->load() * 0.01f;
-    const auto driveMixControl = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::driveMix)->load());
-    const auto characterGainDb = driveCharacter == 0 ? 7.0f : (driveCharacter == 1 ? 9.0f : 12.0f);
-    const auto drivePreGain = juce::Decibels::decibelsToGain(driveAmount * characterGainDb);
-    const auto driveNormalizer = juce::jmax(0.35f, std::tanh(drivePreGain));
-    const auto driveToneAmount = driveAmount * 0.35f;
-    const auto driveDeEmphasisAmount = driveAmount * 0.22f;
-    const auto driveToneFrequency = juce::jmap(driveTone, -1.0f, 1.0f, 1400.0f, 4800.0f);
-    const auto driveToneCoeff = std::exp(-2.0f * juce::MathConstants<float>::pi * driveToneFrequency
-                                         / static_cast<float>(currentSampleRate));
-    const auto wetMix = juce::jlimit(0.0f, 1.0f, 0.35f + polishScale * 0.30f);
-    const auto deEssAmount = juce::jlimit(0.0f, 1.0f,
-        percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::smooth)->load()) * polishScale);
-    const auto deEssFreq = apvts.getRawParameterValue(VoxlineParameterIDs::deEssFreq)->load();
-    const auto deEssThreshold = apvts.getRawParameterValue(VoxlineParameterIDs::deEssThreshold)->load();
-    const auto deEssRange = apvts.getRawParameterValue(VoxlineParameterIDs::deEssRange)->load();
-    const auto deEssWideband = apvts.getRawParameterValue(VoxlineParameterIDs::deEssMode)->load() >= 0.5f;
-    const auto vocalEqEnabled = apvts.getRawParameterValue(VoxlineParameterIDs::eqEnabled)->load() >= 0.5f;
-    const auto activeHpfStages = juce::jlimit(1, 4,
-        static_cast<int>(apvts.getRawParameterValue(VoxlineParameterIDs::hpfSlope)->load()) + 1);
-    const auto activeLpfStages = juce::jlimit(1, 2,
-        static_cast<int>(apvts.getRawParameterValue(VoxlineParameterIDs::lpfSlope)->load()) + 1);
-    const auto deEssCoeff = std::exp(-2.0f * juce::MathConstants<float>::pi * deEssFreq
-                                     / static_cast<float>(currentSampleRate));
-    const auto cleanModeCoeff = std::exp(-2.0f * juce::MathConstants<float>::pi * 80.0f
-                                         / static_cast<float>(currentSampleRate));
-    const auto duckAttack = std::exp(-1.0f / (0.008f * static_cast<float>(currentSampleRate)));
-    const auto duckRelease = std::exp(-1.0f / (0.180f * static_cast<float>(currentSampleRate)));
-
-    const auto compThresholdDb = juce::jmap(compAmount, 0.0f, 1.0f, 0.0f,
-        apvts.getRawParameterValue(VoxlineParameterIDs::compThreshold)->load());
-    const auto compRatio = 1.0f
-        + (apvts.getRawParameterValue(VoxlineParameterIDs::compRatio)->load() - 1.0f) * compAmount;
-    const auto compKneeDb = juce::jmap(compAmount, 0.0f, 1.0f, 6.0f, 2.0f);
-    const auto compAttackMs = apvts.getRawParameterValue(VoxlineParameterIDs::compAttack)->load();
-    const auto compReleaseMs = apvts.getRawParameterValue(VoxlineParameterIDs::compRelease)->load();
-    const auto compAttack = juce::jlimit(0.0f, 1.0f,
-        std::exp(-1.0f / static_cast<float>(currentSampleRate * compAttackMs * 0.001f)));
-    const auto compRelease = juce::jlimit(0.0f, 1.0f,
-        std::exp(-1.0f / static_cast<float>(currentSampleRate * compReleaseMs * 0.001f)));
-    const auto compMix = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::compMix)->load());
-
-    const auto spaceTimeScale = juce::jlimit(0.15f, 1.8f, spaceTimeMs / 1200.0f);
-    auto spaceMix = spaceAmount * 0.22f;
-    auto spaceFeedback = juce::jmap(spaceDecay, 0.1f, 2.5f, 0.04f, 0.56f);
-    const auto spaceLpfFreq = juce::jmap(spaceTone, -1.0f, 1.0f, 3200.0f, 14000.0f);
-    const auto spaceHpfFreq = juce::jmap(spaceTone, -1.0f, 1.0f, 140.0f, 380.0f);
-    const auto spaceHpfCoeff = std::exp(-2.0f * juce::MathConstants<float>::pi * spaceHpfFreq
-                                        / static_cast<float>(currentSampleRate));
-    const auto spaceLpfCoeff = std::exp(-2.0f * juce::MathConstants<float>::pi * spaceLpfFreq
-                                        / static_cast<float>(currentSampleRate));
-    const auto millisecondsToDelaySamples = [this](float milliseconds)
-    {
-        return juce::jlimit(1, maxSpaceDelaySamples - 1,
-            static_cast<int>(currentSampleRate * milliseconds * 0.001f));
-    };
-    std::array<int, 4> spaceTapDelays {};
-    std::array<float, 4> spaceTapGains {};
-    auto spaceTapCount = 0;
-    auto spaceCrossfeedDelay = 1;
-    auto spaceCrossfeedGain = 0.0f;
-
-    switch (spaceType)
-    {
-    case 0:
-        spaceTapCount = 4;
-        spaceTapDelays = {
-            millisecondsToDelaySamples(spacePreDelayMs + 6.0f * spaceTimeScale),
-            millisecondsToDelaySamples(spacePreDelayMs + 14.0f * spaceTimeScale),
-            millisecondsToDelaySamples(spacePreDelayMs + 24.0f * spaceTimeScale),
-            millisecondsToDelaySamples(spacePreDelayMs + 38.0f * spaceTimeScale)};
-        spaceTapGains = {0.40f, 0.30f, 0.20f, 0.10f};
-        spaceMix = spaceAmount * 0.18f;
-        spaceFeedback *= 0.55f;
-        break;
-    case 1:
-    {
-        const auto slapMs = juce::jlimit(55.0f, 320.0f, spaceTimeMs);
-        spaceTapCount = 2;
-        spaceTapDelays = {
-            millisecondsToDelaySamples(spacePreDelayMs + slapMs),
-            millisecondsToDelaySamples(spacePreDelayMs + slapMs * 1.52f), 1, 1};
-        spaceTapGains = {0.72f, 0.28f, 0.0f, 0.0f};
-        spaceMix = spaceAmount * 0.28f;
-        break;
-    }
-    default:
-        spaceTapCount = 3;
-        spaceTapDelays = {
-            millisecondsToDelaySamples(spacePreDelayMs + 12.0f * spaceTimeScale),
-            millisecondsToDelaySamples(spacePreDelayMs + 24.0f * spaceTimeScale),
-            millisecondsToDelaySamples(spacePreDelayMs + 36.0f * spaceTimeScale), 1};
-        spaceTapGains = {0.40f, 0.35f, 0.25f, 0.0f};
-        spaceCrossfeedDelay = millisecondsToDelaySamples(
-            spacePreDelayMs + juce::jmap(spaceWidth, 0.0f, 2.0f, 7.0f, 28.0f));
-        spaceCrossfeedGain = 0.08f + 0.24f * spaceWidth;
-        spaceMix = spaceAmount * (0.18f + 0.06f * spaceWidth);
-        break;
-    }
-    auto maxDeEssReductionDb = 0.0f;
-
-    for (auto sampleIndex = 0; sampleIndex < numSamples; ++sampleIndex)
-    {
-        const auto inputGain = inputGainSmoothed.getNextValue();
-        const auto outputGain = outputGainSmoothed.getNextValue();
-        const auto bypassMix = bypassSmoothed.getNextValue();
-        const auto spaceBufferPosition = (spaceWritePos + sampleIndex) % maxSpaceDelaySamples;
-
-        float detector = 0.0f;
-        for (auto channel = 0; channel < numInputChannels; ++channel)
-            detector = juce::jmax(detector, std::abs(buffer.getSample(channel, sampleIndex) * inputGain));
-
-        const auto compressorGain = updateCompressorGain(detector, compAmount, compThresholdDb,
-            compRatio, compKneeDb, compAttack, compRelease, compMix);
-        const auto duckCoeff = detector > spaceDuckEnvelope ? duckAttack : duckRelease;
-        spaceDuckEnvelope = detector + duckCoeff * (spaceDuckEnvelope - detector);
-        const auto spaceDuckGain = 1.0f - spaceDucking
-            * juce::jlimit(0.0f, 0.82f, spaceDuckEnvelope * 3.2f);
-
-        for (auto channel = 0; channel < numInputChannels; ++channel)
-        {
-            const auto drySample = dryBuffer.getSample(channel, sampleIndex);
-            auto sample = drySample * inputGain;
-
-            // cleanMode: gentle HPF at ~80Hz to remove rumble / low-end mud
-            if (cleanModeOn)
-            {
-                auto& xPrev = cleanModeXPrev[channel];
-                auto& yPrev = cleanModeYPrev[channel];
-                const auto filtered = cleanModeCoeff * (yPrev + sample - xPrev);
-                xPrev = sample;
-                yPrev = filtered;
-                sample = filtered;
-            }
-
-            const auto channelIndex = static_cast<size_t>(channel);
-            if (vocalEqEnabled)
-            {
-                for (int stage = 0; stage < activeHpfStages; ++stage)
-                    sample = hpfFilters[channelIndex][static_cast<size_t>(stage)].processSingleSampleRaw(sample);
-
-                sample = lowFilters[channelIndex].processSingleSampleRaw(sample);
-                sample = mudFilters[channelIndex].processSingleSampleRaw(sample);
-                sample = clarityFilters[channelIndex].processSingleSampleRaw(sample);
-                sample = airFilters[channelIndex].processSingleSampleRaw(sample);
-
-                for (int stage = 0; stage < activeLpfStages; ++stage)
-                    sample = lpfFilters[channelIndex][static_cast<size_t>(stage)].processSingleSampleRaw(sample);
-            }
-
-            // Split-band de-esser. SMOOTH remains the fast amount macro while
-            // frequency, threshold, maximum range, and mode live in Advanced.
-            if (deEssAmount > 0.0f)
-            {
-                auto& lowState = deEssLowpassState[channel];
-                lowState = sample + deEssCoeff * (lowState - sample);
-                const auto highBand = sample - lowState;
-                const auto highDb = juce::Decibels::gainToDecibels(std::abs(highBand), -80.0f);
-                const auto overDb = juce::jmax(0.0f, highDb - deEssThreshold);
-                const auto reductionDb = juce::jmin(deEssRange * deEssAmount, overDb * 0.65f * deEssAmount);
-                maxDeEssReductionDb = juce::jmax(maxDeEssReductionDb, reductionDb);
-                const auto deEssGain = juce::Decibels::decibelsToGain(-reductionDb);
-                sample = deEssWideband ? sample * deEssGain : lowState + highBand * deEssGain;
-            }
-
-            sample *= compressorGain;
-
-            if (driveAmount > 0.0f)
-            {
-                // Conservative vocal saturation:
-                // - pre-emphasis nudges upper harmonics into the shaper
-                // - asymmetric transfer adds gentle even-order warmth
-                // - de-emphasis trims fizz after clipping so high drive stays controlled
-                auto& preState = drivePreEmphasisState[channel];
-                preState = sample + driveToneCoeff * (preState - sample);
-                const auto preEmphasized = sample + (sample - preState) * driveToneAmount;
-
-                auto shaped = preEmphasized * drivePreGain;
-                shaped = shaped >= 0.0f ? std::tanh(shaped * 1.08f)
-                                         : -std::tanh(-shaped * 0.88f);
-                shaped /= driveNormalizer;
-
-                auto& deState = driveDeEmphasisState[channel];
-                deState = shaped + driveToneCoeff * (deState - shaped);
-                shaped -= (shaped - deState) * driveDeEmphasisAmount;
-
-                const auto driveMix = juce::jlimit(0.0f, 1.0f, driveMixControl * driveAmount);
-                sample = juce::jmap(driveMix, sample, shaped);
-            }
-
-            // SPACE — Vocal Space Processor
-            if (spaceAmount > 0.001f)
-            {
-                const auto readDelay = [&](int delaySamples, int readChannel = -1) -> float {
-                    const auto sourceChannel = readChannel < 0 ? channel : readChannel;
-                    return spaceBuffer.getSample(sourceChannel,
-                        (spaceBufferPosition - delaySamples + maxSpaceDelaySamples) % maxSpaceDelaySamples);
-                };
-
-                float rv = 0.0f;
-                for (auto tap = 0; tap < spaceTapCount; ++tap)
-                    rv += readDelay(spaceTapDelays[static_cast<size_t>(tap)])
-                        * spaceTapGains[static_cast<size_t>(tap)];
-
-                if (spaceType == 2 && spaceBuffer.getNumChannels() > 1)
-                    rv += readDelay(spaceCrossfeedDelay, channel == 0 ? 1 : 0) * spaceCrossfeedGain;
-
-                // Simple one-pole HPF and LPF on wet signal
-                auto& hpfS = spaceHpfState[channel];
-                auto& lpfS = spaceLpfState[channel];
-                hpfS = rv + spaceHpfCoeff * (hpfS - rv);
-                auto filtered = rv - hpfS;
-                lpfS = filtered + spaceLpfCoeff * (lpfS - filtered);
-                filtered = lpfS;
-
-                spaceBuffer.setSample(channel, spaceBufferPosition, sample + filtered * spaceFeedback);
-                sample = sample + filtered * spaceMix * spaceDuckGain;
-            }
-            else
-            {
-                spaceBuffer.setSample(channel, spaceBufferPosition, sample);
-            }
-
-            sample = juce::jmap(wetMix, drySample, sample);
-            sample *= outputGain;
-            sample = applySoftClip(sample);
-
-            if (listenEnabled)
-                sample = applySoftClip((sample - drySample) * 2.0f);
-
-            // Bypass crossfade: 0.0=processed, 1.0=dry
-            sample = sample + bypassMix * (drySample - sample);
-
-            buffer.setSample(channel, sampleIndex, sample);
+            const auto processed = buffer.getSample(channel, sample);
+            const auto dry = bypassDryBuffer.getSample(channel, sample);
+            buffer.setSample(
+                channel, sample, processed + bypass * (dry - processed));
         }
     }
 
-    spaceWritePos = (spaceWritePos + numSamples) % maxSpaceDelaySamples;
-    deEssReduction.store(maxDeEssReductionDb);
-
-    // Calculate output meters
-    float outPeak = 0.0f, outRms = 0.0f;
-    for (auto channel = 0; channel < numOutputChannels; ++channel)
-    {
-        auto* data = buffer.getReadPointer(channel);
-        for (auto i = 0; i < numSamples; ++i)
-        {
-            const auto s = std::abs(data[i]);
-            outPeak = juce::jmax(outPeak, s);
-            outRms += s * s;
-        }
-    }
-    outRms = std::sqrt(outRms / static_cast<float>(numSamples * numOutputChannels));
-
-    auto writePosition = analyzerWritePosition.load(std::memory_order_relaxed);
-    for (auto sample = 0; sample < numSamples; ++sample)
-    {
-        auto mono = 0.0f;
-        for (auto channel = 0; channel < numOutputChannels; ++channel)
-            mono += buffer.getSample(channel, sample);
-        mono /= static_cast<float>(numOutputChannels);
-        analyzerSamples[static_cast<size_t>(writePosition)].store(mono, std::memory_order_relaxed);
-        writePosition = (writePosition + 1) % analyzerFftSize;
-    }
-    analyzerWritePosition.store(writePosition, std::memory_order_release);
-
-    const auto outPeakDb = juce::Decibels::gainToDecibels(outPeak, -60.0f);
-    const auto outRmsDb = juce::Decibels::gainToDecibels(outRms, -60.0f);
-    auto targetOutPeak = juce::jlimit(0.0f, 1.0f, (outPeakDb + 60.0f) / 60.0f);
-    auto targetOutRms = juce::jlimit(0.0f, 1.0f, (outRmsDb + 60.0f) / 60.0f);
-    auto prevOutPeak = outputPeak.load();
-    auto prevOutRms = outputRms.load();
-    auto opCoeff = targetOutPeak > prevOutPeak ? meterAttack : meterRelease;
-    auto orCoeff = targetOutRms > prevOutRms ? meterAttack : meterRelease;
-    outputPeak.store(prevOutPeak + opCoeff * (targetOutPeak - prevOutPeak));
-    outputRms.store(prevOutRms + orCoeff * (targetOutRms - prevOutRms));
-
-    // Gain reduction in dB (from compressor envelope)
-    auto grDb = juce::Decibels::gainToDecibels(compressorEnvelope, -24.0f);
-    auto targetGr = juce::jlimit(0.0f, 1.0f, -grDb / 24.0f); // 0=no GR, 1=max GR
-    auto prevGr = gainReduction.load();
-    auto grCoeff = targetGr > prevGr ? meterAttack : meterRelease;
-    gainReduction.store(prevGr + grCoeff * (targetGr - prevGr));
+    const auto outputFrame = outputMeter.measureBlock(buffer);
+    publishMeters(inputFrame, outputFrame);
+    compressorReductionDb.store(
+        compressorMetrics.gainReductionDb, std::memory_order_release);
+    gainReduction.store(
+        juce::jlimit(0.0f,
+                     1.0f,
+                     compressorMetrics.gainReductionDb / 24.0f),
+        std::memory_order_relaxed);
+    deEssReduction.store(
+        deEssMetrics.reductionDb, std::memory_order_release);
+    writeAnalyzer(buffer);
 }
 
 void VoxlineAudioProcessor::copyAnalyzerSamples(
     std::array<float, analyzerFftSize>& destination) const noexcept
 {
-    const auto writePosition = analyzerWritePosition.load(std::memory_order_acquire);
-    for (int i = 0; i < analyzerFftSize; ++i)
+    const auto writePosition =
+        analyzerWritePosition.load(std::memory_order_acquire);
+    for (auto index = 0; index < analyzerFftSize; ++index)
     {
-        const auto source = (writePosition + i) % analyzerFftSize;
-        destination[static_cast<size_t>(i)] =
-            analyzerSamples[static_cast<size_t>(source)].load(std::memory_order_relaxed);
+        const auto source = (writePosition + index) % analyzerFftSize;
+        destination[static_cast<size_t>(index)] =
+            analyzerSamples[static_cast<size_t>(source)]
+                .load(std::memory_order_relaxed);
     }
 }
 
@@ -538,7 +454,7 @@ bool VoxlineAudioProcessor::isMidiEffect() const
 
 double VoxlineAudioProcessor::getTailLengthSeconds() const
 {
-    return 3.0;
+    return juce::jmax(3.0, space.tailSeconds());
 }
 
 int VoxlineAudioProcessor::getNumPrograms()
@@ -554,202 +470,277 @@ int VoxlineAudioProcessor::getCurrentProgram()
 void VoxlineAudioProcessor::setCurrentProgram(int index)
 {
     currentProgram = juce::jlimit(0, getNumPrograms() - 1, index);
-    struct PresetDef { float in; bool ag; float pol, bd, cl, ar, sm, cp, dr, out, space; int spaceType; };
-    static constexpr PresetDef presets[] = {
-        { 0.0f, true, 22, 0.0f, 0.0f, 0.0f, 10, 18, 0, 0.0f, 0, 0 },
-        {-1.0f, true, 58, 2.0f, 0.8f,-0.8f, 20, 52,34,-1.5f,12, 1 },
-        {-1.5f, true, 78, 1.2f, 3.0f, 0.5f, 24, 76,46,-2.0f, 8, 0 },
-        {-1.0f, true, 68,-2.0f, 1.8f, 4.0f, 66, 48,10,-1.5f,20, 2 },
-        {-2.0f, true, 86,-1.0f, 4.5f, 2.5f, 22, 84,56,-3.0f,10, 2 },
-        {-1.5f, true, 72, 3.5f, 0.3f,-1.8f, 28, 70,48,-2.5f, 6, 1 },
-        {-2.0f, true, 88,-2.5f, 4.0f, 5.0f, 38, 78,32,-3.0f,25, 0 },
-        {-1.0f, true, 60, 1.0f,-0.8f,-1.5f, 70, 46,18,-1.5f,18, 1 },
-        {-1.5f, true, 70, 2.5f, 1.0f,-0.5f, 38, 66,58,-2.5f,12, 2 },
+    struct PresetDef
+    {
+        float input;
+        float polish;
+        float body;
+        float presence;
+        float air;
+        float deEss;
+        float compressor;
+        float drive;
+        float output;
+        float space;
+        int spaceType;
     };
+    static constexpr PresetDef presets[] = {
+        {0.0f, 22, 0.0f, 0.0f, 0.0f, 10, 18, 0, 0.0f, 0, 0},
+        {-1.0f, 58, 2.0f, 0.8f, -0.8f, 20, 52, 34, -1.5f, 12, 3},
+        {-1.5f, 78, 1.2f, 3.0f, 0.5f, 24, 76, 46, -2.0f, 8, 0},
+        {-1.0f, 68, -2.0f, 1.8f, 4.0f, 66, 48, 10, -1.5f, 20, 2},
+        {-2.0f, 86, -1.0f, 4.5f, 2.5f, 22, 84, 56, -3.0f, 10, 2},
+        {-1.5f, 72, 3.5f, 0.3f, -1.8f, 28, 70, 48, -2.5f, 6, 3},
+        {-2.0f, 88, -2.5f, 4.0f, 5.0f, 38, 78, 32, -3.0f, 25, 0},
+        {-1.0f, 60, 1.0f, -0.8f, -1.5f, 70, 46, 18, -1.5f, 18, 1},
+        {-1.5f, 70, 2.5f, 1.0f, -0.5f, 38, 66, 58, -2.5f, 12, 1}};
     const auto& preset = presets[static_cast<size_t>(currentProgram)];
-    auto setPlain = [this](const char* id, float value)
+    const auto setPlain = [this](const char* id, float value)
     {
         if (auto* parameter = apvts.getParameter(id))
-            parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+            parameter->setValueNotifyingHost(
+                parameter->convertTo0to1(value));
     };
-    setPlain(VoxlineParameterIDs::inputGain, preset.in);
-    setPlain(VoxlineParameterIDs::autoGain, preset.ag ? 1.0f : 0.0f);
-    setPlain(VoxlineParameterIDs::polish, preset.pol);
-    setPlain(VoxlineParameterIDs::body, preset.bd);
-    setPlain(VoxlineParameterIDs::clarity, preset.cl);
-    setPlain(VoxlineParameterIDs::air, preset.ar);
-    setPlain(VoxlineParameterIDs::smooth, preset.sm);
-    setPlain(VoxlineParameterIDs::comp, preset.cp);
-    setPlain(VoxlineParameterIDs::drive, preset.dr);
-    setPlain(VoxlineParameterIDs::outputGain, preset.out);
+    setPlain(VoxlineParameterIDs::inputGain, preset.input);
+    setPlain(VoxlineParameterIDs::polish, preset.polish);
+    setPlain(VoxlineParameterIDs::body, preset.body);
+    setPlain(VoxlineParameterIDs::clarity, preset.presence);
+    setPlain(VoxlineParameterIDs::air, preset.air);
+    setPlain(VoxlineParameterIDs::smooth, preset.deEss);
+    setPlain(VoxlineParameterIDs::comp, preset.compressor);
+    setPlain(VoxlineParameterIDs::drive, preset.drive);
+    setPlain(VoxlineParameterIDs::outputGain, preset.output);
     setPlain(VoxlineParameterIDs::spaceAmount, preset.space);
-    setPlain(VoxlineParameterIDs::spaceType, static_cast<float>(preset.spaceType));
+    setPlain(VoxlineParameterIDs::spaceType,
+             static_cast<float>(preset.spaceType));
 }
 
 const juce::String VoxlineAudioProcessor::getProgramName(int index)
 {
     static const juce::StringArray names {
         "Clean", "Basement Take", "Dirty Lead", "Cold Plug", "Rage Cut",
-        "Muddy Trap", "Cyber Vox", "Noir Vocal", "Tape Rap"
-    };
+        "Muddy Trap", "Cyber Vox", "Noir Vocal", "Tape Rap"};
     return names[juce::jlimit(0, names.size() - 1, index)];
 }
 
-void VoxlineAudioProcessor::changeProgramName(int, const juce::String&)
+void VoxlineAudioProcessor::changeProgramName(
+    int,
+    const juce::String&)
 {
 }
 
-void VoxlineAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
+void VoxlineAudioProcessor::getStateInformation(
+    juce::MemoryBlock& destination)
 {
-    VoxlineState::serialise(apvts.copyState(), destData);
+    VoxlineState::serialise(apvts.copyState(), destination);
 }
 
-void VoxlineAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
+void VoxlineAudioProcessor::setStateInformation(
+    const void* data,
+    int sizeInBytes)
 {
-    if (auto state = VoxlineState::deserialise(data, sizeInBytes, apvts.state.getType()))
+    if (auto state = VoxlineState::deserialise(
+            data, sizeInBytes, apvts.state.getType()))
         apvts.replaceState(*state);
 }
 
-VoxlineAudioProcessor::APVTS& VoxlineAudioProcessor::getAPVTS() noexcept
+VoxlineAudioProcessor::APVTS&
+VoxlineAudioProcessor::getAPVTS() noexcept
 {
     return apvts;
 }
 
-const VoxlineAudioProcessor::APVTS& VoxlineAudioProcessor::getAPVTS() const noexcept
+const VoxlineAudioProcessor::APVTS&
+VoxlineAudioProcessor::getAPVTS() const noexcept
 {
     return apvts;
 }
 
-void VoxlineAudioProcessor::updateToneFilters()
+Voxline::Dsp::MeterFrame
+VoxlineAudioProcessor::getInputMeterFrame() const noexcept
 {
-    // Tone is now owned by the dedicated Vocal EQ and the split-band de-esser.
-    // Keeping these legacy filters inactive avoids double-processing old sessions.
-    for (auto& filter : bodyFilters) filter.makeInactive();
-    for (auto& filter : clarityFilters) filter.makeInactive();
-    for (auto& filter : airFilters) filter.makeInactive();
-    for (auto& filter : smoothFilters) filter.makeInactive();
+    return inputMeterSnapshot.load();
 }
 
-void VoxlineAudioProcessor::updateEQFilters()
+Voxline::Dsp::MeterFrame
+VoxlineAudioProcessor::getOutputMeterFrame() const noexcept
 {
-    const auto eqOn = apvts.getRawParameterValue(VoxlineParameterIDs::eqEnabled)->load() > 0.5f;
+    return outputMeterSnapshot.load();
+}
 
-    // updateToneFilters() runs immediately before this method.  When Vocal EQ is disabled,
-    // leave BODY/CLARITY/AIR/SMOOTH tone filters intact and bypass only the dedicated EQ stages.
-    if (!eqOn)
+float VoxlineAudioProcessor::getGainReductionDb() const noexcept
+{
+    return compressorReductionDb.load(std::memory_order_acquire);
+}
+
+bool VoxlineAudioProcessor::wasOutputSafetyActive() const noexcept
+{
+    return outputSafetyActive.load(std::memory_order_acquire);
+}
+
+void VoxlineAudioProcessor::clearOutputClipHold() noexcept
+{
+    outputMeter.clearClipHold();
+}
+
+VoxlineAudioProcessor::PreparedStorageSnapshot
+VoxlineAudioProcessor::getPreparedStorageSnapshot() const noexcept
+{
+    return {
+        preparedMaximumBlockSize,
+        preparedChannels,
+        bypassDelay.empty()
+            ? 0
+            : static_cast<int>(bypassDelay.front().size()),
+        preparedChannels > 0
+            ? bypassDryBuffer.getReadPointer(0)
+            : nullptr,
+        preparedChannels > 0
+            ? spaceSidechainBuffer.getReadPointer(0)
+            : nullptr,
+        bypassDelay.empty()
+            ? nullptr
+            : bypassDelay.front().data()};
+}
+
+void VoxlineAudioProcessor::AtomicMeterFrame::store(
+    const Voxline::Dsp::MeterFrame& frame) noexcept
+{
+    for (size_t channel = 0; channel < peakDbfs.size(); ++channel)
     {
-        for (auto& channelFilters : hpfFilters)
-            for (auto& filter : channelFilters)
-                filter.makeInactive();
-        for (auto& filter : lowFilters) filter.makeInactive();
-        for (auto& filter : mudFilters) filter.makeInactive();
-        for (auto& channelFilters : lpfFilters)
-            for (auto& filter : channelFilters)
-                filter.makeInactive();
+        peakDbfs[channel].store(
+            frame.channels[channel].peakDbfs,
+            std::memory_order_relaxed);
+        rmsDbfs[channel].store(
+            frame.channels[channel].rmsDbfs,
+            std::memory_order_relaxed);
+        truePeakDbtp[channel].store(
+            frame.channels[channel].truePeakDbtp,
+            std::memory_order_relaxed);
+    }
+    clipHeld.store(frame.clipHeld, std::memory_order_relaxed);
+    channelCount.store(frame.channelCount, std::memory_order_release);
+}
+
+Voxline::Dsp::MeterFrame
+VoxlineAudioProcessor::AtomicMeterFrame::load() const noexcept
+{
+    Voxline::Dsp::MeterFrame frame;
+    frame.channelCount =
+        channelCount.load(std::memory_order_acquire);
+    for (size_t channel = 0; channel < peakDbfs.size(); ++channel)
+    {
+        frame.channels[channel].peakDbfs =
+            peakDbfs[channel].load(std::memory_order_relaxed);
+        frame.channels[channel].rmsDbfs =
+            rmsDbfs[channel].load(std::memory_order_relaxed);
+        frame.channels[channel].truePeakDbtp =
+            truePeakDbtp[channel].load(std::memory_order_relaxed);
+    }
+    frame.clipHeld = clipHeld.load(std::memory_order_relaxed);
+    return frame;
+}
+
+void VoxlineAudioProcessor::prepareBypassDelay(
+    int channels,
+    int maximumBlockSize,
+    int latencySamples)
+{
+    bypassDryBuffer.setSize(
+        channels, maximumBlockSize, false, true, false);
+    bypassDryBuffer.clear();
+    const auto capacity =
+        juce::jmax(1, latencySamples + maximumBlockSize + 1);
+    bypassDelay.assign(
+        static_cast<size_t>(channels),
+        std::vector<float>(static_cast<size_t>(capacity), 0.0f));
+    bypassDelayWritePosition = 0;
+}
+
+void VoxlineAudioProcessor::captureLatencyAlignedDry(
+    const juce::AudioBuffer<float>& input) noexcept
+{
+    const auto channels =
+        juce::jmin(input.getNumChannels(), preparedChannels);
+    const auto samples =
+        juce::jmin(input.getNumSamples(), preparedMaximumBlockSize);
+    const auto capacity = static_cast<int>(bypassDelay.front().size());
+    const auto latency = getLatencySamples();
+
+    for (auto sample = 0; sample < samples; ++sample)
+    {
+        auto readPosition = bypassDelayWritePosition - latency;
+        if (readPosition < 0)
+            readPosition += capacity;
+
+        for (auto channel = 0; channel < channels; ++channel)
+        {
+            auto& delay = bypassDelay[static_cast<size_t>(channel)];
+            const auto dry = input.getSample(channel, sample);
+            bypassDryBuffer.setSample(
+                channel,
+                sample,
+                latency == 0
+                    ? dry
+                    : delay[static_cast<size_t>(readPosition)]);
+            delay[static_cast<size_t>(bypassDelayWritePosition)] = dry;
+        }
+
+        if (++bypassDelayWritePosition == capacity)
+            bypassDelayWritePosition = 0;
+    }
+}
+
+void VoxlineAudioProcessor::publishMeters(
+    const Voxline::Dsp::MeterFrame& input,
+    const Voxline::Dsp::MeterFrame& output) noexcept
+{
+    inputMeterSnapshot.store(input);
+    outputMeterSnapshot.store(output);
+
+    inputPeak.store(
+        normaliseMeterDb(
+            maximumChannelValue(
+                input, &Voxline::Dsp::ChannelMeter::peakDbfs)),
+        std::memory_order_relaxed);
+    inputRms.store(
+        normaliseMeterDb(
+            maximumChannelValue(
+                input, &Voxline::Dsp::ChannelMeter::rmsDbfs)),
+        std::memory_order_relaxed);
+    outputPeak.store(
+        normaliseMeterDb(
+            maximumChannelValue(
+                output, &Voxline::Dsp::ChannelMeter::peakDbfs)),
+        std::memory_order_relaxed);
+    outputRms.store(
+        normaliseMeterDb(
+            maximumChannelValue(
+                output, &Voxline::Dsp::ChannelMeter::rmsDbfs)),
+        std::memory_order_relaxed);
+}
+
+void VoxlineAudioProcessor::writeAnalyzer(
+    const juce::AudioBuffer<float>& buffer) noexcept
+{
+    const auto channels = buffer.getNumChannels();
+    if (channels <= 0)
         return;
-    }
 
-    const auto polishRaw = percentToUnit(apvts.getRawParameterValue(VoxlineParameterIDs::polish)->load());
-    const auto polishScale = juce::jmap(polishRaw, 0.0f, 1.0f, 0.35f, 1.35f);
-
-    // HPF: cascaded 2nd-order stages. 1/2/3/4 stages = 12/24/36/48 dB/oct.
-    const auto hpfF = apvts.getRawParameterValue(VoxlineParameterIDs::hpfFreq)->load();
-    const auto hpfS = static_cast<int>(apvts.getRawParameterValue(VoxlineParameterIDs::hpfSlope)->load());
-    const auto activeHpfStages = juce::jlimit(1, 4, hpfS + 1);
-    const auto hpfCoef = juce::IIRCoefficients::makeHighPass(currentSampleRate, hpfF);
-    for (auto& channelFilters : hpfFilters)
+    auto writePosition =
+        analyzerWritePosition.load(std::memory_order_relaxed);
+    for (auto sample = 0; sample < buffer.getNumSamples(); ++sample)
     {
-        for (auto stage = 0; stage < static_cast<int>(channelFilters.size()); ++stage)
-        {
-            if (stage < activeHpfStages)
-                channelFilters[static_cast<size_t>(stage)].setCoefficients(hpfCoef);
-            else
-                channelFilters[static_cast<size_t>(stage)].makeInactive();
-        }
+        auto mono = 0.0f;
+        for (auto channel = 0; channel < channels; ++channel)
+            mono += buffer.getSample(channel, sample);
+        mono /= static_cast<float>(channels);
+        analyzerSamples[static_cast<size_t>(writePosition)]
+            .store(mono, std::memory_order_relaxed);
+        writePosition = (writePosition + 1) % analyzerFftSize;
     }
-
-    // LOW bell
-    const auto lf = apvts.getRawParameterValue(VoxlineParameterIDs::lowFreq)->load();
-    const auto lg = apvts.getRawParameterValue(VoxlineParameterIDs::body)->load() * polishScale;
-    const auto lq = apvts.getRawParameterValue(VoxlineParameterIDs::lowQ)->load();
-    const auto lowCoef = juce::IIRCoefficients::makePeakFilter(currentSampleRate, lf, lq, juce::Decibels::decibelsToGain(lg));
-    for (auto& filter : lowFilters) filter.setCoefficients(lowCoef);
-
-    // MUD bell
-    const auto mf = apvts.getRawParameterValue(VoxlineParameterIDs::mudFreq)->load();
-    const auto mg = apvts.getRawParameterValue(VoxlineParameterIDs::mudGain)->load() * polishScale;
-    const auto mq = apvts.getRawParameterValue(VoxlineParameterIDs::mudQ)->load();
-    const auto mudCoef = juce::IIRCoefficients::makePeakFilter(currentSampleRate, mf, mq, juce::Decibels::decibelsToGain(mg));
-    for (auto& filter : mudFilters) filter.setCoefficients(mudCoef);
-
-    // PRES bell (reuses clarityFilters after legacy tone CLARITY has been calculated)
-    const auto pf = apvts.getRawParameterValue(VoxlineParameterIDs::presFreq)->load();
-    const auto pg = apvts.getRawParameterValue(VoxlineParameterIDs::clarity)->load() * polishScale;
-    const auto pq = apvts.getRawParameterValue(VoxlineParameterIDs::presQ)->load();
-    const auto presCoef = juce::IIRCoefficients::makePeakFilter(currentSampleRate, pf, pq, juce::Decibels::decibelsToGain(pg));
-    for (auto& filter : clarityFilters) filter.setCoefficients(presCoef);
-
-    // AIR shelf (reuses airFilters after legacy tone AIR has been calculated)
-    const auto af = apvts.getRawParameterValue(VoxlineParameterIDs::airFreq)->load();
-    const auto ag = apvts.getRawParameterValue(VoxlineParameterIDs::air)->load() * polishScale;
-    const auto aq = apvts.getRawParameterValue(VoxlineParameterIDs::airQ)->load();
-    const auto airCoef = juce::IIRCoefficients::makeHighShelf(currentSampleRate, af, aq, juce::Decibels::decibelsToGain(ag));
-    for (auto& filter : airFilters) filter.setCoefficients(airCoef);
-
-    // LPF: 1/2 cascaded stages = 12/24 dB/oct.
-    const auto lpfF = apvts.getRawParameterValue(VoxlineParameterIDs::lpfFreq)->load();
-    const auto lpfS = static_cast<int>(apvts.getRawParameterValue(VoxlineParameterIDs::lpfSlope)->load());
-    const auto activeLpfStages = juce::jlimit(1, 2, lpfS + 1);
-    const auto lpfCoef = juce::IIRCoefficients::makeLowPass(currentSampleRate, lpfF);
-    for (auto& channelFilters : lpfFilters)
-    {
-        for (auto stage = 0; stage < static_cast<int>(channelFilters.size()); ++stage)
-        {
-            if (stage < activeLpfStages)
-                channelFilters[static_cast<size_t>(stage)].setCoefficients(lpfCoef);
-            else
-                channelFilters[static_cast<size_t>(stage)].makeInactive();
-        }
-    }
-}
-
-float VoxlineAudioProcessor::updateCompressorGain(float detector, float amount, float thresholdDb,
-                                                  float ratio, float kneeDb, float attack,
-                                                  float release, float mix)
-{
-    if (amount <= 0.0f)
-        return 1.0f;
-
-    auto targetGain = 1.0f;
-    const auto detectorDb = juce::Decibels::gainToDecibels(detector, thresholdDb);
-
-    if (detectorDb > thresholdDb + kneeDb * 0.5f)
-    {
-        // Above knee — full compression
-        const auto compressedDb = thresholdDb + (detectorDb - thresholdDb) / ratio;
-        targetGain = juce::Decibels::decibelsToGain(compressedDb - detectorDb);
-    }
-    else if (detectorDb > thresholdDb - kneeDb * 0.5f)
-    {
-        // In knee — smooth transition
-        const auto kneePos = (detectorDb - thresholdDb + kneeDb * 0.5f) / kneeDb;
-        const auto weightedRatio = 1.0f + (ratio - 1.0f) * kneePos * kneePos; // quadratic fade-in
-        const auto compressedDb = thresholdDb + (detectorDb - thresholdDb) / weightedRatio;
-        targetGain = juce::Decibels::decibelsToGain(compressedDb - detectorDb);
-    }
-
-    const auto coefficient = targetGain < compressorEnvelope ? attack : release;
-
-    compressorEnvelope = targetGain + coefficient * (compressorEnvelope - targetGain);
-    return 1.0f + (compressorEnvelope - 1.0f) * mix;
-}
-
-float VoxlineAudioProcessor::applySoftClip(float sample) noexcept
-{
-    if (std::abs(sample) <= 0.98f)
-        return sample;
-
-    return std::tanh(sample);
+    analyzerWritePosition.store(
+        writePosition, std::memory_order_release);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

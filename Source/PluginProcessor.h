@@ -1,7 +1,20 @@
 #pragma once
 
 #include <JuceHeader.h>
+
+#include "DSP/DeEsser.h"
+#include "DSP/Metering.h"
+#include "DSP/OutputSafety.h"
+#include "DSP/VocalCompressor.h"
+#include "DSP/VocalDrive.h"
+#include "DSP/VocalEq.h"
+#include "DSP/VocalPolish.h"
+#include "DSP/VocalSpace.h"
 #include "Parameters/ParameterIDs.h"
+
+#include <array>
+#include <atomic>
+#include <vector>
 
 class VoxlineAudioProcessor final : public juce::AudioProcessor
 {
@@ -10,6 +23,18 @@ public:
     ~VoxlineAudioProcessor() override = default;
 
     using APVTS = juce::AudioProcessorValueTreeState;
+
+    struct PreparedStorageSnapshot
+    {
+        int maximumBlockSize {};
+        int channels {};
+        int bypassDelayCapacity {};
+        const float* bypassDryChannel0 {};
+        const float* spaceSidechainChannel0 {};
+        const float* bypassDelayChannel0 {};
+
+        bool operator==(const PreparedStorageSnapshot&) const = default;
+    };
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -42,58 +67,81 @@ public:
     APVTS& getAPVTS() noexcept;
     const APVTS& getAPVTS() const noexcept;
 
-    // Meter values
-    std::atomic<float> inputPeak { 0.0f };
-    std::atomic<float> inputRms { 0.0f };
-    std::atomic<float> outputPeak { 0.0f };
-    std::atomic<float> outputRms { 0.0f };
-    std::atomic<float> gainReduction { 0.0f };
-    std::atomic<float> deEssReduction { 0.0f };
+    Voxline::Dsp::MeterFrame getInputMeterFrame() const noexcept;
+    Voxline::Dsp::MeterFrame getOutputMeterFrame() const noexcept;
+    float getGainReductionDb() const noexcept;
+    bool wasOutputSafetyActive() const noexcept;
+    void clearOutputClipHold() noexcept;
+    PreparedStorageSnapshot getPreparedStorageSnapshot() const noexcept;
+
+    // Compatibility values for the current editor. Meter values remain
+    // normalised here until the modular meter UI consumes MeterFrame directly.
+    std::atomic<float> inputPeak {0.0f};
+    std::atomic<float> inputRms {0.0f};
+    std::atomic<float> outputPeak {0.0f};
+    std::atomic<float> outputRms {0.0f};
+    std::atomic<float> gainReduction {0.0f};
+    std::atomic<float> deEssReduction {0.0f};
+
     static constexpr int analyzerFftOrder = 11;
     static constexpr int analyzerFftSize = 1 << analyzerFftOrder;
-    void copyAnalyzerSamples(std::array<float, analyzerFftSize>& destination) const noexcept;
+    void copyAnalyzerSamples(
+        std::array<float, analyzerFftSize>& destination) const noexcept;
 
 private:
-    void updateToneFilters();
-    void updateEQFilters();
-    float updateCompressorGain(float detector, float amount, float thresholdDb, float ratio,
-                               float kneeDb, float attack, float release, float mix);
-    static float applySoftClip(float sample) noexcept;
+    struct AtomicMeterFrame
+    {
+        void store(const Voxline::Dsp::MeterFrame&) noexcept;
+        Voxline::Dsp::MeterFrame load() const noexcept;
+
+        std::array<std::atomic<float>, 2> peakDbfs {};
+        std::array<std::atomic<float>, 2> rmsDbfs {};
+        std::array<std::atomic<float>, 2> truePeakDbtp {};
+        std::atomic<int> channelCount {0};
+        std::atomic<bool> clipHeld {false};
+    };
+
+    void prepareBypassDelay(int channels,
+                            int maximumBlockSize,
+                            int latencySamples);
+    void captureLatencyAlignedDry(
+        const juce::AudioBuffer<float>& input) noexcept;
+    void publishMeters(const Voxline::Dsp::MeterFrame& input,
+                       const Voxline::Dsp::MeterFrame& output) noexcept;
+    void writeAnalyzer(const juce::AudioBuffer<float>&) noexcept;
 
     APVTS apvts;
-    juce::SmoothedValue<float> inputGainSmoothed;
-    juce::SmoothedValue<float> outputGainSmoothed;
-    juce::SmoothedValue<float> bypassSmoothed;
 
-    // Tone filters (shared between legacy tone and new EQ UI)
-    std::array<juce::IIRFilter, 2> bodyFilters;
-    std::array<juce::IIRFilter, 2> clarityFilters;
-    std::array<juce::IIRFilter, 2> airFilters;
-    std::array<juce::IIRFilter, 2> smoothFilters;
-    // EQ slope filters are cascaded 2nd-order stages:
-    // 1/2/3/4 active HPF stages = 12/24/36/48 dB/oct, 1/2 active LPF stages = 12/24 dB/oct.
-    std::array<std::array<juce::IIRFilter, 4>, 2> hpfFilters;
-    std::array<juce::IIRFilter, 2> mudFilters;
-    std::array<std::array<juce::IIRFilter, 2>, 2> lpfFilters;   // new: LPF for EQ
-    std::array<juce::IIRFilter, 2> lowFilters;   // new: dedicated LOW bell
+    Voxline::Dsp::BallisticMeter inputMeter;
+    Voxline::Dsp::VocalEq vocalEq;
+    Voxline::Dsp::DeEsser deEsser;
+    Voxline::Dsp::VocalCompressor compressor;
+    Voxline::Dsp::VocalPolish polish;
+    Voxline::Dsp::VocalDrive drive;
+    Voxline::Dsp::VocalSpace space;
+    Voxline::Dsp::EmergencySoftClipper outputSafety;
+    Voxline::Dsp::BallisticMeter outputMeter;
 
-    juce::AudioBuffer<float> dryBuffer;
-    double currentSampleRate = 44100.0;
-    float compressorEnvelope = 1.0f;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear>
+        inputGainSmoothed;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear>
+        outputGainSmoothed;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear>
+        bypassSmoothed;
 
-    float cleanModeXPrev[2] = {0.0f, 0.0f};
-    float cleanModeYPrev[2] = {0.0f, 0.0f};
-    float drivePreEmphasisState[2] = {0.0f, 0.0f};
-    float driveDeEmphasisState[2] = {0.0f, 0.0f};
-    float deEssLowpassState[2] = {0.0f, 0.0f};
+    juce::AudioBuffer<float> bypassDryBuffer;
+    juce::AudioBuffer<float> spaceSidechainBuffer;
+    std::vector<std::vector<float>> bypassDelay;
+    int bypassDelayWritePosition {};
+    int preparedMaximumBlockSize {};
+    int preparedChannels {};
 
-    juce::AudioBuffer<float> spaceBuffer;
-    int spaceWritePos = 0;
-    int maxSpaceDelaySamples = 1;
-    float spaceHpfState[2] = {0.0f, 0.0f};
-    float spaceLpfState[2] = {0.0f, 0.0f};
-    float spaceDuckEnvelope = 0.0f;
+    AtomicMeterFrame inputMeterSnapshot;
+    AtomicMeterFrame outputMeterSnapshot;
+    std::atomic<float> compressorReductionDb {0.0f};
+    std::atomic<bool> outputSafetyActive {false};
+
     std::array<std::atomic<float>, analyzerFftSize> analyzerSamples {};
-    std::atomic<int> analyzerWritePosition { 0 };
-    int currentProgram = 0;
+    std::atomic<int> analyzerWritePosition {0};
+    int currentProgram {};
 };
