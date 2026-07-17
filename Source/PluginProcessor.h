@@ -1,66 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
-
-namespace VoxlineParameterIDs
-{
-static constexpr auto inputGain = "inputGain";
-static constexpr auto autoGain = "autoGain";
-static constexpr auto polish = "polish";
-static constexpr auto body = "body";
-static constexpr auto clarity = "clarity";
-static constexpr auto air = "air";
-static constexpr auto smooth = "smooth";
-static constexpr auto comp = "comp";
-static constexpr auto drive = "drive";
-static constexpr auto outputGain = "outputGain";
-static constexpr auto bypass = "bypass";
-static constexpr auto cleanMode = "cleanMode";
-static constexpr auto listen = "listen";
-static constexpr auto spaceAmount = "spaceAmount";
-static constexpr auto spaceType = "spaceType";
-static constexpr auto spaceTime = "spaceTime";
-static constexpr auto spacePreDelay = "spacePreDelay";
-static constexpr auto spaceWidth = "spaceWidth";
-static constexpr auto spaceTone = "spaceTone";
-static constexpr auto spaceDecay = "spaceDecay";
-static constexpr auto spaceDucking = "spaceDucking";
-static constexpr auto hpfFreq = "hpfFreq";
-static constexpr auto mudAmount = "mudAmount";
-
-// Vocal EQ
-static constexpr auto eqEnabled   = "eqEnabled";
-static constexpr auto hpfSlope    = "hpfSlope";
-static constexpr auto lowFreq     = "lowFreq";
-static constexpr auto lowGain     = "lowGain";
-static constexpr auto lowQ        = "lowQ";
-static constexpr auto mudFreq     = "mudFreq";
-static constexpr auto mudGain     = "mudGain";
-static constexpr auto mudQ        = "mudQ";
-static constexpr auto presFreq    = "presFreq";
-static constexpr auto presGain    = "presGain";
-static constexpr auto presQ       = "presQ";
-static constexpr auto airFreq     = "airFreq";
-static constexpr auto airGain     = "airGain";
-static constexpr auto airQ        = "airQ";
-static constexpr auto lpfFreq     = "lpfFreq";
-static constexpr auto lpfSlope    = "lpfSlope";
-
-// Advanced dynamics / de-ess / colour controls. The existing comp, smooth,
-// and drive parameters remain the creator-facing amount macros.
-static constexpr auto compThreshold = "compThreshold";
-static constexpr auto compRatio     = "compRatio";
-static constexpr auto compAttack    = "compAttack";
-static constexpr auto compRelease   = "compRelease";
-static constexpr auto compMix       = "compMix";
-static constexpr auto deEssFreq      = "deEssFreq";
-static constexpr auto deEssThreshold = "deEssThreshold";
-static constexpr auto deEssRange     = "deEssRange";
-static constexpr auto deEssMode      = "deEssMode";
-static constexpr auto driveTone      = "driveTone";
-static constexpr auto driveMix       = "driveMix";
-static constexpr auto driveCharacter = "driveCharacter";
-} // namespace VoxlineParameterIDs
+#include "Parameters/ParameterIDs.h"
 
 class VoxlineAudioProcessor final : public juce::AudioProcessor
 {
@@ -100,8 +41,6 @@ public:
 
     APVTS& getAPVTS() noexcept;
     const APVTS& getAPVTS() const noexcept;
-
-    static APVTS::ParameterLayout createParameterLayout();
 
     // Meter values
     std::atomic<float> inputPeak { 0.0f };
