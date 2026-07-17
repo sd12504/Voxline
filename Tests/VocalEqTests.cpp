@@ -32,6 +32,24 @@ void fillSine(juce::AudioBuffer<float>& buffer,
                 / static_cast<float>(sampleRate)));
 }
 
+void fillSoloTestSignal(juce::AudioBuffer<float>& buffer,
+                        double sampleRate,
+                        int sampleOffset)
+{
+    for (auto channel = 0; channel < buffer.getNumChannels(); ++channel)
+    {
+        for (auto sample = 0; sample < buffer.getNumSamples(); ++sample)
+        {
+            const auto time = static_cast<float>(sample + sampleOffset)
+                / static_cast<float>(sampleRate);
+            buffer.setSample(channel, sample,
+                0.12f * std::sin(juce::MathConstants<float>::twoPi * 173.0f * time)
+                + 0.10f * std::sin(juce::MathConstants<float>::twoPi * 997.0f * time)
+                + 0.08f * std::sin(juce::MathConstants<float>::twoPi * 8000.0f * time));
+        }
+    }
+}
+
 void settleTransition(VocalEq& eq, double sampleRate, int channels)
 {
     juce::AudioBuffer<float> silence(channels,
@@ -306,6 +324,7 @@ public:
                 settleTransition(soloEq, 48000.0, 2);
                 filteredEq.reset();
                 soloEq.setSoloBand(soloBand);
+                settleTransition(soloEq, 48000.0, 2);
                 soloEq.reset();
 
                 juce::AudioBuffer<float> dry(2, 2048);
@@ -324,6 +343,149 @@ public:
                                 + solo.getSample(channel, sample),
                             dry.getSample(channel, sample), 2.0e-5f);
             }
+        }
+
+        beginTest("solo enter and exit crossfade while the normal chain stays warm");
+        {
+            auto settings = flatSettings();
+            settings.low = {true, 160.0f, 12.0f, 10.0f};
+            settings.presence = {false, 8000.0f, 0.0f, 4.0f};
+
+            VocalEq switched;
+            VocalEq normalReference;
+            switched.prepare({48000.0, 512, 2});
+            normalReference.prepare({48000.0, 512, 2});
+            switched.setTargetSettings(settings);
+            normalReference.setTargetSettings(settings);
+            settleTransition(switched, 48000.0, 2);
+            settleTransition(normalReference, 48000.0, 2);
+            switched.reset();
+            normalReference.reset();
+
+            constexpr auto enterSample = 2048;
+            constexpr auto exitSample = 6144;
+            constexpr auto totalSamples = 10240;
+            juce::AudioBuffer<float> switchedOutput(2, totalSamples);
+            juce::AudioBuffer<float> referenceOutput(2, totalSamples);
+
+            const auto renderSection = [](VocalEq& eq,
+                                          juce::AudioBuffer<float>& output,
+                                          int startSample,
+                                          int numSamples)
+            {
+                juce::AudioBuffer<float> block(2, numSamples);
+                fillSoloTestSignal(block, 48000.0, startSample);
+                eq.process(block);
+                for (auto channel = 0; channel < block.getNumChannels(); ++channel)
+                    output.copyFrom(channel, startSample, block, channel, 0,
+                                    numSamples);
+            };
+
+            renderSection(switched, switchedOutput, 0, enterSample);
+            renderSection(normalReference, referenceOutput, 0, enterSample);
+            switched.setSoloBand(VocalEqBand::presence);
+            renderSection(switched, switchedOutput, enterSample,
+                          exitSample - enterSample);
+            renderSection(normalReference, referenceOutput, enterSample,
+                          exitSample - enterSample);
+            switched.setSoloBand(VocalEqBand::none);
+            renderSection(switched, switchedOutput, exitSample,
+                          totalSamples - exitSample);
+            renderSection(normalReference, referenceOutput, exitSample,
+                          totalSamples - exitSample);
+
+            expectWithinAbsoluteError(
+                switchedOutput.getSample(0, enterSample),
+                referenceOutput.getSample(0, enterSample), 0.02f);
+            expect(std::abs(switchedOutput.getSample(0, exitSample)
+                            - switchedOutput.getSample(0, exitSample - 1))
+                   < 0.08f);
+
+            auto maximumPostFadeError = 0.0f;
+            constexpr auto selectorFadeSamples = 240;
+            for (auto sample = exitSample + selectorFadeSamples;
+                 sample < exitSample + selectorFadeSamples + 512;
+                 ++sample)
+            {
+                maximumPostFadeError = juce::jmax(
+                    maximumPostFadeError,
+                    std::abs(switchedOutput.getSample(0, sample)
+                             - referenceOutput.getSample(0, sample)));
+            }
+            expect(maximumPostFadeError < 1.0e-4f);
+        }
+
+        beginTest("solo band switch stays continuous and queues the latest target");
+        {
+            auto settings = flatSettings();
+            settings.low = {false, 200.0f, 0.0f, 2.0f};
+            settings.presence = {false, 3000.0f, 0.0f, 2.0f};
+            settings.air = {false, 8000.0f, 0.0f, 2.0f};
+
+            VocalEq retargeted;
+            VocalEq fadeReference;
+            VocalEq airReference;
+            for (auto* eq : {&retargeted, &fadeReference, &airReference})
+            {
+                eq->prepare({48000.0, 64, 2});
+                eq->setTargetSettings(settings);
+                settleTransition(*eq, 48000.0, 2);
+                eq->setSoloBand(VocalEqBand::low);
+                eq->reset();
+            }
+
+            const auto renderBlock = [](VocalEq& eq, int startSample, int numSamples)
+            {
+                juce::AudioBuffer<float> block(2, numSamples);
+                fillSoloTestSignal(block, 48000.0, startSample);
+                eq.process(block);
+                return block;
+            };
+
+            auto sampleOffset = 0;
+            for (auto* eq : {&retargeted, &fadeReference, &airReference})
+                renderBlock(*eq, sampleOffset, 1024);
+            sampleOffset += 1024;
+
+            retargeted.setSoloBand(VocalEqBand::presence);
+            fadeReference.setSoloBand(VocalEqBand::presence);
+            renderBlock(retargeted, sampleOffset, 64);
+            renderBlock(fadeReference, sampleOffset, 64);
+            renderBlock(airReference, sampleOffset, 64);
+            sampleOffset += 64;
+
+            retargeted.setSoloBand(VocalEqBand::air);
+            airReference.setSoloBand(VocalEqBand::air);
+            auto retargetBlock = renderBlock(retargeted, sampleOffset, 64);
+            auto continuingFade = renderBlock(fadeReference, sampleOffset, 64);
+            renderBlock(airReference, sampleOffset, 64);
+            expectWithinAbsoluteError(retargetBlock.getSample(0, 0),
+                                      continuingFade.getSample(0, 0), 1.0e-5f);
+            sampleOffset += 64;
+
+            juce::AudioBuffer<float> retargetedTail;
+            juce::AudioBuffer<float> presenceTail;
+            juce::AudioBuffer<float> airTail;
+            for (auto remaining = 4096; remaining > 0; remaining -= 64)
+            {
+                retargetedTail = renderBlock(retargeted, sampleOffset, 64);
+                presenceTail = renderBlock(fadeReference, sampleOffset, 64);
+                airTail = renderBlock(airReference, sampleOffset, 64);
+                sampleOffset += 64;
+            }
+
+            auto errorToPresence = 0.0f;
+            auto errorToAir = 0.0f;
+            for (auto sample = 0; sample < retargetedTail.getNumSamples(); ++sample)
+            {
+                errorToPresence += std::abs(
+                    retargetedTail.getSample(0, sample)
+                    - presenceTail.getSample(0, sample));
+                errorToAir += std::abs(
+                    retargetedTail.getSample(0, sample)
+                    - airTail.getSample(0, sample));
+            }
+            expect(errorToAir < errorToPresence * 0.1f);
         }
 
         beginTest("automation crossfade remains finite and bounded");

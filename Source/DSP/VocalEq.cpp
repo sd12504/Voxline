@@ -181,14 +181,22 @@ struct ChannelChain
             filter.reset();
     }
 
-    void resetSolo() noexcept
+    void resetSolo(VocalEqBand band) noexcept
     {
-        for (auto& filter : soloHpf)
-            filter.reset();
-        for (auto& filter : soloTone)
-            filter.reset();
-        for (auto& filter : soloLpf)
-            filter.reset();
+        if (band == VocalEqBand::hpf)
+        {
+            for (auto& filter : soloHpf)
+                filter.reset();
+        }
+        else if (band == VocalEqBand::lpf)
+        {
+            for (auto& filter : soloLpf)
+                filter.reset();
+        }
+        else if (band != VocalEqBand::none)
+        {
+            soloTone[toneBandIndex(band)].reset();
+        }
     }
 
     float process(float sample) noexcept
@@ -299,14 +307,17 @@ struct FilterBank
     VocalEqSettings settings;
     std::array<ChannelChain, maximumChannels> channels;
 
-    float process(int channel, float sample, VocalEqBand soloBand) noexcept
+    float processNormal(int channel, float sample) noexcept
     {
-        if (soloBand != VocalEqBand::none)
-            return channels[static_cast<size_t>(channel)]
-                .processSolo(soloBand, sample);
         if (! settings.enabled)
             return sample;
         return channels[static_cast<size_t>(channel)].process(sample);
+    }
+
+    float processSolo(int channel, float sample, VocalEqBand soloBand) noexcept
+    {
+        return channels[static_cast<size_t>(channel)]
+            .processSolo(soloBand, sample);
     }
 };
 
@@ -371,11 +382,18 @@ struct VocalEq::Impl
     int channels {2};
     int crossfadeSamples {441};
     int crossfadePosition {441};
+    int selectorFadeSamples {221};
+    int selectorFadePosition {221};
     int activeBank {};
     int targetBank {1};
     bool crossfading {};
     bool hasPendingSettings {};
-    VocalEqBand soloBand {VocalEqBand::none};
+    bool selectorCrossfading {};
+    bool hasPendingSoloBand {};
+    VocalEqBand currentSoloBand {VocalEqBand::none};
+    VocalEqBand targetSoloBand {VocalEqBand::none};
+    VocalEqBand requestedSoloBand {VocalEqBand::none};
+    VocalEqBand pendingSoloBand {VocalEqBand::none};
     VocalEqSettings targetSettings;
     VocalEqSettings pendingSettings;
     std::array<FilterBank, 2> banks;
@@ -387,6 +405,17 @@ struct VocalEq::Impl
                       settings, sampleRate);
         crossfadePosition = 0;
         crossfading = true;
+    }
+
+    void beginSoloTransition(VocalEqBand band) noexcept
+    {
+        targetSoloBand = band;
+        if (band != VocalEqBand::none)
+            for (auto& bank : banks)
+                for (auto& chain : bank.channels)
+                    chain.resetSolo(band);
+        selectorFadePosition = 0;
+        selectorCrossfading = true;
     }
 };
 
@@ -403,11 +432,19 @@ void VocalEq::prepare(const ModuleSpec& spec)
     impl->crossfadeSamples = juce::jmax(
         1, static_cast<int>(std::round(impl->sampleRate * 0.010)));
     impl->crossfadePosition = impl->crossfadeSamples;
+    impl->selectorFadeSamples = juce::jmax(
+        1, static_cast<int>(std::round(impl->sampleRate * 0.005)));
+    impl->selectorFadePosition = impl->selectorFadeSamples;
     impl->activeBank = 0;
     impl->targetBank = 1;
     impl->crossfading = false;
     impl->hasPendingSettings = false;
-    impl->soloBand = VocalEqBand::none;
+    impl->selectorCrossfading = false;
+    impl->hasPendingSoloBand = false;
+    impl->currentSoloBand = VocalEqBand::none;
+    impl->targetSoloBand = VocalEqBand::none;
+    impl->requestedSoloBand = VocalEqBand::none;
+    impl->pendingSoloBand = VocalEqBand::none;
     impl->targetSettings = clampSettings(VocalEqSettings{}, impl->sampleRate);
     configureBank(impl->banks[0], impl->targetSettings, impl->sampleRate);
     configureBank(impl->banks[1], impl->targetSettings, impl->sampleRate);
@@ -447,13 +484,19 @@ void VocalEq::setTargetSettings(const VocalEqSettings& settings) noexcept
 
 void VocalEq::setSoloBand(VocalEqBand band) noexcept
 {
-    if (impl == nullptr || impl->soloBand == band)
+    if (impl == nullptr || impl->requestedSoloBand == band)
         return;
 
-    impl->soloBand = band;
-    for (auto& bank : impl->banks)
-        for (auto& chain : bank.channels)
-            chain.resetSolo();
+    impl->requestedSoloBand = band;
+    if (impl->selectorCrossfading)
+    {
+        impl->pendingSoloBand = band;
+        impl->hasPendingSoloBand = true;
+        return;
+    }
+
+    if (band != impl->currentSoloBand)
+        impl->beginSoloTransition(band);
 }
 
 void VocalEq::process(juce::AudioBuffer<float>& buffer) noexcept
@@ -471,24 +514,58 @@ void VocalEq::process(juce::AudioBuffer<float>& buffer) noexcept
                 static_cast<float>(impl->crossfadePosition + 1)
                     / static_cast<float>(impl->crossfadeSamples))
             : 0.0f;
+        const auto selectorMix = impl->selectorCrossfading
+            ? juce::jlimit(0.0f, 1.0f,
+                static_cast<float>(impl->selectorFadePosition + 1)
+                    / static_cast<float>(impl->selectorFadeSamples))
+            : 0.0f;
 
         for (auto channel = 0; channel < channelsToProcess; ++channel)
         {
             const auto input = buffer.getSample(channel, sample);
-            const auto current = impl->banks[
+
+            const auto currentNormal = impl->banks[
                 static_cast<size_t>(impl->activeBank)]
-                    .process(channel, input, impl->soloBand);
+                    .processNormal(channel, input);
+            auto normal = currentNormal;
             if (impl->crossfading)
             {
-                const auto target = impl->banks[
+                const auto targetNormal = impl->banks[
                     static_cast<size_t>(impl->targetBank)]
-                        .process(channel, input, impl->soloBand);
+                        .processNormal(channel, input);
+                normal += mix * (targetNormal - currentNormal);
+            }
+
+            const auto processSoloAcrossBanks = [&](VocalEqBand band)
+            {
+                const auto currentSolo = impl->banks[
+                    static_cast<size_t>(impl->activeBank)]
+                        .processSolo(channel, input, band);
+                if (! impl->crossfading)
+                    return currentSolo;
+                const auto targetSolo = impl->banks[
+                    static_cast<size_t>(impl->targetBank)]
+                        .processSolo(channel, input, band);
+                return currentSolo + mix * (targetSolo - currentSolo);
+            };
+
+            const auto selectorSource =
+                impl->currentSoloBand == VocalEqBand::none
+                    ? normal
+                    : processSoloAcrossBanks(impl->currentSoloBand);
+            if (impl->selectorCrossfading)
+            {
+                const auto selectorTarget =
+                    impl->targetSoloBand == VocalEqBand::none
+                        ? normal
+                        : processSoloAcrossBanks(impl->targetSoloBand);
                 buffer.setSample(channel, sample,
-                                 current + mix * (target - current));
+                    selectorSource
+                        + selectorMix * (selectorTarget - selectorSource));
             }
             else
             {
-                buffer.setSample(channel, sample, current);
+                buffer.setSample(channel, sample, selectorSource);
             }
         }
 
@@ -505,6 +582,20 @@ void VocalEq::process(juce::AudioBuffer<float>& buffer) noexcept
                         impl->banks[static_cast<size_t>(impl->activeBank)].settings,
                         pending))
                     impl->beginTransition(pending);
+            }
+        }
+
+        if (impl->selectorCrossfading
+            && ++impl->selectorFadePosition >= impl->selectorFadeSamples)
+        {
+            impl->currentSoloBand = impl->targetSoloBand;
+            impl->selectorCrossfading = false;
+            if (impl->hasPendingSoloBand)
+            {
+                const auto pending = impl->pendingSoloBand;
+                impl->hasPendingSoloBand = false;
+                if (pending != impl->currentSoloBand)
+                    impl->beginSoloTransition(pending);
             }
         }
     }
