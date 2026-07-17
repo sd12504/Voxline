@@ -3,8 +3,17 @@
 #include <JuceHeader.h>
 
 #include <array>
+#include <atomic>
 #include <cmath>
+#include <cstdint>
+#include <utility>
 #include <vector>
+
+namespace VocalDriveAllocationProbe
+{
+extern std::atomic<bool> enabled;
+extern std::atomic<uint64_t> calls;
+}
 
 namespace
 {
@@ -36,6 +45,126 @@ float rms(const std::vector<float>& samples, int start, int count)
         energy += static_cast<double>(samples[static_cast<size_t>(index)])
                 * samples[static_cast<size_t>(index)];
     return static_cast<float>(std::sqrt(energy / static_cast<double>(count)));
+}
+
+struct StereoRender
+{
+    std::vector<float> left;
+    std::vector<float> right;
+};
+
+StereoRender renderStereoImpulse(double renderSampleRate,
+                                 int renderBlockSize,
+                                 SpaceMode mode,
+                                 const SpaceSettings& requested,
+                                 int totalSamples)
+{
+    VocalSpace space;
+    space.prepare({renderSampleRate, renderBlockSize, 2});
+    auto settings = requested;
+    settings.mode = mode;
+    space.setTargetSettings(settings);
+
+    StereoRender wet {
+        std::vector<float>(static_cast<size_t>(totalSamples)),
+        std::vector<float>(static_cast<size_t>(totalSamples))
+    };
+    juce::AudioBuffer<float> audio(2, renderBlockSize);
+    juce::AudioBuffer<float> sidechain(2, renderBlockSize);
+
+    for (int offset = 0; offset < totalSamples; offset += renderBlockSize)
+    {
+        const auto samplesThisBlock =
+            juce::jmin(renderBlockSize, totalSamples - offset);
+        audio.clear();
+        sidechain.clear();
+        if (offset == 0)
+        {
+            audio.setSample(0, 0, 1.0f);
+            audio.setSample(1, 0, 1.0f);
+        }
+
+        space.process(audio, sidechain);
+        for (int sample = 0; sample < samplesThisBlock; ++sample)
+        {
+            const auto dry = offset + sample == 0 ? 1.0f : 0.0f;
+            wet.left[static_cast<size_t>(offset + sample)] =
+                audio.getSample(0, sample) - dry;
+            wet.right[static_cast<size_t>(offset + sample)] =
+                audio.getSample(1, sample) - dry;
+        }
+    }
+
+    return wet;
+}
+
+float stereoDifferenceEnergy(const StereoRender& render,
+                             int startSample = 0)
+{
+    double energy {};
+    for (auto sample = startSample;
+         sample < static_cast<int>(render.left.size());
+         ++sample)
+    {
+        const auto difference =
+            render.left[static_cast<size_t>(sample)]
+            - render.right[static_cast<size_t>(sample)];
+        energy += static_cast<double>(difference) * difference;
+    }
+    return static_cast<float>(energy);
+}
+
+float renderWidthSideRms(double renderSampleRate,
+                         int renderBlockSize,
+                         float tone)
+{
+    VocalSpace space;
+    space.prepare({renderSampleRate, renderBlockSize, 2});
+    SpaceSettings settings;
+    settings.amount = 1.0f;
+    settings.mode = SpaceMode::width;
+    settings.sizeOrTime = 0.8f;
+    settings.width = 1.5f;
+    settings.tone = tone;
+    settings.ducking = 0.0f;
+    space.setTargetSettings(settings);
+
+    juce::AudioBuffer<float> audio(2, renderBlockSize);
+    juce::AudioBuffer<float> sidechain(2, renderBlockSize);
+    double energy {};
+    int measuredSamples {};
+    const auto totalSamples = juce::roundToInt(renderSampleRate * 0.5);
+    const auto warmupSamples = juce::roundToInt(renderSampleRate * 0.25);
+
+    for (int offset = 0; offset < totalSamples; offset += renderBlockSize)
+    {
+        for (int sample = 0; sample < renderBlockSize; ++sample)
+        {
+            const auto absoluteSample = offset + sample;
+            const auto phase =
+                juce::MathConstants<double>::twoPi * 6000.0
+                * static_cast<double>(absoluteSample) / renderSampleRate;
+            const auto value = 0.2f * static_cast<float>(std::sin(phase));
+            audio.setSample(0, sample, value);
+            audio.setSample(1, sample, value);
+        }
+        sidechain.clear();
+        space.process(audio, sidechain);
+
+        for (int sample = 0; sample < renderBlockSize; ++sample)
+        {
+            if (offset + sample < warmupSamples
+                || offset + sample >= totalSamples)
+                continue;
+            const auto side = 0.5f * (audio.getSample(0, sample)
+                                      - audio.getSample(1, sample));
+            energy += static_cast<double>(side) * side;
+            ++measuredSamples;
+        }
+    }
+
+    return static_cast<float>(
+        std::sqrt(energy / static_cast<double>(measuredSamples)));
 }
 
 std::vector<float> renderImpulse(SpaceMode mode,
@@ -312,6 +441,314 @@ public:
                              - audio.getSample(0, sample - 1)));
             }
             expect(maximumDelta < 0.5f);
+        }
+
+        beginTest("Room Plate Hall and Slap create width from mono");
+        {
+            SpaceSettings settings;
+            settings.amount = 1.0f;
+            settings.preDelayMs = 0.0f;
+            settings.decaySeconds = 1.4f;
+            settings.width = 1.5f;
+            settings.ducking = 0.0f;
+
+            for (const auto mode : {SpaceMode::room, SpaceMode::plate,
+                                    SpaceMode::hall})
+            {
+                const auto wet =
+                    renderStereoImpulse(sampleRate, blockSize, mode,
+                                        settings,
+                                        juce::roundToInt(sampleRate * 0.75));
+                expect(stereoDifferenceEnergy(wet) > 1.0e-5f,
+                       "A mono vocal must create decorrelated stereo ambience");
+            }
+
+            settings.preDelayMs = 90.0f;
+            settings.feedback = 0.5f;
+            const auto slap =
+                renderStereoImpulse(sampleRate, blockSize, SpaceMode::slap,
+                                    settings,
+                                    juce::roundToInt(sampleRate * 0.5));
+            expect(stereoDifferenceEnergy(slap) > 1.0e-5f,
+                   "Slap must use distinct left and right taps");
+        }
+
+        beginTest("Width mode Tone changes the wet spectrum");
+        {
+            SpaceSettings dark;
+            dark.amount = 1.0f;
+            dark.mode = SpaceMode::width;
+            dark.sizeOrTime = 0.8f;
+            dark.width = 1.5f;
+            dark.tone = -1.0f;
+            dark.ducking = 0.0f;
+
+            auto bright = dark;
+            bright.tone = 1.0f;
+            const auto darkWet =
+                renderStereoImpulse(sampleRate, blockSize, SpaceMode::width,
+                                    dark, 4096);
+            const auto brightWet =
+                renderStereoImpulse(sampleRate, blockSize, SpaceMode::width,
+                                    bright, 4096);
+
+            double differenceEnergy {};
+            for (int sample = 0; sample < 4096; ++sample)
+            {
+                const auto difference =
+                    darkWet.left[static_cast<size_t>(sample)]
+                    - brightWet.left[static_cast<size_t>(sample)];
+                differenceEnergy +=
+                    static_cast<double>(difference) * difference;
+            }
+            expect(differenceEnergy > 1.0e-6,
+                   "Width Tone must not be a dead parameter");
+        }
+
+        beginTest("Tone response is sample-rate and block-size invariant");
+        {
+            const auto reference =
+                renderWidthSideRms(48000.0, 64, -0.7f);
+            for (const auto configuration :
+                 std::array<std::pair<double, int>, 5> {{
+                     {44100.0, 64},
+                     {48000.0, 512},
+                     {88200.0, 512},
+                     {96000.0, 2048},
+                     {48000.0, 2048}
+                 }})
+            {
+                const auto measured =
+                    renderWidthSideRms(configuration.first,
+                                       configuration.second, -0.7f);
+                const auto differenceDb =
+                    juce::Decibels::gainToDecibels(
+                        measured / juce::jmax(1.0e-9f, reference));
+                expect(std::abs(differenceDb) < 0.75f,
+                       "Physical Tone response must not depend on sample rate or block size");
+            }
+        }
+
+        beginTest("Pre-delay automation does not sweep across old audio");
+        {
+            VocalSpace space;
+            space.prepare({sampleRate, 64, 2});
+            SpaceSettings settings;
+            settings.amount = 1.0f;
+            settings.mode = SpaceMode::plate;
+            settings.preDelayMs = 200.0f;
+            settings.ducking = 0.0f;
+            space.setTargetSettings(settings);
+
+            juce::AudioBuffer<float> audio(2, 64);
+            juce::AudioBuffer<float> sidechain(2, 64);
+            sidechain.clear();
+            for (int block = 0; block < 75; ++block)
+            {
+                audio.clear();
+                for (int sample = 0; sample < 64; ++sample)
+                {
+                    const auto absoluteSample = block * 64 + sample;
+                    if (absoluteSample < 480 || absoluteSample >= 960)
+                        continue;
+                    const auto phase =
+                        juce::MathConstants<double>::twoPi * 4000.0
+                        * static_cast<double>(absoluteSample) / sampleRate;
+                    const auto value =
+                        0.5f * static_cast<float>(std::sin(phase));
+                    audio.setSample(0, sample, value);
+                    audio.setSample(1, sample, value);
+                }
+                space.process(audio, sidechain);
+            }
+
+            settings.preDelayMs = 50.0f;
+            space.setTargetSettings(settings);
+            double sweptEnergy {};
+            for (int block = 0; block < 16; ++block)
+            {
+                audio.clear();
+                space.process(audio, sidechain);
+                for (int channel = 0; channel < 2; ++channel)
+                    for (int sample = 0; sample < 64; ++sample)
+                    {
+                        const auto value = audio.getSample(channel, sample);
+                        sweptEnergy += static_cast<double>(value) * value;
+                    }
+            }
+            expect(sweptEnergy < 1.0e-10,
+                   "Time changes must crossfade fixed taps instead of sweeping the read head");
+        }
+
+        beginTest("Inactive modes cannot resurrect frozen delay contents");
+        {
+            VocalSpace space;
+            space.prepare({sampleRate, blockSize, 2});
+
+            SpaceSettings settings;
+            settings.amount = 1.0f;
+            settings.mode = SpaceMode::slap;
+            settings.preDelayMs = 90.0f;
+            settings.feedback = 0.9f;
+            settings.ducking = 0.0f;
+            space.setTargetSettings(settings);
+
+            juce::AudioBuffer<float> audio(2, blockSize);
+            juce::AudioBuffer<float> sidechain(2, blockSize);
+            sidechain.clear();
+            const auto processSilence = [&] (int samples,
+                                             double& measuredEnergy)
+            {
+                for (int offset = 0; offset < samples; offset += blockSize)
+                {
+                    audio.clear();
+                    space.process(audio, sidechain);
+                    for (int sample = 0; sample < blockSize; ++sample)
+                    {
+                        const auto value = audio.getSample(0, sample);
+                        measuredEnergy +=
+                            static_cast<double>(value) * value;
+                    }
+                }
+            };
+
+            audio.clear();
+            audio.setSample(0, 0, 1.0f);
+            audio.setSample(1, 0, 1.0f);
+            space.process(audio, sidechain);
+            double ignoredEnergy {};
+            processSilence(juce::roundToInt(sampleRate * 0.04),
+                           ignoredEnergy);
+
+            settings.mode = SpaceMode::width;
+            space.setTargetSettings(settings);
+            processSilence(juce::roundToInt(sampleRate * 0.5),
+                           ignoredEnergy);
+
+            settings.mode = SpaceMode::slap;
+            space.setTargetSettings(settings);
+            double returnedEnergy {};
+            processSilence(juce::roundToInt(sampleRate * 0.14),
+                           returnedEnergy);
+            expect(returnedEnergy < 1.0e-10,
+                   "Returning to a mode must start from reset storage");
+        }
+
+        beginTest("Mode transition lasts thirty milliseconds");
+        {
+            for (const auto transitionSampleRate : {48000.0, 96000.0})
+            {
+                const auto renderedSamples =
+                    juce::roundToInt(transitionSampleRate * 0.035);
+                const auto midpoint =
+                    juce::roundToInt(transitionSampleRate * 0.015);
+                const auto endpoint =
+                    juce::roundToInt(transitionSampleRate * 0.030);
+
+                SpaceSettings settings;
+                settings.amount = 1.0f;
+                settings.mode = SpaceMode::width;
+                settings.preDelayMs = 0.0f;
+                settings.width = 0.0f;
+                settings.ducking = 0.0f;
+
+                VocalSpace switched;
+                switched.prepare(
+                    {transitionSampleRate, renderedSamples, 1});
+                switched.setTargetSettings(settings);
+                juce::AudioBuffer<float> prime(1, 64);
+                juce::AudioBuffer<float> primeSidechain(1, 64);
+                prime.clear();
+                primeSidechain.clear();
+                switched.process(prime, primeSidechain);
+
+                settings.mode = SpaceMode::room;
+                switched.setTargetSettings(settings);
+                VocalSpace room;
+                room.prepare(
+                    {transitionSampleRate, renderedSamples, 1});
+                room.setTargetSettings(settings);
+
+                juce::AudioBuffer<float> switchedAudio(
+                    1, renderedSamples);
+                juce::AudioBuffer<float> roomAudio(
+                    1, renderedSamples);
+                juce::AudioBuffer<float> sidechain(
+                    1, renderedSamples);
+                switchedAudio.clear();
+                for (int sample = 0; sample < renderedSamples; ++sample)
+                    switchedAudio.setSample(0, sample, 0.1f);
+                roomAudio.makeCopyOf(switchedAudio);
+                sidechain.clear();
+                switched.process(switchedAudio, sidechain);
+                room.process(roomAudio, sidechain);
+
+                const auto wetRatio = [&] (int sample)
+                {
+                    const auto switchedWet =
+                        switchedAudio.getSample(0, sample) - 0.1f;
+                    const auto roomWet =
+                        roomAudio.getSample(0, sample) - 0.1f;
+                    return switchedWet / roomWet;
+                };
+
+                expectWithinAbsoluteError(wetRatio(0), 0.0f, 1.0e-4f);
+                expectWithinAbsoluteError(
+                    wetRatio(midpoint),
+                    std::sqrt(0.5f), 0.015f);
+                expectWithinAbsoluteError(
+                    wetRatio(endpoint), 1.0f, 1.0e-4f);
+            }
+        }
+
+        beginTest("Process performs no allocations after prepare");
+        {
+            VocalSpace space;
+            space.prepare({96000.0, 2048, 2});
+            SpaceSettings settings;
+            settings.amount = 0.8f;
+            settings.preDelayMs = 120.0f;
+            settings.sizeOrTime = 0.75f;
+            settings.decaySeconds = 3.0f;
+            settings.width = 1.5f;
+            settings.ducking = 0.6f;
+            settings.feedback = 0.7f;
+            space.setTargetSettings(settings);
+
+            juce::AudioBuffer<float> audio(2, 2048);
+            juce::AudioBuffer<float> sidechain(2, 2048);
+            fillSine(audio, 0);
+            sidechain.makeCopyOf(audio);
+            space.process(audio, sidechain);
+
+            VocalDriveAllocationProbe::calls.store(
+                0, std::memory_order_relaxed);
+            VocalDriveAllocationProbe::enabled.store(
+                true, std::memory_order_release);
+            for (const auto mode : {SpaceMode::room, SpaceMode::plate,
+                                    SpaceMode::hall, SpaceMode::slap,
+                                    SpaceMode::width,
+                                    SpaceMode::room})
+            {
+                settings.mode = mode;
+                settings.preDelayMs =
+                    mode == SpaceMode::slap ? 95.0f : 28.0f;
+                space.setTargetSettings(settings);
+                for (int block = 0; block < 8; ++block)
+                {
+                    fillSine(audio, block * 2048);
+                    sidechain.makeCopyOf(audio);
+                    space.process(audio, sidechain);
+                }
+            }
+            VocalDriveAllocationProbe::enabled.store(
+                false, std::memory_order_release);
+
+            expectEquals(
+                static_cast<int>(
+                    VocalDriveAllocationProbe::calls.load(
+                        std::memory_order_relaxed)),
+                0);
         }
 
         beginTest("Prepared storage handles repeated process calls");

@@ -47,47 +47,101 @@ private:
         float right {};
     };
 
-    struct DelayLine
+    struct MonoDelay
     {
-        void prepare(int samples);
+        void prepare(int maximumSamples);
         void reset() noexcept;
-        StereoSample read(int delaySamples) const noexcept;
-        void write(StereoSample sample) noexcept;
+        float read(float delaySamples) const noexcept;
+        void write(float sample) noexcept;
 
-        std::vector<float> left;
-        std::vector<float> right;
+        std::vector<float> storage;
         int writePosition {};
+    };
+
+    struct CrossfadedTap
+    {
+        void prepare(double sampleRate) noexcept;
+        void reset() noexcept;
+        float read(const MonoDelay& delay,
+                   float requestedDelaySamples,
+                   float modulationSamples = 0.0f,
+                   float directSample = 0.0f) noexcept;
+
+        float sampleAt(const MonoDelay& delay,
+                       float delaySamples,
+                       float directSample) const noexcept;
+
+        float fromDelaySamples {};
+        float toDelaySamples {};
+        float queuedDelaySamples {};
+        float fade {1.0f};
+        float fadeStep {1.0f};
+        bool initialised {};
+        bool hasQueuedTarget {};
+    };
+
+    struct AllPass
+    {
+        void prepare(double sampleRate, int maximumSamples);
+        void reset() noexcept;
+        float process(float input,
+                      float delaySamples,
+                      float modulationSamples,
+                      float feedback) noexcept;
+
+        MonoDelay delay;
+        CrossfadedTap tap;
     };
 
     struct Engine
     {
         void prepare(SpaceMode, const ModuleSpec&);
         void reset() noexcept;
-        StereoSample process(StereoSample input,
+        StereoSample process(StereoSample,
                              const SpaceSettings&) noexcept;
 
-        StereoSample processReverb(StereoSample,
-                                   const SpaceSettings&) noexcept;
+        StereoSample processRoom(StereoSample,
+                                 const SpaceSettings&) noexcept;
+        StereoSample processPlate(StereoSample,
+                                  const SpaceSettings&) noexcept;
+        StereoSample processHall(StereoSample,
+                                 const SpaceSettings&) noexcept;
         StereoSample processSlap(StereoSample,
                                  const SpaceSettings&) noexcept;
         StereoSample processWidth(StereoSample,
                                   const SpaceSettings&) noexcept;
+        StereoSample processPreDelay(StereoSample,
+                                     float preDelayMs) noexcept;
+        StereoSample processFdn(StereoSample input,
+                                const SpaceSettings& settings,
+                                const float* delaySeconds,
+                                int activeLines,
+                                float decayScale,
+                                float modulationDepthMs,
+                                float inputGain) noexcept;
 
         SpaceMode mode {SpaceMode::room};
         double sampleRate {44100.0};
-        DelayLine preDelay;
-        std::array<DelayLine, 8> lines;
-        int lineCount {};
-        std::array<float, 2> diffusion {};
+        MonoDelay preDelayLeft;
+        MonoDelay preDelayRight;
+        CrossfadedTap preDelayTapLeft;
+        CrossfadedTap preDelayTapRight;
+        std::array<MonoDelay, 8> tank;
+        std::array<CrossfadedTap, 8> tankTaps;
+        std::array<AllPass, 8> diffusers;
+        std::array<float, 8> dampingState {};
+        std::array<float, 8> modulationPhase {};
         std::array<float, 2> toneState {};
-        float modulationPhase {};
+        int lineCount {};
     };
 
     static size_t modeIndex(SpaceMode) noexcept;
+    static SpaceMode sanitiseMode(SpaceMode) noexcept;
     static float advance(float current,
                          float target,
                          float coefficient) noexcept;
     Engine& engineFor(SpaceMode) noexcept;
+    void beginModeTransitionIfNeeded() noexcept;
 
     ModuleSpec moduleSpec;
     SpaceSettings targetSettings;
@@ -97,6 +151,7 @@ private:
     SpaceMode currentMode {SpaceMode::plate};
     SpaceMode nextMode {SpaceMode::plate};
     float modeFade {1.0f};
+    float modeFadeStep {1.0f};
     float parameterCoefficient {};
     float duckAttackCoefficient {};
     float duckReleaseCoefficient {};
