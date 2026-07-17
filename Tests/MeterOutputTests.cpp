@@ -25,13 +25,15 @@ void fillSine(juce::AudioBuffer<float>& buffer,
     }
 }
 
-void processConstant(Voxline::Dsp::BallisticMeter& meter,
-                     int preferredBlockSize,
-                     int totalSamples,
-                     float value)
+Voxline::Dsp::MeterFrame processConstant(
+    Voxline::Dsp::BallisticMeter& meter,
+    int preferredBlockSize,
+    int totalSamples,
+    float value)
 {
     juce::AudioBuffer<float> buffer(2, preferredBlockSize);
     auto remaining = totalSamples;
+    Voxline::Dsp::MeterFrame frame;
 
     while (remaining > 0)
     {
@@ -44,9 +46,44 @@ void processConstant(Voxline::Dsp::BallisticMeter& meter,
                 juce::FloatVectorOperations::fill(
                     buffer.getWritePointer(channel), value, samplesThisTime);
 
-        meter.measureBlock(buffer);
+        frame = meter.measureBlock(buffer);
         remaining -= samplesThisTime;
     }
+
+    return frame;
+}
+
+Voxline::Dsp::MeterFrame processQuarterRateSine(
+    Voxline::Dsp::BallisticMeter& meter,
+    int blockSize,
+    int totalSamples,
+    float amplitude)
+{
+    const auto sampledAmplitude =
+        amplitude * std::sqrt(0.5f);
+    constexpr std::array<float, 4> phases {1.0f, 1.0f, -1.0f, -1.0f};
+    juce::AudioBuffer<float> buffer(1, blockSize);
+    Voxline::Dsp::MeterFrame frame;
+    auto offset = 0;
+
+    while (offset < totalSamples)
+    {
+        const auto samplesThisTime =
+            juce::jmin(blockSize, totalSamples - offset);
+        buffer.setSize(1, samplesThisTime, false, false, true);
+
+        for (int sample = 0; sample < samplesThisTime; ++sample)
+            buffer.setSample(
+                0, sample,
+                sampledAmplitude
+                    * phases[static_cast<size_t>(offset + sample)
+                             % phases.size()]);
+
+        frame = meter.measureBlock(buffer);
+        offset += samplesThisTime;
+    }
+
+    return frame;
 }
 
 class MeterOutputTests final : public juce::UnitTest
@@ -139,6 +176,74 @@ public:
                    > frame.channels[0].peakDbfs);
         }
 
+        beginTest("band-limited true peak reconstructs a quarter-rate sine");
+        {
+            Voxline::Dsp::BallisticMeter meter;
+            meter.prepare({testSampleRate, 256, 1});
+            const auto frame =
+                processQuarterRateSine(meter, 256, 96000, 0.9f);
+            const auto expectedDbtp =
+                Voxline::Dsp::gainToDbfs(0.9f);
+
+            expectWithinAbsoluteError(frame.channels[0].truePeakDbtp,
+                                      expectedDbtp, 0.1f);
+        }
+
+        beginTest("true peak is invariant to cross-block partitioning");
+        {
+            Voxline::Dsp::BallisticMeter meter2;
+            Voxline::Dsp::BallisticMeter meter512;
+            meter2.prepare({testSampleRate, 512, 1});
+            meter512.prepare({testSampleRate, 512, 1});
+
+            const auto frame2 =
+                processQuarterRateSine(meter2, 2, 96000, 0.9f);
+            const auto frame512 =
+                processQuarterRateSine(meter512, 512, 96000, 0.9f);
+
+            expectWithinAbsoluteError(frame2.channels[0].truePeakDbtp,
+                                      frame512.channels[0].truePeakDbtp,
+                                      0.05f);
+        }
+
+        beginTest("peak and RMS attacks use their specified time constants");
+        {
+            Voxline::Dsp::BallisticMeter meter;
+            meter.prepare({testSampleRate, 512, 2});
+            const auto expectedAfterOneTimeConstant =
+                Voxline::Dsp::gainToDbfs(1.0f - std::exp(-1.0f));
+
+            const auto peakFrame =
+                processConstant(meter, 128, 384, 1.0f);
+            expectWithinAbsoluteError(peakFrame.channels[0].peakDbfs,
+                                      expectedAfterOneTimeConstant, 0.08f);
+
+            meter.reset();
+            const auto rmsFrame =
+                processConstant(meter, 512, 3840, 1.0f);
+            expectWithinAbsoluteError(rmsFrame.channels[0].rmsDbfs,
+                                      expectedAfterOneTimeConstant, 0.08f);
+        }
+
+        beginTest("peak and RMS releases use their specified time constants");
+        {
+            Voxline::Dsp::BallisticMeter meter;
+            meter.prepare({testSampleRate, 512, 2});
+            processConstant(meter, 512, 144000, 1.0f);
+
+            const auto peakFrame =
+                processConstant(meter, 512, 19200, 0.0f);
+            expectWithinAbsoluteError(peakFrame.channels[0].peakDbfs,
+                                      -8.6859f, 0.08f);
+
+            meter.reset();
+            processConstant(meter, 512, 144000, 1.0f);
+            const auto rmsFrame =
+                processConstant(meter, 512, 28800, 0.0f);
+            expectWithinAbsoluteError(rmsFrame.channels[0].rmsDbfs,
+                                      -8.6859f, 0.08f);
+        }
+
         beginTest("sample clipping latches until explicitly cleared");
         {
             Voxline::Dsp::BallisticMeter meter;
@@ -151,6 +256,38 @@ public:
             meter.clearClipHold();
             buffer.clear();
             expect(! meter.measureBlock(buffer).clipHeld);
+        }
+
+        beginTest("clip clear is an audio-thread request");
+        {
+            Voxline::Dsp::BallisticMeter meter;
+            meter.prepare({testSampleRate, 1024, 1});
+            juce::AudioBuffer<float> clipped(1, 1024);
+            juce::FloatVectorOperations::fill(clipped.getWritePointer(0),
+                                              1.0f,
+                                              clipped.getNumSamples());
+
+            std::atomic<bool> keepClearing {true};
+            std::atomic<bool> clearerStarted {false};
+            std::thread clearer(
+                [&]
+                {
+                    clearerStarted.store(true, std::memory_order_release);
+                    while (keepClearing.load(std::memory_order_acquire))
+                        meter.clearClipHold();
+                });
+
+            while (! clearerStarted.load(std::memory_order_acquire))
+                std::this_thread::yield();
+
+            auto falseFrames = 0;
+            for (int block = 0; block < 5000; ++block)
+                if (! meter.measureBlock(clipped).clipHeld)
+                    ++falseFrames;
+
+            keepClearing.store(false, std::memory_order_release);
+            clearer.join();
+            expectEquals(falseFrames, 0);
         }
 
         beginTest("soft clip transfer is C1 continuous at the threshold");
@@ -198,6 +335,46 @@ public:
                     expect(std::isfinite(value));
                     expect(std::abs(value) <= 1.0f);
                 }
+        }
+
+        beginTest("output safety publishes activity after each complete block");
+        {
+            Voxline::Dsp::EmergencySoftClipper clipper;
+            juce::AudioBuffer<float> clipped(1, 1);
+            clipped.setSample(0, 0, 2.0f);
+            clipper.process(clipped);
+            expect(clipper.wasActive());
+
+            juce::AudioBuffer<float> longBlock(1, 16 * 1024 * 1024);
+            longBlock.clear();
+            longBlock.setSample(0, longBlock.getNumSamples() - 1, 2.0f);
+            std::atomic<bool> started {false};
+            std::atomic<bool> finished {false};
+
+            std::thread processor(
+                [&]
+                {
+                    started.store(true, std::memory_order_release);
+                    clipper.process(longBlock);
+                    finished.store(true, std::memory_order_release);
+                });
+
+            while (! started.load(std::memory_order_acquire))
+                std::this_thread::yield();
+
+            auto changedBeforeBlockFinished = false;
+            while (! finished.load(std::memory_order_acquire))
+                changedBeforeBlockFinished =
+                    changedBeforeBlockFinished || ! clipper.wasActive();
+
+            processor.join();
+            expect(! changedBeforeBlockFinished);
+            expect(clipper.wasActive());
+
+            juce::AudioBuffer<float> silence(1, 1);
+            silence.clear();
+            clipper.process(silence);
+            expect(! clipper.wasActive());
         }
     }
 };

@@ -2,6 +2,9 @@
 
 #include "DspTypes.h"
 
+#include <atomic>
+#include <memory>
+
 namespace Voxline::Dsp
 {
 struct ChannelMeter
@@ -32,20 +35,15 @@ private:
         float peak {};
         float rms {};
         float truePeak {};
-        std::array<float, 2> previousSamples {};
-        int previousSampleCount {};
     };
 
-    static float measureTruePeak(const float*,
-                                 int,
-                                 ChannelState&,
-                                 float) noexcept;
-
     std::array<ChannelState, 2> channelStates;
+    std::unique_ptr<juce::dsp::Oversampling<float>> truePeakOversampling;
     float peakAttackCoefficient {};
     float peakReleaseCoefficient {};
     float rmsAttackCoefficient {};
     float rmsReleaseCoefficient {};
     bool clipHeld {};
+    std::atomic<bool> clearClipHoldRequested {false};
 };
 }

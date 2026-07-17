@@ -18,22 +18,6 @@ float smoothBlock(float current,
     return target + blockCoefficient * (current - target);
 }
 
-float cubicInterpolate(float p0,
-                       float p1,
-                       float p2,
-                       float p3,
-                       float position) noexcept
-{
-    const auto positionSquared = position * position;
-    const auto positionCubed = positionSquared * position;
-    return 0.5f
-           * ((2.0f * p1)
-              + (-p0 + p2) * position
-              + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3)
-                    * positionSquared
-              + (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * positionCubed);
-}
-
 }
 
 void Voxline::Dsp::BallisticMeter::prepare(const ModuleSpec& spec)
@@ -43,6 +27,15 @@ void Voxline::Dsp::BallisticMeter::prepare(const ModuleSpec& spec)
     peakReleaseCoefficient = smoothingCoefficient(sampleRate, 400.0f);
     rmsAttackCoefficient = smoothingCoefficient(sampleRate, 80.0f);
     rmsReleaseCoefficient = smoothingCoefficient(sampleRate, 600.0f);
+
+    truePeakOversampling =
+        std::make_unique<juce::dsp::Oversampling<float>>(
+            2,
+            2,
+            juce::dsp::Oversampling<float>::filterHalfBandFIREquiripple,
+            true);
+    truePeakOversampling->initProcessing(
+        static_cast<size_t>(juce::jmax(1, spec.maximumBlockSize)));
     reset();
 }
 
@@ -50,74 +43,18 @@ void Voxline::Dsp::BallisticMeter::reset() noexcept
 {
     channelStates = {};
     clipHeld = false;
-}
+    clearClipHoldRequested.store(false, std::memory_order_relaxed);
 
-float Voxline::Dsp::BallisticMeter::measureTruePeak(
-    const float* samples,
-    int numSamples,
-    ChannelState& state,
-    float samplePeak) noexcept
-{
-    auto truePeak = samplePeak;
-
-    if (state.previousSampleCount == 2 && numSamples > 0)
-    {
-        const auto p0 = state.previousSamples[0];
-        const auto p1 = state.previousSamples[1];
-        const auto p2 = samples[0];
-        const auto p3 = numSamples > 1 ? samples[1] : p2;
-
-        for (int phase = 1; phase < 4; ++phase)
-        {
-            const auto interpolated =
-                cubicInterpolate(p0, p1, p2, p3,
-                                 static_cast<float>(phase) * 0.25f);
-            truePeak = juce::jmax(truePeak, std::abs(interpolated));
-        }
-    }
-
-    for (int sample = 0; sample + 1 < numSamples; ++sample)
-    {
-        const auto p0 =
-            sample > 0
-                ? samples[sample - 1]
-                : (state.previousSampleCount > 0
-                       ? state.previousSamples[1]
-                       : samples[sample]);
-        const auto p1 = samples[sample];
-        const auto p2 = samples[sample + 1];
-        const auto p3 =
-            sample + 2 < numSamples ? samples[sample + 2] : p2;
-
-        for (int phase = 1; phase < 4; ++phase)
-        {
-            const auto interpolated =
-                cubicInterpolate(p0, p1, p2, p3,
-                                 static_cast<float>(phase) * 0.25f);
-            truePeak = juce::jmax(truePeak, std::abs(interpolated));
-        }
-    }
-
-    if (numSamples >= 2)
-    {
-        state.previousSamples[0] = samples[numSamples - 2];
-        state.previousSamples[1] = samples[numSamples - 1];
-        state.previousSampleCount = 2;
-    }
-    else if (numSamples == 1)
-    {
-        state.previousSamples[0] = state.previousSamples[1];
-        state.previousSamples[1] = samples[0];
-        state.previousSampleCount =
-            juce::jmin(2, state.previousSampleCount + 1);
-    }
-
-    return truePeak;
+    if (truePeakOversampling != nullptr)
+        truePeakOversampling->reset();
 }
 
 Voxline::Dsp::MeterFrame Voxline::Dsp::BallisticMeter::measureBlock(
     const juce::AudioBuffer<float>& buffer) noexcept
 {
+    if (clearClipHoldRequested.exchange(false, std::memory_order_acq_rel))
+        clipHeld = false;
+
     MeterFrame frame;
     frame.channelCount = juce::jlimit(0, 2, buffer.getNumChannels());
     const auto numSamples = buffer.getNumSamples();
@@ -128,6 +65,14 @@ Voxline::Dsp::MeterFrame Voxline::Dsp::BallisticMeter::measureBlock(
         for (int sample = 0; sample < numSamples; ++sample)
             if (std::abs(samples[sample]) >= 1.0f)
                 clipHeld = true;
+    }
+
+    juce::dsp::AudioBlock<float> oversampledBlock;
+    if (truePeakOversampling != nullptr && numSamples > 0)
+    {
+        const juce::dsp::AudioBlock<const float> inputBlock(buffer);
+        oversampledBlock =
+            truePeakOversampling->processSamplesUp(inputBlock);
     }
 
     for (int channel = 0; channel < frame.channelCount; ++channel)
@@ -150,8 +95,19 @@ Voxline::Dsp::MeterFrame Voxline::Dsp::BallisticMeter::measureBlock(
                       std::sqrt(sumOfSquares / static_cast<double>(numSamples)))
                 : channelStates[static_cast<size_t>(channel)].rms;
         auto& state = channelStates[static_cast<size_t>(channel)];
-        const auto truePeak =
-            measureTruePeak(samples, numSamples, state, samplePeak);
+        auto truePeak = samplePeak;
+
+        if (static_cast<size_t>(channel) < oversampledBlock.getNumChannels())
+        {
+            const auto* oversampled =
+                oversampledBlock.getChannelPointer(
+                    static_cast<size_t>(channel));
+            for (size_t sample = 0;
+                 sample < oversampledBlock.getNumSamples();
+                 ++sample)
+                truePeak =
+                    juce::jmax(truePeak, std::abs(oversampled[sample]));
+        }
 
         state.peak =
             smoothBlock(state.peak, samplePeak, peakAttackCoefficient,
@@ -175,5 +131,5 @@ Voxline::Dsp::MeterFrame Voxline::Dsp::BallisticMeter::measureBlock(
 
 void Voxline::Dsp::BallisticMeter::clearClipHold() noexcept
 {
-    clipHeld = false;
+    clearClipHoldRequested.store(true, std::memory_order_release);
 }

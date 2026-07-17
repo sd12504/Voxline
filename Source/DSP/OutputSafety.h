@@ -2,6 +2,8 @@
 
 #include "DspTypes.h"
 
+#include <atomic>
+
 namespace Voxline::Dsp
 {
 class EmergencySoftClipper
@@ -13,6 +15,6 @@ public:
     static float transfer(float sample) noexcept;
 
 private:
-    bool active {};
+    std::atomic<bool> activeSnapshot {false};
 };
 }
