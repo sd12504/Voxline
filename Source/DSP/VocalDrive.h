@@ -57,9 +57,12 @@ private:
     float currentTrimDb {};
     float currentMatchGain {1.0f};
     float targetMatchGain {1.0f};
+    float currentLevelMatchWeight {1.0f};
+    float currentWetEnable {};
     float characterFade {1.0f};
 
     float parameterCoefficient {};
+    float baseParameterCoefficient {};
     float matchCoefficient {};
     float toneCoefficient {};
     int dryWritePosition {};

@@ -49,6 +49,8 @@ void VocalDrive::prepare(const ModuleSpec& spec)
         moduleSpec.sampleRate * static_cast<double>(1u << oversamplingStages);
     parameterCoefficient =
         smoothingCoefficient(oversampledRate, parameterSmoothingMs);
+    baseParameterCoefficient =
+        smoothingCoefficient(moduleSpec.sampleRate, parameterSmoothingMs);
     matchCoefficient =
         smoothingCoefficient(moduleSpec.sampleRate, levelMatchSmoothingMs);
     toneCoefficient = static_cast<float>(std::exp(
@@ -75,6 +77,8 @@ void VocalDrive::reset() noexcept
     currentTrimDb = targetSettings.outputTrimDb;
     currentMatchGain = 1.0f;
     targetMatchGain = 1.0f;
+    currentLevelMatchWeight = targetSettings.levelMatch ? 1.0f : 0.0f;
+    currentWetEnable = targetSettings.amount > 0.0f ? 1.0f : 0.0f;
     previousCharacter = targetSettings.character;
     currentCharacter = targetSettings.character;
     characterFade = 1.0f;
@@ -104,9 +108,6 @@ void VocalDrive::process(juce::AudioBuffer<float>& audio) noexcept
 {
     if (! prepared || oversampling == nullptr
         || audio.getNumSamples() <= 0 || audio.getNumChannels() <= 0)
-        return;
-
-    if (currentAmount == 0.0f && targetSettings.amount == 0.0f)
         return;
 
     const auto channels = juce::jmin(audio.getNumChannels(), moduleSpec.channels);
@@ -158,13 +159,6 @@ void VocalDrive::process(juce::AudioBuffer<float>& audio) noexcept
             advance(currentAmount, targetSettings.amount, parameterCoefficient);
         currentTone =
             advance(currentTone, targetSettings.tone, parameterCoefficient);
-        currentMix =
-            advance(currentMix, targetSettings.mix, parameterCoefficient);
-        currentTrimDb =
-            advance(currentTrimDb,
-                    targetSettings.outputTrimDb,
-                    parameterCoefficient);
-
         characterFade = juce::jmin(1.0f, characterFade + fadeStep);
 
         for (int channel = 0; channel < channels; ++channel)
@@ -203,8 +197,7 @@ void VocalDrive::process(juce::AudioBuffer<float>& audio) noexcept
             wetEnergy += static_cast<double>(wet) * wet;
         }
 
-    if (targetSettings.levelMatch
-        && inputEnergy > 1.0e-12 && wetEnergy > 1.0e-12)
+    if (inputEnergy > 1.0e-12 && wetEnergy > 1.0e-12)
     {
         targetMatchGain = juce::jlimit(
             0.03f,
@@ -220,18 +213,36 @@ void VocalDrive::process(juce::AudioBuffer<float>& audio) noexcept
     {
         currentMatchGain =
             advance(currentMatchGain, targetMatchGain, matchCoefficient);
+        currentLevelMatchWeight =
+            advance(currentLevelMatchWeight,
+                    targetSettings.levelMatch ? 1.0f : 0.0f,
+                    baseParameterCoefficient);
+        currentWetEnable =
+            advance(currentWetEnable,
+                    targetSettings.amount > 0.0f ? 1.0f : 0.0f,
+                    baseParameterCoefficient);
+        currentMix =
+            advance(currentMix,
+                    targetSettings.mix,
+                    baseParameterCoefficient);
+        currentTrimDb =
+            advance(currentTrimDb,
+                    targetSettings.outputTrimDb,
+                    baseParameterCoefficient);
         const auto trimGain =
             juce::Decibels::decibelsToGain(currentTrimDb);
 
         for (int channel = 0; channel < channels; ++channel)
         {
             const auto dry = delayedDry.getSample(channel, sample);
-            const auto wet = audio.getSample(channel, sample)
-                           * (targetSettings.levelMatch
-                                  ? currentMatchGain
-                                  : 1.0f);
-            const auto output =
+            const auto matchGain =
+                1.0f
+                + currentLevelMatchWeight * (currentMatchGain - 1.0f);
+            const auto wet = audio.getSample(channel, sample) * matchGain;
+            const auto processed =
                 (dry + currentMix * (wet - dry)) * trimGain;
+            const auto output =
+                dry + currentWetEnable * (processed - dry);
             audio.setSample(channel, sample,
                             std::isfinite(output) ? output : 0.0f);
         }
