@@ -476,7 +476,7 @@ VoxlineAudioProcessorEditor::VoxlineAudioProcessorEditor(VoxlineAudioProcessor& 
     configureTextLabel(spaceAmountLabel, "24%", juce::Justification::centredRight);
 
     // Footer — V2 visible
-    configureTextLabel(footerLabel, "VOXLINE 2.0.0  |  SADTONY", juce::Justification::centred);
+    configureTextLabel(footerLabel, "VOXLINE 2.1  |  SADTONY", juce::Justification::centred);
 
     // V2 labels — drawn via paint() for now; label components kept for text storage
     logoLabel.setVisible(false);
